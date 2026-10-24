@@ -83,10 +83,11 @@ export async function installPipx(deps: PipxInstallDeps = {}): Promise<CommandRe
 
   const timeout = 15 * 60 * 1000;
   if (plan.shell) {
+    const commandLine = [plan.command, ...plan.args].join(' ');
     if (deps.runShell !== undefined) {
-      return deps.runShell(plan.command, { timeout });
+      return deps.runShell(commandLine, { timeout });
     }
-    const result = spawnSync(plan.command, {
+    const result = spawnSync(commandLine, {
       shell: true,
       stdio: 'inherit',
       timeout

@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { ensurePipxPath, pipxInstallHint, pipxInstallPlan, pipxUserBinDirs } from '../src/utils/pipx.js';
+import {
+  ensurePipxPath,
+  installPipx,
+  pipxInstallHint,
+  pipxInstallPlan,
+  pipxUserBinDirs
+} from '../src/utils/pipx.js';
 
 test('pipxInstallPlan prefiere brew en macOS', () => {
   const plan = pipxInstallPlan('darwin', (command) => command === 'brew' || command === 'python3');
@@ -63,4 +69,34 @@ test('pipxUserBinDirs incluye Scripts de APPDATA en Windows', () => {
 
 test('pipxInstallHint siempre propone una vía de instalación', () => {
   assert.ok(pipxInstallHint().includes('pipx'));
+});
+
+test('installPipx ejecuta la línea completa cuando el plan usa shell', async () => {
+  let executed = '';
+  const result = await installPipx({
+    platform: 'linux',
+    hasCommand: (command) => command === 'sudo' || command === 'apt-get',
+    runShell: (command) => {
+      executed = command;
+      return { code: 0, stdout: '', stderr: '' };
+    }
+  });
+
+  assert.equal(result.code, 0);
+  assert.equal(executed, 'sudo apt-get install -y pipx');
+});
+
+test('installPipx ejecuta el comando sin shell cuando el plan lo permite', async () => {
+  const calls: string[] = [];
+  const result = await installPipx({
+    platform: 'darwin',
+    hasCommand: (command) => command === 'brew',
+    run: async (command, args) => {
+      calls.push([command, ...args].join(' '));
+      return { code: 0, stdout: '', stderr: '' };
+    }
+  });
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(calls, ['brew install pipx']);
 });
