@@ -1,0 +1,56 @@
+{
+  "name": "alvaress",
+  "version": "0.1.0",
+  "description": "Orquestador SDD multiagente con JEV, Aider, OpenSpec, Obsidian y Graphify para OpenCode y Claude",
+  "author": "alvaress contributors",
+  "type": "module",
+  "bin": {
+    "alvaress": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "oxlint --deny=correctness --deny=suspicious src test",
+    "typecheck": "tsc --noEmit",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "test": "node --import tsx --test test/*.test.ts",
+    "pretest": "npm run build",
+    "validate": "npm run lint && npm run typecheck && npm run typecheck:test",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run validate && npm test"
+  },
+  "keywords": [
+    "alvaress",
+    "harness",
+    "openspec",
+    "obsidian",
+    "graphify",
+    "aider",
+    "jev",
+    "typesafe",
+    "opencode",
+    "claude",
+    "sdd",
+    "agents"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxlint": "^1.89.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
