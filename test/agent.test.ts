@@ -22,6 +22,11 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /No envíes secretos a JEV/);
   assert.match(rendered, /Bóveda Obsidian/);
   assert.match(rendered, /Obsidian es un espejo/);
+  assert.match(rendered, /Personalidad y estilo de respuesta/);
+  assert.match(rendered, /modismos mexicanos ligeros/);
+  assert.match(rendered, /máximo 3 líneas de texto/);
+  assert.match(rendered, /Lista de cambios principales/);
+  assert.match(rendered, /no pegues logs completos/i);
 });
 
 test('installAgent escribe el agente global y el del proyecto', () => {

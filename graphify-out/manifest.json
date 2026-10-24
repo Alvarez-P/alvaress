@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792812768.4345937,
-    "seen": 1792812809.4950695,
-    "ast_hash": "fc909bdea6e067785cbd061ff0787a9e",
+    "mtime": 1792814041.294556,
+    "seen": 1792814050.4476583,
+    "ast_hash": "38f6bf3ca9e543add1f6c64fe536a4a3",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
@@ -246,9 +246,9 @@
     "semantic_hash": ""
   },
   "src/agent/installer.ts": {
-    "mtime": 1792812856.182587,
-    "seen": 1792812870.4186053,
-    "ast_hash": "a7ff1dbc14222e505a0494ec72e0492e",
+    "mtime": 1792814033.918556,
+    "seen": 1792814050.4475923,
+    "ast_hash": "3b375c49a3f9966930bf32ccfb471d73",
     "semantic_hash": ""
   },
   "src/commands/agent.ts": {
@@ -270,9 +270,9 @@
     "semantic_hash": ""
   },
   "test/agent.test.ts": {
-    "mtime": 1792812859.4625869,
-    "seen": 1792812870.4186492,
-    "ast_hash": "17135b9344935ca37ef83297f0f46384",
+    "mtime": 1792814038.294556,
+    "seen": 1792814050.4476364,
+    "ast_hash": "0de3e23f1cae6e9ca9f8e14e841d2034",
     "semantic_hash": ""
   },
   "test/jev.test.ts": {
@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "test/reliability.test.ts": {
-    "mtime": 1792812574.0545955,
-    "seen": 1792812809.495063,
-    "ast_hash": "9a552aefaa9288215122546fe1fa1857",
+    "mtime": 1792813795.470563,
+    "seen": 1792814050.4476514,
+    "ast_hash": "6e9cad879a449efe97f9b20b6df26b08",
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {

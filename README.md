@@ -107,6 +107,9 @@ Su prompt incluye:
 - La prohibición de enviar secretos o código completo a JEV.
 - Reglas de eficiencia de tokens: Graphify antes de `grep`/`read`, lecturas
   localizadas y resúmenes en lugar de logs completos.
+- Personalidad amigable, con modismos mexicanos ligeros y ocasionales, y
+  respuestas cortas por defecto: estado, cambios principales y validación. El
+  detalle solo se explica si el usuario lo pide.
 
 Puedes ver o reinstalar el agente sin ejecutar el instalador interactivo:
 
