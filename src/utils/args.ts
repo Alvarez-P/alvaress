@@ -14,6 +14,7 @@ const BOOLEAN_FLAGS = new Set([
   'gate',
   'no-cache',
   'no-redact',
+  'yes',
   'json'
 ]);
 

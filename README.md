@@ -35,16 +35,27 @@ cambio. Si Ollama no está disponible, el agente sigue funcionando con heurísti
 
 ## Requisitos
 
-- Node.js 20 o superior y **pnpm** (gestor por defecto; npm solo si el proyecto lo exige).
-- Git recomendado; el instalador detecta repositorios por `.git` o `package.json`.
-- `aider` en el `PATH` para ejecutar tareas con Aider.
-- Opcional: `pipx` y Python para que el instalador instale `aider-chat` y
-  `graphify` (el paquete de PyPI se llama `graphifyy`).
-- Opcional: Ollama. El instalador lo instala si falta (brew, winget o el script de
-  Linux) y descarga el modelo elegido (`kev` o `laya`). `kev` necesita Ollama
-  0.40.4 o superior; `laya`, 0.40.0 o superior.
-- Opcional: Obsidian. El instalador lo detecta y, si falta, intenta instalarlo y
-  crea la bóveda global (`~/Obsidian` por defecto).
+Solo hay dos dependencias que debes instalar tú; el resto lo resuelve
+`alvaress install`:
+
+- **Node.js 20 o superior** y **pnpm** (gestor por defecto; npm solo si el
+  proyecto lo exige).
+- **pipx** (con Python 3.10+) para que el instalador pueda instalar Aider y
+  Graphify. Si no está, el instalador se detiene y te dice cómo instalarlo.
+
+El instalador se encarga de lo demás:
+
+- **Aider**: instala `aider-chat` con `pipx` si falta.
+- **Graphify**: instala el paquete `graphifyy` con `pipx` si falta.
+- **Ollama**: lo instala si falta (brew, winget o el script oficial de Linux),
+  lo arranca si está apagado y descarga el modelo elegido (`kev` o `laya`).
+  `kev` necesita Ollama 0.40.4 o superior; `laya`, 0.40.0 o superior.
+- **Obsidian**: lo detecta y, si falta, intenta instalarlo; la bóveda se crea
+  igualmente (`~/Obsidian` por defecto).
+- **Oxlint, TypeScript y `@types/node`** en el proyecto, si hay `package.json`.
+
+Git es recomendado: el instalador detecta repositorios por `.git` o
+`package.json`.
 
 ## Instalación
 
@@ -58,12 +69,24 @@ También puedes ejecutarlo sin instalación global:
 pnpm dlx alvaress --help
 ```
 
+### Instalación desatendida
+
+`alvaress install --yes` selecciona todos los componentes, usa la configuración
+existente o los valores por defecto y no hace ninguna pregunta. Instala lo que
+falte (Aider, Graphify, Ollama y el modelo de decisión), crea `openspec.yaml` si
+el proyecto es un repositorio y no crea `.alvaressrc.json`. Si no hay API key del
+implementador, avisa al terminar para que la añadas antes de usar Aider.
+
 ## Inicio rápido
 
 ```bash
 # 1. Instalador interactivo: agente, skills, componentes y configuración
 #    Elige kev o laya cuando te pregunte por el modelo de decisión.
 alvaress install
+
+# Sin preguntas (CI o setup desatendido): instala todo con los valores actuales
+# o los defaults, incluido Ollama y el modelo de decisión.
+alvaress install --yes
 
 # 2. Inicializa el proyecto (manifiesto, tareas, skills y agente local)
 alvaress init
@@ -130,7 +153,7 @@ alvaress agent install --no-project
 
 | Comando | Descripción |
 | --- | --- |
-| `alvaress install` | Instalador interactivo de agente, Obsidian, Graphify, Aider y dependencias de validación. Detecta o instala Obsidian, crea la bóveda si falta, y genera la configuración global y, si procede, la local y `openspec.yaml`. |
+| `alvaress install [--yes]` | Instalador de agente, Obsidian, Graphify, Aider, Ollama, modelo de decisión y dependencias de validación. Detecta o instala lo que falte, crea la bóveda, y genera la configuración global y, si procede, la local y `openspec.yaml`. `--yes` no pregunta nada. |
 | `alvaress init [--no-link]` | Crea `.harness/tasks`, `.harness/skills`, `openspec.yaml` (si falta), las skills y el agente del proyecto. Si `obsidianVaultPath` está configurado, conecta la bóveda. Con `--no-link` no crea enlaces ni agente global. |
 | `alvaress apply [TASK...] [--dry-run] [--force] [--update-graph]` | Ejecuta las tareas pendientes (o los ids indicados) con Aider. `--dry-run` muestra los grupos sin invocar a Aider ni modificar el manifiesto. `--force` ignora un lock huérfano y `--update-graph` actualiza Graphify al terminar. |
 | `alvaress verify <TASK_ID>` | Ejecuta los comandos de validación (los de la tarea o los del proyecto) y, si fallan, pide a Aider una reparación automática. |

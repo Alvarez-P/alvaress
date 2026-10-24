@@ -21,7 +21,7 @@ import { logger } from './utils/logger.js';
 const HELP = `${PACKAGE_NAME} ${VERSION}
 
 Uso:
-  alvaress install                    Instalador interactivo de componentes, agente y configuración.
+  alvaress install [--yes]            Instalador interactivo de componentes, agente y configuración.
   alvaress init [--no-link]          Inicializa .harness, openspec.yaml, skills y agente del proyecto.
   alvaress apply [TASK...]           Ejecuta tareas pendientes (o las indicadas) con Aider.
   alvaress apply --dry-run            Muestra los grupos de ejecución sin invocar a Aider.
@@ -67,7 +67,10 @@ export async function runCli(argv: string[]): Promise<void> {
 
   switch (command) {
     case 'install': {
-      await runInstall(process.cwd());
+      const { flags } = parseArgs(rest);
+      await runInstall(process.cwd(), {
+        yes: flagEnabled(flags, 'yes') || flagEnabled(flags, 'y')
+      });
       return;
     }
     case 'init': {

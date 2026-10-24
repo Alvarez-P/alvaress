@@ -74,70 +74,116 @@ const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
   }
 ];
 
-export async function runInstall(root: string = process.cwd()): Promise<void> {
+export interface InstallRuntime {
+  commandExists: typeof commandExists;
+  runCommand: typeof runCommand;
+  loadConfig: typeof loadConfig;
+  getConfigPaths: typeof getConfigPaths;
+  saveGlobalConfig: typeof saveGlobalConfig;
+  detectObsidian: typeof detectObsidian;
+  installObsidian: typeof installObsidian;
+  connectObsidianVault: typeof connectObsidianVault;
+  installSkills: typeof installSkills;
+  installAgent: typeof installAgent;
+  detectOllama: typeof detectOllama;
+  installOllama: typeof installOllama;
+  waitForOllama: typeof waitForOllama;
+  ensureOllamaRunning: typeof ensureOllamaRunning;
+  pullOllamaModel: typeof pullOllamaModel;
+}
+
+const DEFAULT_RUNTIME: InstallRuntime = {
+  commandExists,
+  runCommand,
+  loadConfig,
+  getConfigPaths,
+  saveGlobalConfig,
+  detectObsidian,
+  installObsidian,
+  connectObsidianVault,
+  installSkills,
+  installAgent,
+  detectOllama,
+  installOllama,
+  waitForOllama,
+  ensureOllamaRunning,
+  pullOllamaModel
+};
+
+export interface InstallOptions {
+  yes?: boolean;
+  runtime?: Partial<InstallRuntime>;
+}
+
+export async function runInstall(
+  root: string = process.cwd(),
+  options: InstallOptions = {}
+): Promise<void> {
+  const runtime: InstallRuntime = { ...DEFAULT_RUNTIME, ...options.runtime };
+  const yes = options.yes === true;
+
   p.intro('alvaress · instalador');
 
   ensureHarnessDirs(root);
-  let config = loadConfig(root);
-  const paths = getConfigPaths(root);
+  let config = runtime.loadConfig(root);
+  const paths = runtime.getConfigPaths(root);
 
-  const selected = unwrap(
-    await p.multiselect<Component>({
-      message: 'Selecciona los componentes a instalar',
-      options: COMPONENTS,
-      initialValues: [...COMPONENT_VALUES],
-      required: false
-    })
-  );
+  const selected: Component[] = yes
+    ? [...COMPONENT_VALUES]
+    : unwrap(
+        await p.multiselect<Component>({
+          message: 'Selecciona los componentes a instalar',
+          options: COMPONENTS,
+          initialValues: [...COMPONENT_VALUES],
+          required: false
+        })
+      );
 
   if (selected.length === 0) {
     p.log.warn('No seleccionaste componentes de sistema. Se configurará el proyecto igualmente.');
   }
 
   let obsidianVaultPath: string | undefined;
+  let obsidianChanged = false;
   if (selected.includes('obsidian')) {
-    await ensureObsidianInstalled();
-    obsidianVaultPath = await configureObsidian(config.obsidianVaultPath);
+    await ensureObsidianInstalled(runtime);
+    obsidianVaultPath = await configureObsidian(config.obsidianVaultPath, yes);
     if (obsidianVaultPath !== config.obsidianVaultPath) {
       config = { ...config, obsidianVaultPath };
-      if (pathExists(paths.global)) {
-        saveGlobalConfig(config);
-        p.log.success('Ruta de la bóveda actualizada en la configuración global.');
-      }
+      obsidianChanged = true;
     }
   }
 
   if (selected.includes('graphify')) {
-    await installGraphify();
+    await installGraphify(runtime);
   }
 
   if (selected.includes('aider')) {
-    await installAider();
+    await installAider(runtime);
   }
 
   if (selected.includes('validation')) {
-    await installValidationDependencies(root, config);
+    await installValidationDependencies(root, config, runtime);
   }
 
   let decisionChanged = false;
   if (selected.includes('decision')) {
-    config = await configureDecision(config);
+    config = await configureDecision(config, yes, runtime);
     decisionChanged = true;
   }
 
   if (!pathExists(paths.global)) {
-    config = await promptFullConfig(config);
-    saveGlobalConfig(config);
+    config = yes ? config : await promptFullConfig(config);
+    runtime.saveGlobalConfig(config);
     p.log.success(`Configuración global creada en ${paths.global}`);
+  } else if (decisionChanged || obsidianChanged) {
+    runtime.saveGlobalConfig(config);
+    p.log.success('Configuración global actualizada.');
   } else {
-    if (decisionChanged) {
-      saveGlobalConfig(config);
-      p.log.success('Modelo de decisión actualizado en la configuración global.');
-    }
     p.log.info(`Configuración global detectada en ${paths.global}`);
   }
 
-  if (isRepository(root) && !pathExists(paths.local)) {
+  if (!yes && isRepository(root) && !pathExists(paths.local)) {
     const createLocal = unwrap(
       await p.confirm({
         message: '¿Crear .alvaressrc.json con overrides locales para este repositorio?',
@@ -152,12 +198,14 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
   }
 
   if (isRepository(root) && !pathExists(getManifestPath(root))) {
-    const createManifest = unwrap(
-      await p.confirm({
-        message: '¿Crear openspec.yaml con la estructura inicial del proyecto?',
-        initialValue: true
-      })
-    );
+    const createManifest = yes
+      ? true
+      : unwrap(
+          await p.confirm({
+            message: '¿Crear openspec.yaml con la estructura inicial del proyecto?',
+            initialValue: true
+          })
+        );
     if (createManifest) {
       scaffoldManifest(root);
       p.log.success('openspec.yaml creado.');
@@ -165,7 +213,7 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
   }
 
   if (obsidianVaultPath !== undefined) {
-    const connection = connectObsidianVault(root, obsidianVaultPath);
+    const connection = runtime.connectObsidianVault(root, obsidianVaultPath);
     p.log.success(`Bóveda conectada: ${connection.harnessDir}`);
     p.log.info(`Enlace de tareas: ${connection.tasksLink} (${connection.tasksLinkResult})`);
     if (connection.manifestLink !== undefined) {
@@ -173,7 +221,7 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
     }
   }
 
-  const report = installSkills(root);
+  const report = runtime.installSkills(root);
   p.log.success(`Skills del proyecto escritas en ${relativeTo(root, report.skillsDir)}`);
 
   const skipped = report.links.filter((link) => link.result === 'skipped');
@@ -184,7 +232,7 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
   p.log.info(`Enlaces globales de skills actualizados: ${linked}`);
 
   if (selected.includes('agent')) {
-    const agent = installAgent(root, { global: true, project: true });
+    const agent = runtime.installAgent(root, { global: true, project: true });
     for (const file of agent.files) {
       p.log.success(`Agente ${agent.name} instalado en ${file}`);
     }
@@ -192,6 +240,16 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
       p.log.success(`Subagente instalado en ${file}`);
     }
     p.log.info('En OpenCode, selecciona el agente "alvaress" con Tab o con --agent alvaress.');
+  }
+
+  const implementer = config.models.aiderImplementer;
+  const hasImplementerKey =
+    (implementer.apiKey ?? '').length > 0 ||
+    Object.values(implementer.env ?? {}).some((value) => value.length > 0);
+  if (yes && !hasImplementerKey) {
+    p.log.warn(
+      'No hay API key del implementador. Añádela en ~/.alvaressconfig.json o define DEEPSEEK_API_KEY para que Aider pueda trabajar.'
+    );
   }
 
   p.note(
@@ -207,8 +265,8 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
   p.outro('Instalación completada.');
 }
 
-async function ensureObsidianInstalled(): Promise<void> {
-  const status = detectObsidian();
+async function ensureObsidianInstalled(runtime: InstallRuntime): Promise<void> {
+  const status = runtime.detectObsidian();
   if (status.installed) {
     p.log.success(`Obsidian detectado (${status.method ?? 'instalado'}).`);
     return;
@@ -216,7 +274,7 @@ async function ensureObsidianInstalled(): Promise<void> {
 
   const spinner = p.spinner();
   spinner.start('Obsidian no está instalado. Instalando Obsidian y sus dependencias');
-  const result = await installObsidian();
+  const result = await runtime.installObsidian();
   if (result.installed) {
     spinner.stop(result.message);
     return;
@@ -227,16 +285,18 @@ async function ensureObsidianInstalled(): Promise<void> {
   p.log.info('La bóveda se creará igualmente; puedes instalar Obsidian después desde https://obsidian.md/download.');
 }
 
-async function configureObsidian(currentVault: string): Promise<string> {
+async function configureObsidian(currentVault: string, yes: boolean): Promise<string> {
   const suggested = currentVault.length > 0 ? currentVault : DEFAULT_OBSIDIAN_VAULT;
-  const answer = unwrap(
-    await p.text({
-      message: 'Ruta de la bóveda Obsidian',
-      placeholder: suggested,
-      defaultValue: suggested,
-      validate: validateWithDefault(suggested, 'La ruta de la bóveda es obligatoria.')
-    })
-  );
+  const answer = yes
+    ? suggested
+    : unwrap(
+        await p.text({
+          message: 'Ruta de la bóveda Obsidian',
+          placeholder: suggested,
+          defaultValue: suggested,
+          validate: validateWithDefault(suggested, 'La ruta de la bóveda es obligatoria.')
+        })
+      );
 
   const answerText = answer.trim().length > 0 ? answer.trim() : suggested;
   const vaultPath = path.resolve(expandHome(answerText));
@@ -249,19 +309,19 @@ async function configureObsidian(currentVault: string): Promise<string> {
   return vaultPath;
 }
 
-async function installGraphify(): Promise<void> {
+async function installGraphify(runtime: InstallRuntime): Promise<void> {
   const spinner = p.spinner();
   spinner.start('Comprobando Graphify');
-  if (commandExists('graphify')) {
+  if (runtime.commandExists('graphify')) {
     spinner.stop('Graphify ya está instalado.');
     return;
   }
-  if (!commandExists('pipx')) {
+  if (!runtime.commandExists('pipx')) {
     spinner.error('pipx no está disponible.');
     throw new Error('Instala pipx antes de continuar: https://pipx.pypa.io');
   }
   spinner.message('Instalando graphify con pipx');
-  const result = await runCommand('pipx', ['install', 'graphifyy']);
+  const result = await runtime.runCommand('pipx', ['install', 'graphifyy']);
   if (result.code !== 0) {
     spinner.error('No se pudo instalar Graphify.');
     throw new Error(`pipx install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
@@ -269,20 +329,20 @@ async function installGraphify(): Promise<void> {
   spinner.stop('Graphify instalado correctamente.');
 }
 
-async function installAider(): Promise<void> {
+async function installAider(runtime: InstallRuntime): Promise<void> {
   const spinner = p.spinner();
   spinner.start('Comprobando Aider');
-  const version = await runCommand('aider', ['--version']);
+  const version = await runtime.runCommand('aider', ['--version']);
   if (version.code === 0) {
     spinner.stop(`Aider ya está instalado: ${version.stdout.trim() || 'versión desconocida'}`);
     return;
   }
-  if (!commandExists('pipx')) {
+  if (!runtime.commandExists('pipx')) {
     spinner.error('pipx no está disponible.');
     throw new Error('Instala pipx antes de continuar: https://pipx.pypa.io');
   }
   spinner.message('Instalando aider-chat con pipx');
-  const result = await runCommand('pipx', ['install', 'aider-chat']);
+  const result = await runtime.runCommand('pipx', ['install', 'aider-chat']);
   if (result.code !== 0) {
     spinner.error('No se pudo instalar Aider.');
     throw new Error(`pipx install aider-chat falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
@@ -290,7 +350,11 @@ async function installAider(): Promise<void> {
   spinner.stop('Aider instalado correctamente.');
 }
 
-async function installValidationDependencies(root: string, config: HarnessConfig): Promise<void> {
+async function installValidationDependencies(
+  root: string,
+  config: HarnessConfig,
+  runtime: InstallRuntime
+): Promise<void> {
   const spinner = p.spinner();
   spinner.start('Comprobando dependencias de validación');
   if (!pathExists(path.join(root, 'package.json'))) {
@@ -298,14 +362,14 @@ async function installValidationDependencies(root: string, config: HarnessConfig
     return;
   }
   const manager = resolvePackageManager(config);
-  if (!commandExists(manager)) {
+  if (!runtime.commandExists(manager)) {
     spinner.error(`${manager} no está disponible.`);
     throw new Error(
       `Instala ${manager} antes de continuar. alvaress usa pnpm por defecto; puedes cambiarlo con "packageManager" en la configuración.`
     );
   }
   spinner.message(`Instalando oxlint, typescript y @types/node con ${manager}`);
-  const result = await runCommand(
+  const result = await runtime.runCommand(
     manager,
     packageManagerInstallArgs(manager, ['oxlint', 'typescript', '@types/node']),
     { cwd: root }
@@ -319,25 +383,31 @@ async function installValidationDependencies(root: string, config: HarnessConfig
   spinner.stop('Dependencias de validación instaladas.');
 }
 
-async function configureDecision(base: HarnessConfig): Promise<HarnessConfig> {
-  const model = await askDecisionModel(base.decision.model);
+async function configureDecision(
+  base: HarnessConfig,
+  yes: boolean,
+  runtime: InstallRuntime
+): Promise<HarnessConfig> {
+  const model = yes ? normalizeDecisionModel(base.decision.model) : await askDecisionModel(base.decision.model);
   const apiBase = base.decision.apiBase || DEFAULT_DECISION_BASE;
-  let status = await detectOllama(apiBase);
+  let status = await runtime.detectOllama(apiBase);
 
   if (!status.installed) {
-    const shouldInstall = unwrap(
-      await p.confirm({
-        message: 'Ollama no está instalado. ¿Instalarlo ahora?',
-        initialValue: true
-      })
-    );
+    const shouldInstall = yes
+      ? true
+      : unwrap(
+          await p.confirm({
+            message: 'Ollama no está instalado. ¿Instalarlo ahora?',
+            initialValue: true
+          })
+        );
     if (shouldInstall) {
       const spinner = p.spinner();
       spinner.start('Instalando Ollama');
-      const result = await installOllama();
+      const result = await runtime.installOllama();
       if (result.code === 0) {
         spinner.stop('Ollama instalado.');
-        status = await waitForOllama(apiBase);
+        status = await runtime.waitForOllama(apiBase);
       } else {
         spinner.stop('No se pudo instalar Ollama automáticamente.');
         p.log.warn(result.error ?? result.stderr.trim() ?? 'Instalación cancelada.');
@@ -350,7 +420,7 @@ async function configureDecision(base: HarnessConfig): Promise<HarnessConfig> {
 
   if (status.installed && !status.running) {
     p.log.info('Arrancando Ollama...');
-    status = await ensureOllamaRunning(apiBase);
+    status = await runtime.ensureOllamaRunning(apiBase);
     if (!status.running) {
       p.log.warn(`Ollama no responde en ${apiBase}. ${ollamaStartHint()}`);
     }
@@ -369,16 +439,18 @@ async function configureDecision(base: HarnessConfig): Promise<HarnessConfig> {
     if (hasOllamaModel(status.models, model)) {
       p.log.success(`Modelo ${model} ya instalado.`);
     } else {
-      const pull = unwrap(
-        await p.confirm({
-          message: `¿Descargar ${model} con "ollama pull ${model}"?`,
-          initialValue: true
-        })
-      );
+      const pull = yes
+        ? true
+        : unwrap(
+            await p.confirm({
+              message: `¿Descargar ${model} con "ollama pull ${model}"?`,
+              initialValue: true
+            })
+          );
       if (pull) {
         const spinner = p.spinner();
         spinner.start(`Descargando ${model}`);
-        const result = await pullOllamaModel(model);
+        const result = await runtime.pullOllamaModel(model);
         if (result.code === 0) {
           spinner.stop(`Modelo ${model} descargado.`);
         } else {
@@ -396,10 +468,14 @@ async function configureDecision(base: HarnessConfig): Promise<HarnessConfig> {
   return { ...base, decision: { ...base.decision, model, apiBase } };
 }
 
-async function askDecisionModel(defaultValue: string): Promise<DecisionModelName> {
-  const initial = (DECISION_MODELS as readonly string[]).includes(defaultValue)
-    ? (defaultValue as DecisionModelName)
+function normalizeDecisionModel(value: string): DecisionModelName {
+  return (DECISION_MODELS as readonly string[]).includes(value)
+    ? (value as DecisionModelName)
     : DEFAULT_DECISION_MODEL;
+}
+
+async function askDecisionModel(defaultValue: string): Promise<DecisionModelName> {
+  const initial = normalizeDecisionModel(defaultValue);
 
   return unwrap(
     await p.select<DecisionModelName>({

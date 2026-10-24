@@ -26,6 +26,10 @@ test('parseArgs mantiene booleanos conocidos sin consumir el siguiente argumento
     positional: ['TASK-01'],
     flags: { force: true, 'update-graph': true, 'no-lock': true }
   });
+  assert.deepEqual(parseArgs(['--yes', 'TASK-01']), {
+    positional: ['TASK-01'],
+    flags: { yes: true }
+  });
 });
 
 test('flagEnabled interpreta true y "true"', () => {
