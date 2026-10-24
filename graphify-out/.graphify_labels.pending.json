@@ -1,8 +1,8 @@
 {
-  "0": "reliability.test.ts",
+  "0": "agent/installer.ts",
   "1": "obsidian/installer.ts",
   "2": "package.json",
-  "3": "install.ts",
+  "3": "fs.ts",
   "4": "loader.ts",
   "5": "cli.ts",
   "6": "compilerOptions",
@@ -14,6 +14,7 @@
   "12": "decide.ts",
   "13": "install.ts",
   "14": "apply.ts",
+  "15": "verify.ts",
   "16": "scripts",
   "17": "devDependencies",
   "18": "dependencies",

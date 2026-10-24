@@ -1,25 +1,25 @@
 # Graph Report - alvaress  (2026-10-23)
 
 ## Corpus Check
-- 69 files · ~40,942 words
+- 71 files · ~41,948 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 4 file(s) not represented in the graph (top: (none) 4)
 
 ## Summary
-- 635 nodes · 1967 edges · 22 communities (19 shown, 3 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 22 edges (avg confidence: 0.87)
+- 645 nodes · 2008 edges · 23 communities (20 shown, 3 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 23 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f3589dc6`
+- Built from commit: `9cf3bbea`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- reliability.test.ts
+- agent/installer.ts
 - obsidian/installer.ts
 - package.json
-- install.ts
+- fs.ts
 - loader.ts
 - cli.ts
 - compilerOptions
@@ -31,6 +31,7 @@
 - decide.ts
 - install.ts
 - apply.ts
+- verify.ts
 - scripts
 - devDependencies
 - dependencies
@@ -65,31 +66,31 @@
 ## Import Cycles
 - None detected.
 
-## Communities (22 total, 3 thin omitted)
+## Communities (23 total, 3 thin omitted)
 
-### Community 0 - "reliability.test.ts"
-Cohesion: 0.11
-Nodes (26): agentFilePath(), AgentInstallOptions, installAgent(), installSubagents(), renderAgent(), renderSubagent(), shellAllow(), shellDeny() (+18 more)
+### Community 0 - "agent/installer.ts"
+Cohesion: 0.21
+Nodes (15): agentFilePath(), AgentInstallOptions, installAgent(), installSubagents(), renderAgent(), renderSubagent(), shellAllow(), shellDeny() (+7 more)
 
 ### Community 1 - "obsidian/installer.ts"
-Cohesion: 0.13
-Nodes (26): OllamaInstallDeps, detectObsidian(), downloadFile(), ensureObsidian(), fetchRelease(), installLinux(), installLinuxTarball(), installMac() (+18 more)
+Cohesion: 0.16
+Nodes (23): detectObsidian(), downloadFile(), ensureObsidian(), fetchRelease(), installLinux(), installLinuxTarball(), installMac(), installObsidian() (+15 more)
 
 ### Community 2 - "package.json"
 Cohesion: 0.10
 Nodes (20): author, description, files, keywords, license, main, name, packageManager (+12 more)
 
-### Community 3 - "install.ts"
-Cohesion: 0.11
-Nodes (36): @clack/prompts, askDecisionModel(), askMaxAttempts(), askPackageManager(), askRequired(), askSecret(), askText(), askValidationCommands() (+28 more)
+### Community 3 - "fs.ts"
+Cohesion: 0.12
+Nodes (31): runReportCommand(), CLAUDE_SKILLS_DIR, OPENCODE_SKILLS_DIR, SKILLS_DIR, TaskOutcome, getRunsDir(), listRunReports(), readLatestRun() (+23 more)
 
 ### Community 4 - "loader.ts"
-Cohesion: 0.08
-Nodes (39): assertBoolean(), assertModel(), assertPositiveInteger(), assertString(), assertStringList(), ConfigPaths, DecisionConfig, isRecord() (+31 more)
+Cohesion: 0.06
+Nodes (46): assertBoolean(), assertModel(), assertPositiveInteger(), assertString(), assertStringList(), ConfigPaths, DecisionConfig, HarnessConfigFile (+38 more)
 
 ### Community 5 - "cli.ts"
-Cohesion: 0.12
-Nodes (27): runCli(), runAgentCommand(), runArchiveCommand(), runDoctorCommand(), runRestoreCommand(), runSkillsCommand(), HARNESS_BACKUPS_DIR, OPENSPEC_FILENAME (+19 more)
+Cohesion: 0.14
+Nodes (26): runCli(), runAgentCommand(), runArchiveCommand(), runRestoreCommand(), runSkillsCommand(), HARNESS_BACKUPS_DIR, archiveSpec(), findWorkItem() (+18 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.11
@@ -101,11 +102,11 @@ Nodes (27): alvaress, `ask` (petición completa), `choose` (elegir entre opcione
 
 ### Community 8 - "ref_node_path"
 Cohesion: 0.10
-Nodes (26): interpolateCommands(), interpolateEnv(), interpolateEnvRecord(), mergeConfig(), config(), setupProject(), CLI, CliResult (+18 more)
+Nodes (26): interpolateCommands(), interpolateEnv(), interpolateEnvRecord(), mergeConfig(), setupProject(), CLI, CliResult, manifest() (+18 more)
 
 ### Community 9 - "install.ts"
-Cohesion: 0.07
-Nodes (70): AgentInstallReport, InitOptions, InitReport, runInit(), configureObsidian(), flagValue(), runObsidianCommand(), runState() (+62 more)
+Cohesion: 0.08
+Nodes (66): @clack/prompts, AgentInstallReport, InitOptions, InitReport, runInit(), askDecisionModel(), askMaxAttempts(), askPackageManager() (+58 more)
 
 ### Community 10 - "SYSTEM PROMPT: GENERADOR DEL INSTALADOR Y ARNÉS DE AGENTES (ESTILO GENTLE AI)"
 Cohesion: 0.14
@@ -116,16 +117,20 @@ Cohesion: 0.29
 Nodes (6): ./tsconfig.json, compilerOptions, noEmit, rootDir, extends, include
 
 ### Community 12 - "decide.ts"
-Cohesion: 0.10
-Nodes (45): Cómo encaja todo, buildDecideRequest(), ChoiceOption, DEFAULT_COMPLEXITY_LEVELS, DEFAULT_PATH_OPTIONS, maybeRedact(), ParsedDecisionArgs, parseDecisionArgs() (+37 more)
+Cohesion: 0.08
+Nodes (53): Cómo encaja todo, buildDecideRequest(), ChoiceOption, DEFAULT_COMPLEXITY_LEVELS, DEFAULT_PATH_OPTIONS, maybeRedact(), ParsedDecisionArgs, parseDecisionArgs() (+45 more)
 
 ### Community 13 - "install.ts"
-Cohesion: 0.06
-Nodes (75): runConfigCommand(), DecideCommandDeps, check(), DoctorCheck, DoctorCommandDeps, DoctorDeps, DoctorStatus, runDoctor() (+67 more)
+Cohesion: 0.10
+Nodes (48): runConfigCommand(), DecideCommandDeps, check(), DoctorCheck, DoctorCommandDeps, DoctorDeps, DoctorStatus, runDoctor() (+40 more)
 
 ### Community 14 - "apply.ts"
-Cohesion: 0.08
-Nodes (46): TASKS_DIR, buildTaskDocument(), collectWorkItems(), contextPath(), createScaffoldManifest(), defaultAcceptance(), ensureTaskFile(), inferBoundedContexts() (+38 more)
+Cohesion: 0.06
+Nodes (59): HARNESS_DIR, HARNESS_LOCK_FILENAME, updateGraph(), buildTaskDocument(), collectWorkItems(), contextPath(), createScaffoldManifest(), defaultAcceptance() (+51 more)
+
+### Community 15 - "verify.ts"
+Cohesion: 0.10
+Nodes (31): GRAPHIFY_DIR, GRAPHIFY_GRAPH_FILENAME, OllamaInstallDeps, GraphStatus, IGNORED_DIRECTORIES, SOURCE_EXTENSIONS, ObsidianInstallerDeps, AiderRunOptions (+23 more)
 
 ### Community 16 - "scripts"
 Cohesion: 0.14
@@ -155,13 +160,13 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.085) - this node is a cross-community bridge._
 - **What connects `@commitlint/cli`, `@commitlint/config-conventional`, `@types/node` to the rest of the system?**
   _9 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `reliability.test.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.11174242424242424 - nodes in this community are weakly interconnected._
-- **Why does `yaml` connect `package.json` to `apply.ts`?**
-  _High betweenness centrality (0.058) - this node is a cross-community bridge._
-- **Should `obsidian/installer.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.13227513227513227 - nodes in this community are weakly interconnected._
-- **Why does `score()` connect `decide.ts` to `harness-stack`?**
-  _High betweenness centrality (0.053) - this node is a cross-community bridge._
 - **Should `package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.09523809523809523 - nodes in this community are weakly interconnected._
+- **Why does `yaml` connect `package.json` to `apply.ts`?**
+  _High betweenness centrality (0.056) - this node is a cross-community bridge._
+- **Should `fs.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.11707317073170732 - nodes in this community are weakly interconnected._
+- **Why does `score()` connect `decide.ts` to `harness-stack`?**
+  _High betweenness centrality (0.052) - this node is a cross-community bridge._
+- **Should `loader.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.05957767722473605 - nodes in this community are weakly interconnected._

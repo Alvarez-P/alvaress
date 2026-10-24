@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "src/commands/install.ts": {
-    "mtime": 1792817510.9144576,
-    "seen": 1792817556.8279788,
-    "ast_hash": "ec980a69d70a9751717f6bd71d268a05",
+    "mtime": 1792818077.6224475,
+    "seen": 1792818156.1787329,
+    "ast_hash": "d1a3c24215f556d1d9e0e033427353fa",
     "semantic_hash": ""
   },
   "src/commands/skills.ts": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792817495.8464596,
-    "seen": 1792817556.828039,
-    "ast_hash": "8245c7bd4133fa19c402bd3df98f9626",
+    "mtime": 1792818125.378446,
+    "seen": 1792818156.1787972,
+    "ast_hash": "14e9d75db3172ce50340023a2575050e",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
@@ -426,9 +426,21 @@
     "semantic_hash": ""
   },
   "test/install-command.test.ts": {
-    "mtime": 1792817456.914461,
-    "seen": 1792817556.8280225,
-    "ast_hash": "d732fc77ba7c01a432022b788bef0d4e",
+    "mtime": 1792818117.9424462,
+    "seen": 1792818156.1787798,
+    "ast_hash": "ef532566a0b5048aa6b0dfbe7c510749",
+    "semantic_hash": ""
+  },
+  "src/utils/pipx.ts": {
+    "mtime": 1792818053.7744482,
+    "seen": 1792818156.178766,
+    "ast_hash": "5dc26daf9546383c7c7dcbfdb732db97",
+    "semantic_hash": ""
+  },
+  "test/pipx.test.ts": {
+    "mtime": 1792818140.3904457,
+    "seen": 1792818156.1787891,
+    "ast_hash": "7d5a3d19734ed7e50480e53611a5c69d",
     "semantic_hash": ""
   }
 }
