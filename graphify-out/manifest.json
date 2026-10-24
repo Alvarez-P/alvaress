@@ -1,8 +1,8 @@
 {
   "package.json": {
-    "mtime": 1792816539.0291977,
-    "seen": 1792816895.2899623,
-    "ast_hash": "dbdcb5e8232fcfb802238c1219638bd7",
+    "mtime": 1792818627.5184302,
+    "seen": 1792818672.2142234,
+    "ast_hash": "146bde077c09648c9823e5849b38b289",
     "semantic_hash": ""
   },
   "src/cli.ts": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792818125.378446,
-    "seen": 1792818156.1787972,
-    "ast_hash": "14e9d75db3172ce50340023a2575050e",
+    "mtime": 1792818608.9504309,
+    "seen": 1792818672.2143009,
+    "ast_hash": "a5e785319e105b27a7dc86eed5759060",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
@@ -441,6 +441,18 @@
     "mtime": 1792818179.0744445,
     "seen": 1792818190.4320002,
     "ast_hash": "a0d08ffeb61d418aa447bb658e403028",
+    "semantic_hash": ""
+  },
+  "skills-lock.json": {
+    "mtime": 1792818331.0304391,
+    "seen": 1792818672.2142265,
+    "ast_hash": "6e510314703bbc327cf10cd32e40bc2b",
+    "semantic_hash": ""
+  },
+  "assets/alvaress-flow.svg": {
+    "mtime": 1792818506.7824335,
+    "seen": 1792818672.214304,
+    "ast_hash": "6f176ce39d5a0fadb398edfa4b13a853",
     "semantic_hash": ""
   }
 }
