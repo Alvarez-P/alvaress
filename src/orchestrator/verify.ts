@@ -12,6 +12,10 @@ export interface VerifyOptions {
   files?: string[];
   env?: NodeJS.ProcessEnv;
   config?: HarnessConfig;
+  commands?: string[];
+  requireCommands?: boolean;
+  aiderTimeoutMs?: number;
+  logFile?: string;
 }
 
 export interface ValidationFailure {
@@ -48,11 +52,18 @@ export function formatValidationFailure(failure: ValidationFailure): string {
 export async function verifyAndRepairTask(taskId: string, options: VerifyOptions = {}): Promise<boolean> {
   const root = options.root ?? process.cwd();
   const config = options.config ?? loadConfig(root);
-  const commands = config.validation.commands;
+  const commands = options.commands ?? config.validation.commands;
+  const requireCommands = options.requireCommands ?? config.validation.requireCommands ?? true;
   const maxAttempts = Math.max(1, config.validation.maxAttempts || 1);
   let attempts = 0;
 
   if (commands.length === 0) {
+    if (requireCommands) {
+      logger.error(
+        `[Validación] La tarea ${taskId} no tiene comandos de validación. Configura "validation.commands" o "validation" en la tarea.`
+      );
+      return false;
+    }
     logger.warn(`No hay comandos de validación configurados para la tarea ${taskId}.`);
     return true;
   }
@@ -71,7 +82,7 @@ export async function verifyAndRepairTask(taskId: string, options: VerifyOptions
 
     const accumulatedError = formatValidationFailure(failure);
     logger.warn(
-      `[Self-Healing] Errores detectados en la tarea ${taskId}. Iniciando intento de reparación automática ${attempts}/${maxAttempts}...`
+      `[Self-Healing] Errores detectados en la tarea ${taskId}. Iniciando reparación automática ${attempts}/${maxAttempts - 1}...`
     );
 
     const implementer = config.models.aiderImplementer;
@@ -85,15 +96,15 @@ export async function verifyAndRepairTask(taskId: string, options: VerifyOptions
       readFiles: pathExists(path.join(root, taskDocument)) ? [taskDocument] : [],
       cwd: root,
       env: { ...buildAiderEnv(config), ...options.env },
-      inherit: true
+      inherit: false,
+      timeoutMs: options.aiderTimeoutMs ?? config.aider?.timeoutMs,
+      logFile: options.logFile,
+      extraArgs: config.aider?.extraArgs
     });
 
-    if (repair.code !== 0) {
-      logger.error(
-        `[Error] Fallo crítico al invocar el proceso de reparación de Aider: ${
-          repair.error ?? commandOutput(repair.stdout, repair.stderr)
-        }`
-      );
+    if (repair.code !== 0 && repair.error !== undefined) {
+      logger.error(`[Error] No se pudo ejecutar la reparación de Aider: ${repair.error}`);
+      break;
     }
   }
 

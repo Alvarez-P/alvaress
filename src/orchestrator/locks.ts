@@ -26,6 +26,41 @@ function createsConflict(left: WorkItem, right: WorkItem): boolean {
   return left.spec.context === right.spec.context || sharesFiles(left, right);
 }
 
+function dependsOn(left: WorkItem, right: WorkItem): boolean {
+  return (left.task.depends_on ?? []).includes(right.task.id);
+}
+
+function orderGroup(group: WorkItem[]): WorkItem[] {
+  const byId = new Map(group.map((item) => [item.task.id, item]));
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const result: WorkItem[] = [];
+
+  const visit = (item: WorkItem): void => {
+    if (visited.has(item.task.id)) {
+      return;
+    }
+    if (visiting.has(item.task.id)) {
+      throw new Error(`Dependencia circular detectada en la tarea ${item.task.id}.`);
+    }
+    visiting.add(item.task.id);
+    for (const dependency of item.task.depends_on ?? []) {
+      const dependencyItem = byId.get(dependency);
+      if (dependencyItem !== undefined) {
+        visit(dependencyItem);
+      }
+    }
+    visiting.delete(item.task.id);
+    visited.add(item.task.id);
+    result.push(item);
+  };
+
+  for (const item of [...group].toSorted((left, right) => (left.task.priority ?? 100) - (right.task.priority ?? 100))) {
+    visit(item);
+  }
+  return result;
+}
+
 export function groupWorkItems(items: WorkItem[]): WorkItem[][] {
   const parent = items.map((_, index) => index);
 
@@ -51,6 +86,9 @@ export function groupWorkItems(items: WorkItem[]): WorkItem[][] {
       if (createsConflict(items[left], items[right])) {
         union(left, right);
       }
+      if (dependsOn(items[left], items[right]) || dependsOn(items[right], items[left])) {
+        union(left, right);
+      }
     }
   }
 
@@ -65,12 +103,18 @@ export function groupWorkItems(items: WorkItem[]): WorkItem[][] {
     }
   }
 
-  return [...groups.values()];
+  return [...groups.values()].map((group) => orderGroup(group));
 }
 
 export function describeGroups(groups: WorkItem[][]): string[] {
   return groups.map((group, index) => {
-    const tasks = group.map((item) => `${item.spec.id}/${item.task.id}`).join(', ');
+    const tasks = group
+      .map((item) => {
+        const dependencies = item.task.depends_on ?? [];
+        const suffix = dependencies.length > 0 ? ` (deps: ${dependencies.join(', ')})` : '';
+        return `${item.spec.id}/${item.task.id}${suffix}`;
+      })
+      .join(', ');
     const contexts = [...new Set(group.map((item) => item.spec.context))].join(', ');
     return `Grupo ${index + 1} [${contexts}]: ${tasks}`;
   });

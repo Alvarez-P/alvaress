@@ -34,7 +34,7 @@ Si no hay API key de TypeSafe, el agente sigue funcionando con heurísticas.
 
 ## Requisitos
 
-- Node.js 20 o superior y npm.
+- Node.js 20 o superior y **pnpm** (gestor por defecto; npm solo si el proyecto lo exige).
 - Git recomendado; el instalador detecta repositorios por `.git` o `package.json`.
 - `aider` en el `PATH` para ejecutar tareas con Aider.
 - Opcional: `pipx` y Python para que el instalador instale `aider-chat` y `graphify`.
@@ -45,13 +45,13 @@ Si no hay API key de TypeSafe, el agente sigue funcionando con heurísticas.
 ## Instalación
 
 ```bash
-npm install -g alvaress
+pnpm add -g alvaress
 ```
 
 También puedes ejecutarlo sin instalación global:
 
 ```bash
-npx alvaress --help
+pnpm dlx alvaress --help
 ```
 
 ## Inicio rápido
@@ -88,6 +88,16 @@ El instalador escribe el agente en dos sitios:
 Es un agente `primary`, seleccionable con **Tab** en OpenCode o con
 `opencode run --agent alvaress`. No cambia tu agente por defecto.
 
+Además instala tres subagentes `subagent` en la misma carpeta:
+
+- `alvaress-explorer`: solo lectura, para localizar código y contexto.
+- `alvaress-implementer`: implementa una tarea SDD dentro de un alcance cerrado.
+- `alvaress-verifier`: ejecuta la validación y devuelve el error exacto sin editar.
+
+Los tres tienen la bóveda Obsidian como solo lectura y no pueden hacer `git push`,
+`git reset --hard` ni `rm -rf`. El orquestador es el único que ejecuta
+`alvaress apply`, `alvaress obsidian note` y `alvaress archive`.
+
 Su prompt incluye:
 
 - El flujo SDD obligatorio: entender → decidir → ejecutar → validar → cerrar.
@@ -113,12 +123,16 @@ alvaress agent install --no-project
 | --- | --- |
 | `alvaress install` | Instalador interactivo de agente, Obsidian, Graphify, Aider y dependencias de validación. Detecta o instala Obsidian, crea la bóveda si falta, y genera la configuración global y, si procede, la local y `openspec.yaml`. |
 | `alvaress init [--no-link]` | Crea `.harness/tasks`, `.harness/skills`, `openspec.yaml` (si falta), las skills y el agente del proyecto. Si `obsidianVaultPath` está configurado, conecta la bóveda. Con `--no-link` no crea enlaces ni agente global. |
-| `alvaress apply [TASK...] [--dry-run]` | Ejecuta las tareas pendientes (o los ids indicados) con Aider. `--dry-run` muestra los grupos sin invocar a Aider ni modificar el manifiesto. |
-| `alvaress verify <TASK_ID>` | Ejecuta los comandos de validación y, si fallan, pide a Aider una reparación automática. |
+| `alvaress apply [TASK...] [--dry-run] [--force] [--update-graph]` | Ejecuta las tareas pendientes (o los ids indicados) con Aider. `--dry-run` muestra los grupos sin invocar a Aider ni modificar el manifiesto. `--force` ignora un lock huérfano y `--update-graph` actualiza Graphify al terminar. |
+| `alvaress verify <TASK_ID>` | Ejecuta los comandos de validación (los de la tarea o los del proyecto) y, si fallan, pide a Aider una reparación automática. |
+| `alvaress archive <SPEC_ID>` | Archiva una spec con todas sus tareas en `Done`; antes crea un backup del manifiesto. |
+| `alvaress doctor [--json]` | Diagnóstico previo: Node, configuración, gestor de paquetes, git, Aider, Graphify, Obsidian, manifiesto, comandos de validación, frescura del grafo y locks. |
+| `alvaress report [latest\|list\|show <id>]` | Muestra los reportes de ejecución guardados en `.harness/runs/`. |
+| `alvaress restore [--list\|latest\|<id>]` | Lista o restaura `openspec.yaml` desde `.harness/backups/`. |
 | `alvaress skills [--no-link]` | Reinstala las skills del proyecto y sus enlaces globales. |
-| `alvaress agent [install\|show]` | Instala el agente `alvaress` en OpenCode o imprime su prompt. |
-| `alvaress obsidian [status\|sync\|note]` | Consulta la bóveda y la nota del proyecto (`status`), las crea o repara (`sync`), o registra el cierre de una tarea en la nota (`note`). |
-| `alvaress jev <predict\|choose\|score\|ask>` | Consulta las decisiones tipadas de JEV. |
+| `alvaress agent [install\|show]` | Instala el agente `alvaress` y sus subagentes en OpenCode, o imprime el prompt del orquestador. |
+| `alvaress obsidian [status\|sync\|note]` | Consulta la bóveda y la nota del proyecto (`status`), las crea o repara (`sync`), o registra el cierre de una tarea (`note`, también con `--from-run latest`). |
+| `alvaress jev <decide\|predict\|choose\|score\|ask\|models>` | Consulta las decisiones tipadas de JEV. `decide` combina claridad, camino y complejidad en una sola llamada con caché. |
 | `alvaress config [show\|paths]` | Muestra la configuración resuelta (con secretos enmascarados) o las rutas de configuración. |
 
 Códigos de salida: `0` éxito, `1` error o tarea fallida, `2` error de JEV, `130`
@@ -219,11 +233,55 @@ alvaress jev models
 alvaress jev models --format text
 ```
 
+### `decide` (decisión compuesta con caché)
+
+Una sola llamada resuelve claridad, camino y complejidad. Las respuestas se
+cachean en `.harness/cache/jev/` durante 24 h por defecto; usa `--no-cache` para
+forzar una llamada nueva.
+
+```bash
+alvaress jev decide --state "Tres tareas pendientes con archivos definidos" --gate
+```
+
+- `--gate` devuelve exit code `1` si la claridad o la confianza no superan los
+  umbrales.
+- `--threshold` (claridad) y `--min-confidence` (camino) ajustan los umbrales.
+- El `state` se redacta antes de enviarse: claves, tokens y contraseñas se
+  sustituyen por `[REDACTED_*]`. Usa `--no-redact` solo si controlas el estado.
+
 ### Privacidad
 
 El `state` se envía a la API de TypeSafe. No incluyas claves, tokens, datos
 personales ni código propietario completo. Usa un resumen de 1-3 frases. El
-prompt del agente `alvaress` ya lo exige.
+prompt del agente `alvaress` ya lo exige y `alvaress` redacta secretos por defecto.
+
+## Confiabilidad y seguridad
+
+- **Lock global** en `.harness/lock`: impide dos `apply` simultáneos. Si el PID
+  dueño ya no existe o el lock supera 4 h, se considera huérfano; `--force` lo
+  reemplaza de forma explícita.
+- **Escritura atómica** de `openspec.yaml`, reportes, caché y nota de Obsidian
+  mediante archivo temporal + `rename`.
+- **Backups** del manifiesto en `.harness/backups/` antes de cada `apply` y
+  `archive`. `alvaress restore latest` recupera el último.
+- **Reportes de ejecución** en `.harness/runs/<id>-apply.json` con estado,
+  duración, archivos, alcance y validación de cada tarea. Los logs de Aider se
+  guardan junto al reporte.
+- **Control de alcance** con `git status`: `scope: "strict"` falla la tarea si
+  Aider toca archivos fuera de los asignados; `"warn"` (por defecto) solo avisa;
+  `"off"` lo desactiva.
+- **Timeout de Aider** configurable (`aider.timeoutMs`, 10 min por defecto) con
+  terminación `SIGTERM` y luego `SIGKILL`.
+- **Entorno saneado** para Aider: no hereda tokens de TypeSafe, npm ni GitHub.
+- **Caché de JEV** por hash de la petición y TTL configurable (`jev.cacheTtlMs`).
+- **Frescura de Graphify** comprobada por `doctor`; `apply --update-graph` o
+  `graphify.autoUpdate: true` lo actualizan al terminar.
+- **Permisos estrictos** en el agente y los subagentes: shell con allowlist,
+  `git push`/`reset --hard`/`rm -rf` denegados y bóveda de solo lectura para
+  subagentes.
+- **Redacción de secretos** antes de enviar a JEV y al escribir la nota de
+  Obsidian.
+- **CI** con pnpm en Node 20/22/24 y release con `pnpm publish --provenance`.
 
 ## Configuración
 
@@ -239,6 +297,11 @@ ninguno de los dos, se aplica el valor por defecto.
 ```json
 {
   "obsidianVaultPath": "/ruta/a/tu/boveda/obsidian",
+  "packageManager": "pnpm",
+  "scope": "warn",
+  "graphify": { "autoUpdate": false },
+  "aider": { "timeoutMs": 600000, "extraArgs": [], "inheritEnv": true },
+  "jev": { "cache": true, "cacheTtlMs": 86400000, "maxCalls": 3 },
   "models": {
     "jevOrchestrator": {
       "modelName": "jev-latest",
@@ -256,8 +319,8 @@ ninguno de los dos, se aplica el valor por defecto.
   "validation": {
     "maxAttempts": 3,
     "commands": [
-      "npx oxlint --deny=correctness --deny=suspicious",
-      "npx tsc --noEmit"
+      "pnpm exec oxlint --deny=correctness --deny=suspicious",
+      "pnpm exec tsc --noEmit"
     ]
   }
 }
@@ -270,8 +333,12 @@ Valores por defecto:
 | `models.jevOrchestrator.modelName` | `jev-latest` |
 | `models.jevOrchestrator.apiBase` | `https://api.typesafe.ai/v1` |
 | `models.aiderImplementer.modelName` | `deepseek/deepseek-chat` |
+| `packageManager` | `pnpm` |
+| `scope` | `warn` |
+| `aider.timeoutMs` | `600000` (10 min) |
+| `jev.cacheTtlMs` | `86400000` (24 h) |
 | `validation.maxAttempts` | `3` |
-| `validation.commands` | `npx oxlint --deny=correctness --deny=suspicious`, `npx tsc --noEmit` |
+| `validation.commands` | `pnpm exec oxlint --deny=correctness --deny=suspicious`, `pnpm exec tsc --noEmit` |
 
 El implementador recibe `DEEPSEEK_API_KEY` y `OPENAI_API_KEY` con `apiKey`, y
 `OPENAI_API_BASE` con `apiBase`. Las variables de `env` se añaden al subproceso de
@@ -299,9 +366,19 @@ specs:
       - id: "TASK-01"
         description: "Crear el repositorio de base de datos para facturas"
         status: "Pending"
+        priority: 10
+        estimate: "30m"
+        depends_on: ["TASK-00"]
+        validation:
+          - "pnpm exec tsc --noEmit"
+        rollback: "Revertir el repositorio y la migración"
         files:
           - "src/billing/repositories/invoice.repository.ts"
 ```
+
+`depends_on` ordena la ejecución real dentro del grupo; `validation` sustituye a
+los comandos globales para esa tarea; `priority` ordena tareas independientes;
+`estimate` y `rollback` documentan coste y vuelta atrás.
 
 Estados admitidos:
 
@@ -313,15 +390,18 @@ Los ids de tarea deben ser únicos en todo el manifiesto.
 
 ## Cómo funciona `apply`
 
-1. Lee las tareas con estado `Pending` (o los ids indicados) y las agrupa.
-2. Las tareas del mismo `context` o que comparten archivos (incluidos archivos
-   dentro de un mismo directorio) se ejecutan **secuencialmente**.
-3. Los grupos aislados se ejecutan **en paralelo** con `Promise.all`.
-4. Para cada tarea genera `.harness/tasks/<TASK_ID>.md`, marca la tarea como
+1. Adquiere el lock `.harness/lock` y crea un backup de `openspec.yaml`.
+2. Lee las tareas con estado `Pending` (o los ids indicados) y las agrupa.
+3. Las tareas del mismo `context` o que comparten archivos (incluidos archivos
+   dentro de un mismo directorio) se ejecutan **secuencialmente**, respetando
+   `depends_on` y `priority`.
+4. Los grupos aislados se ejecutan **en paralelo** con `Promise.all`.
+5. Para cada tarea genera `.harness/tasks/<TASK_ID>.md`, marca la tarea como
    `InProgress` y llama a Aider con el mensaje de la tarea y los archivos asignados.
-5. Al terminar Aider, ejecuta la validación local. Si falla, lanza un bucle de
-   reparación con Aider hasta `validation.maxAttempts`.
-6. Actualiza la tarea a `Done` o `Failed` y recalcula el estado del spec.
+6. Al terminar Aider, comprueba el alcance del diff y ejecuta la validación local.
+   Si falla, lanza un bucle de reparación con Aider hasta `validation.maxAttempts`.
+7. Actualiza la tarea a `Done` o `Failed`, recalcula el estado del spec y escribe
+   el reporte en `.harness/runs/`.
 
 El agente `alvaress` usa `apply --dry-run` antes de lanzar un lote y elige solo
 las tareas necesarias. Para cambios triviales evita Aider y edita directamente.
@@ -410,9 +490,11 @@ alvaress obsidian sync
 alvaress obsidian note \
   --task TASK-01 \
   --summary "Qué cambió" \
-  --validation "npm test: 123/123" \
+  --validation "pnpm test: 141/141" \
   --risk "Riesgos pendientes" \
   --next "Siguiente paso"
+
+alvaress obsidian note --from-run latest --task TASK-01
 ```
 
 - `status` muestra en JSON la bóveda configurada, si existe, la ruta de la nota y
@@ -424,10 +506,10 @@ alvaress obsidian note \
 ## Desarrollo
 
 ```bash
-npm install
-npm run validate   # lint + typecheck de src y test
-npm test           # build + pruebas con node:test y tsx
-npm run build      # compila a dist/
+pnpm install
+pnpm run validate   # lint + typecheck de src y test
+pnpm test           # build + pruebas con node:test y tsx
+pnpm run build      # compila a dist/
 ```
 
 Pruebas incluidas:
@@ -436,9 +518,11 @@ Pruebas incluidas:
 - Argumentos, utilidades de FS, enlaces simbólicos y skills.
 - Verificación y bucle self-healing con Aider simulado.
 - `apply` con grupos paralelos/secuenciales, fallos y dry-run.
-- Cliente JEV y comandos `predict`/`choose`/`score`/`ask` con `fetch` simulado.
+- Cliente JEV y comandos `decide`/`predict`/`choose`/`score`/`ask` con `fetch` simulado.
+- Caché de JEV, redacción de secretos, lock, backups, reportes y alcance del diff.
+- `doctor`, `report`, `restore`, `archive` y subagentes.
 - Detección e instalación de Obsidian, bóveda, nota y comandos `obsidian`.
-- Instalación del agente global y de proyecto.
+- Instalación del agente global, de proyecto y de subagentes.
 - CLI de extremo a extremo con `dist/`.
 
 ## Estructura del paquete
@@ -446,15 +530,16 @@ Pruebas incluidas:
 ```text
 src/
 ├── cli.ts
-├── agent/           prompt e instalación del agente alvaress
-├── commands/        install, init, agent, jev, obsidian, skills, config
+├── agent/           prompt, subagentes e instalación
+├── commands/        install, init, agent, jev, obsidian, skills, config, doctor, report, restore, archive
 ├── config/          loader con precedencia global/local
-├── jev/             cliente de TypeSafe System One
+├── graphify/        estado y actualización del grafo
+├── jev/             cliente de TypeSafe System One y caché
 ├── openspec/        manifiesto y tipos
-├── orchestrator/    agrupación, Aider, verificación y apply
+├── orchestrator/    agrupación, Aider, verificación, apply, backups, reportes y alcance
 ├── skills/          definición e instalación de skills
 ├── obsidian/        conexión con la bóveda
-└── utils/           args, errores, FS, logger, procesos y prompts
+└── utils/           args, errores, FS, lock, gestor de paquetes, redacción, logger y procesos
 test/                pruebas con node:test
 docs/spec.md         prompt original de generación del proyecto
 ```

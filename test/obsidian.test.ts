@@ -13,7 +13,7 @@ import { makeTempDir, writeFile, writeJson } from './helpers.js';
 test('renderVaultNote genera frontmatter y enlaces', () => {
   const note = renderVaultNote('demo-app');
 
-  assert.match(note, /^---\nproject: "demo-app"\nharness: true\n---/);
+  assert.match(note, /^---\nproject: "demo-app"\nharness: true\nstatus: active\n/);
   assert.match(note, /# demo-app/);
   assert.match(note, /\[\[Tasks\]\]/);
 });

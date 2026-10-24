@@ -23,6 +23,9 @@ export function runAgentCommand(args: string[], root: string = process.cwd()): v
     for (const file of report.files) {
       logger.success(`Agente ${report.name} instalado en ${file}`);
     }
+    for (const file of report.subagents) {
+      logger.success(`Subagente instalado en ${file}`);
+    }
     logger.info('Selecciónalo en OpenCode con Tab o con --agent alvaress.');
     return;
   }

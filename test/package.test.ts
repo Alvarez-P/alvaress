@@ -13,6 +13,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8')
   files: string[];
   engines: Record<string, string>;
   scripts: Record<string, string>;
+  packageManager: string;
 };
 
 test('package.json publica el binario y la versión correctos', () => {
@@ -24,6 +25,8 @@ test('package.json publica el binario y la versión correctos', () => {
     alvaress: 'dist/index.js'
   });
   assert.ok(pkg.files.includes('dist'));
+  assert.match(pkg.packageManager, /^pnpm@/);
+  assert.match(pkg.scripts.validate, /pnpm run/);
 });
 
 test('dist/index.js existe, tiene shebang y es el entrypoint', () => {

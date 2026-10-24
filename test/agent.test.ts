@@ -15,6 +15,7 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /alvaress jev predict/);
   assert.match(rendered, /alvaress jev choose/);
   assert.match(rendered, /alvaress jev score/);
+  assert.match(rendered, /alvaress jev decide --state/);
   assert.match(rendered, /alvaress apply --dry-run/);
   assert.match(rendered, /alvaress verify <TASK_ID>/);
   assert.match(rendered, /graphify query/);

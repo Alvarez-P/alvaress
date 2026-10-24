@@ -16,6 +16,7 @@ export interface AgentInstallOptions {
 export interface AgentInstallReport {
   name: string;
   files: string[];
+  subagents: string[];
 }
 
 export function agentFilePath(directory: string): string {
@@ -69,6 +70,18 @@ permissions:
     effect: allow
   - action: shell
     resource: "git show *"
+    effect: allow
+  - action: shell
+    resource: "pnpm test *"
+    effect: allow
+  - action: shell
+    resource: "pnpm run *"
+    effect: allow
+  - action: shell
+    resource: "pnpm exec *"
+    effect: allow
+  - action: shell
+    resource: "pnpm dlx *"
     effect: allow
   - action: shell
     resource: "npm test *"
@@ -146,6 +159,10 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 - Skills: \`.harness/skills/\` y \`~/.config/opencode/skills/\`
 - Grafo de código: \`graphify-out/graph.json\` y \`graphify-out/GRAPH_REPORT.md\`
 - Configuración: \`~/.alvaressconfig.json\` y \`.alvaressrc.json\`
+- Gestor de paquetes: \`pnpm\` por defecto (configurable con \`packageManager\`)
+- Ejecuciones: \`.harness/runs/\` (reportes y logs) y \`.harness/backups/\` (manifiesto)
+- Lock de ejecución: \`.harness/lock\` (evita dos \`apply\` simultáneos)
+- Caché de JEV: \`.harness/cache/jev/\`
 - Bóveda Obsidian (si está configurada): \`<bóveda>/Harness/\` contiene \`Tasks\`
   (enlace a \`.harness/tasks\`) y \`openspec.yaml\` (enlace al manifiesto)
 - Skills disponibles: \`read-spec-first\`, \`consult-graphify-ast\`,
@@ -170,6 +187,16 @@ JEV es un modelo de decisiones tipadas: devuelve probabilidades calibradas en
 milisegundos, no texto. Úsalo en los puntos de decisión, no en cada paso. Como
 máximo, haz 3 llamadas por solicitud. El \`state\` parte del resumen de la Fase 1 e
 incluye el contexto recuperado de la nota de Obsidian, sin secretos.
+
+La vía preferida es una sola llamada compuesta con gate y caché:
+
+\`\`\`sh
+alvaress jev decide --state "$STATE" --gate
+\`\`\`
+
+Devuelve claridad, camino y complejidad juntos. Exit code \`1\` significa que no
+supera los umbrales: pregunta o elige el camino conservador. Si necesitas afinar
+una decisión concreta, usa los comandos individuales de abajo.
 
 Comprueba primero si JEV está configurado:
 
@@ -234,8 +261,10 @@ Según la decisión:
 
 - **\`spec\`**: actualiza \`openspec.yaml\` con la spec, el contexto y las tareas.
   Cada tarea debe tener un id único, una descripción verificable y, si aplica, la
-  lista de archivos. Crea también \`.harness/tasks/<TASK_ID>.md\` si falta. Si hay
-  bóveda Obsidian, no dupliques el contenido: los enlaces ya reflejan los cambios.
+  lista de archivos. Usa las extensiones SDD cuando aporten:
+  \`depends_on\` (orden real), \`validation\` (comandos propios), \`priority\`,
+  \`estimate\` y \`rollback\`. Crea también \`.harness/tasks/<TASK_ID>.md\` si falta.
+  Si hay bóveda Obsidian, no dupliques el contenido: los enlaces ya reflejan los cambios.
 - **\`apply\`**: primero mira los grupos sin efectos secundarios:
   \`\`\`sh
   alvaress apply --dry-run
@@ -244,6 +273,8 @@ Según la decisión:
   \`\`\`sh
   alvaress apply <TASK_ID>
   \`\`\`
+  Si otra ejecución dejó un lock huérfano, comprueba con \`alvaress doctor\` antes de
+  usar \`--force\`. Usa \`--update-graph\` si el cambio altera la arquitectura.
 - **\`direct\`**: edita tú mismo los archivos localizados. Mantén el cambio pequeño y
   no toques archivos fuera del alcance.
 - **\`verify\`**: ejecuta \`alvaress verify <TASK_ID>\`.
@@ -258,8 +289,8 @@ alvaress verify <TASK_ID>
 \`\`\`
 
 Si no hay tarea asociada, ejecuta los comandos configurados en
-\`validation.commands\` (por defecto \`npx oxlint --deny=correctness --deny=suspicious\`
-y \`npx tsc --noEmit\`). Si fallan:
+\`validation.commands\` (por defecto \`pnpm exec oxlint --deny=correctness --deny=suspicious\`
+y \`pnpm exec tsc --noEmit\`). Si fallan:
 
 1. Lee el error real, no el resumen.
 2. Corrige la causa.
@@ -281,17 +312,22 @@ no una prueba.
 ### Fase 5 · Cerrar
 
 1. Actualiza el estado de la tarea si corresponde.
-2. Si hay bóveda Obsidian, registra el cierre con:
+2. Consulta el reporte de la ejecución con \`alvaress report latest\` si hubo un
+   \`apply\`; ahí están los archivos, el alcance y la validación real.
+3. Si hay bóveda Obsidian, registra el cierre con:
    \`\`\`sh
    alvaress obsidian note \\
+     --from-run latest \\
      --task <TASK_ID> \\
      --summary "<qué cambió>" \\
-     --validation "<comandos y resultado>" \\
      --risk "<riesgos>" \\
      --next "<siguiente paso>"
    \`\`\`
-   No edites la nota a mano ni dupliques el contenido de la tarea.
-3. Responde con:
+   Añade \`--objective\`, \`--architecture\` o \`--decision\` cuando cambie el estado
+   actual del proyecto. No edites la nota a mano ni dupliques el contenido de la tarea.
+4. Si todas las tareas de una spec están en \`Done\`, archívala con
+   \`alvaress archive <SPEC_ID>\`.
+5. Responde con:
 
 - **Qué cambió**: archivos y comportamiento.
 - **Validación**: comandos ejecutados y resultado.
@@ -300,16 +336,28 @@ no una prueba.
 
 ## Subagentes y Obsidian
 
-- Los subagentes de exploración pueden leer la nota del proyecto y los enlaces
-  \`Tasks\`/\`openspec.yaml\` para orientarse. No escriben en la bóveda.
-- Los subagentes de implementación escriben solo en el proyecto
-  (\`.harness/tasks/\`, \`openspec.yaml\` y código). La bóveda se actualiza sola por
-  los enlaces.
-- Los subagentes de verificación ejecutan los comandos locales y no tocan la
-  bóveda.
-- Cuando delegues, incluye en el prompt del subagente: "La bóveda Obsidian es de
-  solo lectura; no escribas en ella. Devuelve el resultado al orquestador."
-- Solo el orquestador ejecuta \`alvaress obsidian note\` al cerrar.
+Usa subagentes reales en lugar de hacer todo en el hilo principal:
+
+- **\`alvaress-explorer\`**: solo lectura. Úsalo para localizar código y entender
+  relaciones antes de decidir. Puede leer la nota del proyecto y los enlaces
+  \`Tasks\`/\`openspec.yaml\`, pero no escribe ni en el proyecto ni en la bóveda.
+- **\`alvaress-implementer\`**: implementa una única tarea SDD. Escribe solo en los
+  archivos asignados del proyecto (\`.harness/tasks/\`, \`openspec.yaml\` y código).
+  La bóveda se actualiza sola por los enlaces.
+- **\`alvaress-verifier\`**: ejecuta los comandos de validación y devuelve el error
+  exacto. No edita archivos ni toca la bóveda.
+
+Al delegar, incluye siempre:
+
+1. La ruta de \`openspec.yaml\` y el id de la tarea.
+2. Los archivos permitidos (alcance cerrado).
+3. La instrucción: "La bóveda Obsidian es de solo lectura; no escribas en ella.
+   Devuelve el resultado al orquestador."
+4. El formato de respuesta esperado (hallazgos, diff o error exacto).
+
+Solo el orquestador ejecuta \`alvaress apply\`, \`alvaress verify\`,
+\`alvaress obsidian note\` y \`alvaress archive\`. No delegues la decisión: delega
+la exploración, la implementación acotada y la verificación.
 
 ## Cómo usar Aider
 
@@ -346,12 +394,14 @@ export function installAgent(
   options: AgentInstallOptions = {}
 ): AgentInstallReport {
   const files: string[] = [];
+  const subagents: string[] = [];
 
   if (options.global !== false) {
     const directory = options.globalDir ?? getGlobalOpencodeAgentsDir();
     const file = agentFilePath(directory);
     writeTextFile(file, renderAgent());
     files.push(file);
+    subagents.push(...installSubagents(directory));
   }
 
   if (options.project !== false) {
@@ -359,7 +409,175 @@ export function installAgent(
     const file = agentFilePath(directory);
     writeTextFile(file, renderAgent());
     files.push(file);
+    subagents.push(...installSubagents(directory));
   }
 
-  return { name: AGENT_NAME, files };
+  return { name: AGENT_NAME, files, subagents };
+}
+
+export interface SubagentDefinition {
+  name: string;
+  description: string;
+  mode: 'subagent';
+  body: string;
+}
+
+export const SUBAGENTS: SubagentDefinition[] = [
+  {
+    name: 'alvaress-explorer',
+    description: 'Explorador de solo lectura para localizar código y contexto antes de decidir.',
+    mode: 'subagent',
+    body: `Eres el explorador de alvaress. No modificas nada: solo investigas y devuelves hallazgos.
+
+## Reglas
+
+1. No edites archivos, no ejecutes \`alvaress apply\`, \`alvaress verify\` ni \`alvaress obsidian note\`.
+2. La bóveda Obsidian es de solo lectura. Puedes leer la nota del proyecto y los enlaces \`Tasks\`/\`openspec.yaml\`; nunca escribas en ella.
+3. Usa \`graphify query\`, \`graphify explain\` o \`graphify path\` antes de \`grep\` o \`read\`.
+4. Lee solo los rangos de líneas necesarios.
+5. No incluyas secretos, tokens ni datos personales en tu respuesta.
+
+## Respuesta
+
+Devuelve al orquestador, en menos de 20 líneas:
+
+- Archivos y símbolos relevantes con ruta y línea.
+- Relaciones o dependencias que condicionan el cambio.
+- Riesgos y huecos de información.
+- Si el alcance propuesto es suficiente.`
+  },
+  {
+    name: 'alvaress-implementer',
+    description: 'Implementa una única tarea SDD dentro de los archivos asignados.',
+    mode: 'subagent',
+    body: `Eres el implementador de alvaress. Recibes una tarea SDD concreta y un alcance cerrado.
+
+## Reglas
+
+1. Lee \`openspec.yaml\` y \`.harness/tasks/<TASK_ID>.md\` antes de tocar código.
+2. Modifica solo los archivos asignados. Si necesitas otro archivo, detente y pídelo al orquestador.
+3. No añadas comentarios explicativos al código.
+4. Aplica patrones de diseño universales y mantén el tipado estricto.
+5. No ejecutes \`git push\`, \`git reset --hard\` ni \`rm -rf\`.
+6. La bóveda Obsidian es de solo lectura: no escribas en ella, no ejecutes \`alvaress obsidian note\`.
+7. Ejecuta la validación local de la tarea. Si falla, corrige y vuelve a validar.
+8. No archives specs ni cambies estados globales del manifiesto; eso corresponde al orquestador.
+
+## Respuesta
+
+Devuelve: archivos modificados, qué comportamiento cambió, comandos de validación ejecutados y su resultado, y cualquier riesgo residual.`
+  },
+  {
+    name: 'alvaress-verifier',
+    description: 'Ejecuta la validación local y devuelve el error exacto sin modificar código.',
+    mode: 'subagent',
+    body: `Eres el verificador de alvaress. No corriges código: compruebas y reportas.
+
+## Reglas
+
+1. No edites archivos ni ejecutes \`alvaress apply\`.
+2. Ejecuta los comandos de validación de la tarea o, si no existen, los de \`validation.commands\` del proyecto.
+3. Usa \`pnpm exec\` por defecto; respeta \`packageManager\` si el proyecto usa otro gestor.
+4. La bóveda Obsidian es de solo lectura: no la toques.
+5. No ocultes fallos ni resumas un error sin el mensaje real.
+
+## Respuesta
+
+Devuelve, por cada comando: comando exacto, exit code y las líneas de error relevantes (sin volcar logs completos). Termina con un veredicto: \`OK\` o \`FALLO\` y la causa raíz más probable.`
+  }
+];
+
+export function subagentFilePath(directory: string, name: string): string {
+  return path.join(directory, `${name}.md`);
+}
+
+function shellAllow(resources: string[]): string[] {
+  return resources.map((resource) => `  - action: shell\n    resource: "${resource}"\n    effect: allow`);
+}
+
+function shellDeny(resources: string[]): string[] {
+  return resources.map((resource) => `  - action: shell\n    resource: "${resource}"\n    effect: deny`);
+}
+
+function subagentPermissions(name: string): string[] {
+  const readPermissions = [
+    '  - action: read\n    resource: "*"\n    effect: allow',
+    '  - action: glob\n    resource: "*"\n    effect: allow',
+    '  - action: grep\n    resource: "*"\n    effect: allow'
+  ];
+
+  const common = [
+    ...readPermissions,
+    ...shellAllow(['graphify *', 'git status *', 'git diff *', 'git log *', 'git show *', 'rg *', 'grep *', 'sed -n *', 'find *', 'ls *']),
+    ...shellDeny(['git push *', 'git reset --hard *', 'rm -rf *'])
+  ];
+
+  if (name === 'alvaress-explorer') {
+    return [
+      ...common,
+      '  - action: edit\n    resource: "*"\n    effect: deny',
+      ...shellAllow(['alvaress obsidian status *', 'alvaress config show *', 'alvaress report *'])
+    ];
+  }
+
+  if (name === 'alvaress-verifier') {
+    return [
+      ...common,
+      '  - action: edit\n    resource: "*"\n    effect: deny',
+      ...shellAllow([
+        'alvaress doctor *',
+        'alvaress config show *',
+        'pnpm test *',
+        'pnpm run *',
+        'pnpm exec *',
+        'npm test *',
+        'npm run *',
+        'npx oxlint *',
+        'npx tsc *'
+      ]),
+      ...shellDeny(['alvaress obsidian note *', 'alvaress archive *'])
+    ];
+  }
+
+  return [
+    ...common,
+    '  - action: edit\n    resource: "*"\n    effect: allow',
+    ...shellAllow([
+      'alvaress verify *',
+      'alvaress doctor *',
+      'alvaress config show *',
+      'alvaress report *',
+      'pnpm test *',
+      'pnpm run *',
+      'pnpm exec *',
+      'npm test *',
+      'npm run *',
+      'npx oxlint *',
+      'npx tsc *'
+    ]),
+    ...shellDeny(['alvaress apply *', 'alvaress obsidian note *', 'alvaress archive *'])
+  ];
+}
+
+export function renderSubagent(subagent: SubagentDefinition): string {
+  return `---
+description: ${subagent.description}
+mode: ${subagent.mode}
+temperature: 0.1
+permissions:
+${subagentPermissions(subagent.name).join('\n')}
+---
+
+# ${subagent.name}
+
+${subagent.body}
+`;
+}
+
+export function installSubagents(directory: string): string[] {
+  return SUBAGENTS.map((subagent) => {
+    const file = subagentFilePath(directory, subagent.name);
+    writeTextFile(file, renderSubagent(subagent));
+    return file;
+  });
 }

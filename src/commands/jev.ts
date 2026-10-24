@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
+import { DEFAULT_JEV_CACHE_TTL_MS } from '../constants.js';
+import { readJevCache, writeJevCache } from '../jev/cache.js';
 import {
   choice,
   choiceAnswer,
@@ -12,12 +14,14 @@ import {
   score,
   scoreAnswer
 } from '../jev/client.js';
-import type { FetchLike, JevQuestion, JevRequest } from '../jev/client.js';
+import type { FetchLike, JevQuestion, JevRequest, JevResponse } from '../jev/client.js';
 import { errorMessage, JevError } from '../utils/errors.js';
+import { redactValue } from '../utils/redact.js';
 
 const HELP = `alvaress jev
 
 Uso:
+  alvaress jev decide  --state "<texto>" [--state-file <ruta>] [--gate]
   alvaress jev predict --state "<texto>" --question "<pregunta>" [--threshold 0.8]
   alvaress jev choose  --state "<texto>" --question "<pregunta>" --option clave="descripción" --option ...
   alvaress jev score   --state "<texto>" --question "<pregunta>" --level "nivel 0" --level "nivel 1" ...
@@ -33,8 +37,12 @@ Entrada de estado:
 Opciones:
   --format json|text       Salida JSON (por defecto) o solo el valor.
   --model <modelo>         Sobrescribe el modelo (por defecto jev-latest).
-  --threshold <0..1>       En predict, devuelve exit code 1 si la probabilidad no lo alcanza.
-  --min-confidence <0..1>  En choose, devuelve exit code 1 si la confianza no lo alcanza.
+  --threshold <0..1>       En predict/decide, exige claridad mínima.
+  --min-confidence <0..1>  En choose/decide, exige confianza mínima.
+  --gate                   En decide, devuelve exit 1 si no se superan los umbrales.
+  --no-cache               No lee ni escribe la caché local de decisiones.
+  --cache-ttl <ms>         TTL de la caché en milisegundos.
+  --no-redact              No redacta secretos del estado antes de enviarlo.
 
 Códigos de salida:
   0  Éxito (y gate superado, si existe).
@@ -42,6 +50,23 @@ Códigos de salida:
   2  Error de configuración, red o API.
 
 JEV es opcional: si no hay TYPESAFE_API_KEY, el agente alvaress continúa con heurísticas locales.`;
+
+const DEFAULT_CLARITY_QUESTION =
+  '¿La solicitud es suficientemente clara y completa para implementarse sin preguntas adicionales?';
+const DEFAULT_PATH_QUESTION = '¿Cuál es el siguiente paso más eficiente para resolver la solicitud?';
+const DEFAULT_COMPLEXITY_QUESTION = '¿Qué complejidad tiene el cambio?';
+const DEFAULT_PATH_OPTIONS: Record<string, string> = {
+  spec: 'Crear o actualizar la especificación y las tareas SDD',
+  apply: 'Ejecutar tareas pendientes con Aider',
+  direct: 'Implementar un cambio pequeño directamente',
+  verify: 'Validar y reparar una tarea existente',
+  answer: 'Responder sin modificar código'
+};
+const DEFAULT_COMPLEXITY_LEVELS = [
+  'trivial: un archivo, cambio local y reversible',
+  'media: varios archivos de un mismo bounded context',
+  'alta: varios contextos, migraciones o cambios de arquitectura'
+];
 
 interface ChoiceOption {
   key: string;
@@ -61,6 +86,10 @@ interface ParsedJevArgs {
   model?: string;
   request?: string;
   requestFile?: string;
+  cache?: boolean;
+  cacheTtlMs?: number;
+  redact?: boolean;
+  gate?: boolean;
   help: boolean;
 }
 
@@ -187,6 +216,21 @@ function parseJevArgs(args: string[]): ParsedJevArgs {
         index = next;
         break;
       }
+      case '--cache-ttl': {
+        const [value, next] = take(index, argument);
+        parsed.cacheTtlMs = parseNumber(value, argument);
+        index = next;
+        break;
+      }
+      case '--no-cache':
+        parsed.cache = false;
+        break;
+      case '--no-redact':
+        parsed.redact = false;
+        break;
+      case '--gate':
+        parsed.gate = true;
+        break;
       case '--help':
       case '-h':
         parsed.help = true;
@@ -295,6 +339,92 @@ async function readRequest(
   };
 }
 
+function maybeRedact(state: unknown, parsed: ParsedJevArgs): unknown {
+  return parsed.redact === false ? state : redactValue(state);
+}
+
+function buildDecideRequest(state: unknown): JevRequest {
+  return {
+    state,
+    questions: {
+      clarity: noul(DEFAULT_CLARITY_QUESTION),
+      path: choice(DEFAULT_PATH_QUESTION, DEFAULT_PATH_OPTIONS),
+      complexity: score(DEFAULT_COMPLEXITY_QUESTION, DEFAULT_COMPLEXITY_LEVELS)
+    }
+  };
+}
+
+function renderDecideText(result: {
+  clarity: { probability: number; pass: boolean };
+  path: { choice: string; confidence: number; pass: boolean };
+  complexity: { score: number; legend: Record<string, string> };
+}): string {
+  const complexity = result.complexity.legend[String(result.complexity.score)] ?? String(result.complexity.score);
+  return [
+    `Claridad: ${result.clarity.probability.toFixed(3)} (${result.clarity.pass ? 'OK' : 'preguntar'})`,
+    `Camino: ${result.path.choice} (${result.path.confidence.toFixed(3)}, ${result.path.pass ? 'OK' : 'revisar'})`,
+    `Complejidad: ${complexity} (${result.complexity.score})`
+  ].join('\n');
+}
+
+async function runDecide(
+  state: unknown,
+  parsed: ParsedJevArgs,
+  config: HarnessConfig,
+  root: string,
+  client: ReturnType<typeof resolveJevClient>,
+  stdout: (line: string) => void
+): Promise<number> {
+  const request = buildDecideRequest(state);
+  const cacheEnabled = parsed.cache !== false && (config.jev?.cache ?? true);
+  const ttl = parsed.cacheTtlMs ?? config.jev?.cacheTtlMs ?? DEFAULT_JEV_CACHE_TTL_MS;
+  let response: JevResponse | undefined = cacheEnabled
+    ? readJevCache(root, request, ttl)
+    : undefined;
+  const cached = response !== undefined;
+  if (response === undefined) {
+    response = await requestJev(request, client);
+    if (cacheEnabled) {
+      writeJevCache(root, request, response);
+    }
+  }
+
+  const clarity = noulAnswer(response, 'clarity');
+  const pathAnswer = choiceAnswer(response, 'path');
+  const complexity = scoreAnswer(response, 'complexity');
+  const clarityThreshold = parsed.threshold ?? 0.7;
+  const minConfidence = parsed.minConfidence ?? 0.55;
+  const result = {
+    type: 'decide' as const,
+    clarity: {
+      probability: clarity.noul,
+      threshold: clarityThreshold,
+      pass: clarity.noul >= clarityThreshold
+    },
+    path: {
+      choice: pathAnswer.choice,
+      confidence: pathAnswer.confidence,
+      minConfidence,
+      pass: pathAnswer.confidence >= minConfidence,
+      probabilities: pathAnswer.probabilities
+    },
+    complexity: {
+      score: complexity.score,
+      confidence: complexity.confidence,
+      legend: complexity.legend,
+      probabilities: complexity.probabilities
+    },
+    model: response.model,
+    cached
+  };
+
+  stdout(parsed.format === 'text' ? renderDecideText(result) : JSON.stringify(result));
+  if (parsed.gate === true && (!result.clarity.pass || !result.path.pass)) {
+    return 1;
+  }
+  return 0;
+}
+
 export async function runJevCommand(
   args: string[],
   root: string = process.cwd(),
@@ -341,12 +471,21 @@ export async function runJevCommand(
 
     if (subcommand === 'ask') {
       const request = await readRequest(parsed, readStdin);
-      const response = await requestJev(request, client);
+      const effectiveRequest =
+        parsed.redact === false
+          ? request
+          : { ...request, state: redactValue(request.state) };
+      const response = await requestJev(effectiveRequest, client);
       stdout(JSON.stringify(response));
       return 0;
     }
 
-    const state = await readState(parsed, readStdin);
+    const state = maybeRedact(await readState(parsed, readStdin), parsed);
+
+    if (subcommand === 'decide') {
+      return await runDecide(state, parsed, config, root, client, stdout);
+    }
+
     const question = requireQuestion(parsed);
 
     if (subcommand === 'predict' || subcommand === 'will' || subcommand === 'noul') {

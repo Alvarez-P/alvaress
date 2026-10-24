@@ -3,7 +3,7 @@ import path from 'node:path';
 import { parse, stringify } from 'yaml';
 import { HARNESS_DIR, OPENSPEC_FILENAME, TASKS_DIR } from '../constants.js';
 import { ManifestError, errorMessage } from '../utils/errors.js';
-import { ensureDir, pathExists, writeTextFile, writeTextFileIfMissing } from '../utils/fs.js';
+import { ensureDir, pathExists, writeTextFile, writeTextFileAtomic, writeTextFileIfMissing } from '../utils/fs.js';
 import type {
   BoundedContext,
   OpenSpecManifest,
@@ -120,6 +120,30 @@ export function parseManifest(raw: string): OpenSpecManifest {
           throw new ManifestError(`La tarea ${task.id} requiere que "files" sea una lista de cadenas.`);
         }
       }
+      if (task.acceptance !== undefined) {
+        if (!Array.isArray(task.acceptance) || task.acceptance.some((entry) => typeof entry !== 'string')) {
+          throw new ManifestError(`La tarea ${task.id} requiere que "acceptance" sea una lista de cadenas.`);
+        }
+      }
+      if (task.depends_on !== undefined) {
+        if (!Array.isArray(task.depends_on) || task.depends_on.some((entry) => typeof entry !== 'string')) {
+          throw new ManifestError(`La tarea ${task.id} requiere que "depends_on" sea una lista de cadenas.`);
+        }
+      }
+      if (task.validation !== undefined) {
+        if (!Array.isArray(task.validation) || task.validation.some((entry) => typeof entry !== 'string')) {
+          throw new ManifestError(`La tarea ${task.id} requiere que "validation" sea una lista de cadenas.`);
+        }
+      }
+      if (task.priority !== undefined && typeof task.priority !== 'number') {
+        throw new ManifestError(`La tarea ${task.id} requiere que "priority" sea un número.`);
+      }
+      if (task.estimate !== undefined && typeof task.estimate !== 'string') {
+        throw new ManifestError(`La tarea ${task.id} requiere que "estimate" sea una cadena.`);
+      }
+      if (task.rollback !== undefined && typeof task.rollback !== 'string') {
+        throw new ManifestError(`La tarea ${task.id} requiere que "rollback" sea una cadena.`);
+      }
       if (seen.has(task.id)) {
         throw new ManifestError(`El id de tarea "${task.id}" está duplicado en ${OPENSPEC_FILENAME}.`);
       }
@@ -149,7 +173,7 @@ export function serializeManifest(manifest: OpenSpecManifest): string {
 }
 
 export function saveManifest(manifest: OpenSpecManifest, root: string = process.cwd()): void {
-  writeTextFile(getManifestPath(root), serializeManifest(manifest));
+  writeTextFileAtomic(getManifestPath(root), serializeManifest(manifest));
 }
 
 export function createScaffoldManifest(projectName: string, contexts: BoundedContext[] = []): OpenSpecManifest {
@@ -207,7 +231,27 @@ export function findWorkItem(manifest: OpenSpecManifest, taskId: string): WorkIt
 
 export function collectWorkItems(manifest: OpenSpecManifest, taskIds?: string[]): WorkItem[] {
   if (taskIds && taskIds.length > 0) {
-    return taskIds.map((taskId) => findWorkItem(manifest, taskId));
+    const items: WorkItem[] = [];
+    const added = new Set<string>();
+    const addWithDependencies = (taskId: string): void => {
+      if (added.has(taskId)) {
+        return;
+      }
+      const item = findWorkItem(manifest, taskId);
+      for (const dependency of item.task.depends_on ?? []) {
+        if (!added.has(dependency)) {
+          addWithDependencies(dependency);
+        }
+      }
+      if (!added.has(taskId)) {
+        added.add(taskId);
+        items.push(item);
+      }
+    };
+    for (const taskId of taskIds) {
+      addWithDependencies(taskId);
+    }
+    return items;
   }
 
   const items: WorkItem[] = [];
@@ -231,6 +275,20 @@ export function setTaskStatus(manifest: OpenSpecManifest, taskId: string, status
 
 export function setSpecStatus(spec: OpenSpecSpec, status: SpecificationStatus): void {
   spec.status = status;
+}
+
+export function archiveSpec(manifest: OpenSpecManifest, specId: string): OpenSpecSpec {
+  const spec = manifest.specs.find((candidate) => candidate.id === specId);
+  if (spec === undefined) {
+    throw new ManifestError(`No existe el spec "${specId}" en ${OPENSPEC_FILENAME}.`);
+  }
+  if (spec.tasks.some((task) => task.status !== 'Done')) {
+    throw new ManifestError(
+      `No se puede archivar ${specId}: todavía tiene tareas que no están en estado Done.`
+    );
+  }
+  spec.status = 'Archived';
+  return spec;
 }
 
 export function refreshSpecStatus(spec: OpenSpecSpec): void {
@@ -267,10 +325,18 @@ export function buildTaskDocument(
     `- Task: ${task.id}`,
     `- Context: ${spec.context}`,
     `- Bounded context path: ${boundedContextPath || '(no definido)'}`,
+    `- Prioridad: ${task.priority ?? '(no definida)'}`,
+    `- Estimación: ${task.estimate ?? '(no definida)'}`,
     '',
     '## Descripción',
     '',
     task.description,
+    '',
+    '## Dependencias',
+    '',
+    ...(task.depends_on && task.depends_on.length > 0
+      ? task.depends_on.map((dependency) => `- ${dependency}`)
+      : ['- (ninguna)']),
     '',
     '## Archivos asignados',
     '',
@@ -279,6 +345,16 @@ export function buildTaskDocument(
     '## Criterios de aceptación',
     '',
     ...acceptance.map((criterion) => `- [ ] ${criterion}`),
+    '',
+    '## Validación',
+    '',
+    ...(task.validation && task.validation.length > 0
+      ? task.validation.map((command) => `- \`${command}\``)
+      : ['- Usar los comandos de `validation.commands` del proyecto.']),
+    '',
+    '## Rollback',
+    '',
+    task.rollback ?? 'Revertir los cambios de esta tarea y restaurar el estado anterior.',
     '',
     '## Restricciones',
     '',

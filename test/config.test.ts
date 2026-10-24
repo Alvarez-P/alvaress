@@ -68,9 +68,12 @@ test('mergeConfig usa valores por defecto sin configuración', () => {
   assert.deepEqual(merged.models.jevOrchestrator.env, {});
   assert.equal(merged.validation.maxAttempts, 3);
   assert.deepEqual(merged.validation.commands, [
-    'npx oxlint --deny=correctness --deny=suspicious',
-    'npx tsc --noEmit'
+    'pnpm exec oxlint --deny=correctness --deny=suspicious',
+    'pnpm exec tsc --noEmit'
   ]);
+  assert.equal(merged.packageManager, 'pnpm');
+  assert.equal(merged.scope, 'warn');
+  assert.equal(merged.validation.requireCommands, true);
 });
 
 test('loadConfig lee el archivo local del proyecto', () => {
@@ -158,7 +161,16 @@ test('toConfigFile conserva todas las claves del esquema', () => {
   const config: HarnessConfig = mergeConfig({}, {});
   const file = toConfigFile(config);
 
-  assert.deepEqual(Object.keys(file).toSorted(), ['models', 'obsidianVaultPath', 'validation']);
+  assert.deepEqual(Object.keys(file).toSorted(), [
+    'aider',
+    'graphify',
+    'jev',
+    'models',
+    'obsidianVaultPath',
+    'packageManager',
+    'scope',
+    'validation'
+  ]);
   assert.deepEqual(Object.keys(file.models ?? {}).toSorted(), ['aiderImplementer', 'jevOrchestrator']);
   assert.deepEqual(Object.keys(file.models?.jevOrchestrator ?? {}).toSorted(), [
     'apiBase',

@@ -216,14 +216,13 @@ test('applyTasks devuelve un reporte vacío sin tareas pendientes', async () => 
   try {
     const report = await applyTasks({ root: project.root });
 
-    assert.deepEqual(report, {
-      total: 0,
-      groups: 0,
-      verified: 0,
-      failed: 0,
-      skipped: 0,
-      results: []
-    });
+    assert.equal(report.total, 0);
+    assert.equal(report.groups, 0);
+    assert.equal(report.verified, 0);
+    assert.equal(report.failed, 0);
+    assert.equal(report.skipped, 0);
+    assert.deepEqual(report.results, []);
+    assert.ok(report.runId !== undefined);
   } finally {
     project.cleanup();
   }

@@ -26,9 +26,21 @@ export const DEFAULT_ORCHESTRATOR_MODEL = 'jev-latest';
 export const DEFAULT_IMPLEMENTER_MODEL = 'deepseek/deepseek-chat';
 export const DEFAULT_JEV_BASE = 'https://api.typesafe.ai/v1';
 export const DEFAULT_JEV_TIMEOUT_MS = 30000;
-export const DEFAULT_VALIDATION_COMMANDS = ['npx oxlint --deny=correctness --deny=suspicious', 'npx tsc --noEmit'];
+export const DEFAULT_JEV_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+export const DEFAULT_JEV_MAX_CALLS = 3;
+export const DEFAULT_VALIDATION_COMMANDS = ['pnpm exec oxlint --deny=correctness --deny=suspicious', 'pnpm exec tsc --noEmit'];
 export const DEFAULT_MAX_ATTEMPTS = 3;
+export const DEFAULT_PACKAGE_MANAGER = 'pnpm';
+export const DEFAULT_SCOPE = 'warn';
+export const DEFAULT_AIDER_TIMEOUT_MS = 10 * 60 * 1000;
 export const COMMAND_SEPARATOR = ';;';
+
+export const HARNESS_LOCK_FILENAME = 'lock';
+export const HARNESS_RUNS_DIR = path.join(HARNESS_DIR, 'runs');
+export const HARNESS_BACKUPS_DIR = path.join(HARNESS_DIR, 'backups');
+export const HARNESS_CACHE_DIR = path.join(HARNESS_DIR, 'cache');
+export const GRAPHIFY_DIR = 'graphify-out';
+export const GRAPHIFY_GRAPH_FILENAME = 'graph.json';
 
 export function getGlobalOpencodeAgentsDir(): string {
   return path.join(os.homedir(), '.config', 'opencode', OPENCODE_AGENTS_DIRNAME);

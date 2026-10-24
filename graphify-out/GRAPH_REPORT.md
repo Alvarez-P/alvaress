@@ -1,42 +1,49 @@
 # Graph Report - alvaress  (2026-10-23)
 
 ## Corpus Check
-- 51 files · ~26,636 words
+- 64 files · ~36,757 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 2 file(s) not represented in the graph (top: (none) 2)
 
 ## Summary
-- 441 nodes · 1248 edges · 14 communities
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 7 edges (avg confidence: 0.92)
+- 579 nodes · 1766 edges · 16 communities
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 7 edges (avg confidence: 0.92)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `cbf2ecff`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - manifest.ts
 - obsidian/installer.ts
 - package.json
-- install.ts
+- reliability.test.ts
 - loader.ts
-- verify.ts
+- apply.ts
 - compilerOptions
 - harness-stack
 - ref_node_path
-- cli.ts
+- pathExists
 - SYSTEM PROMPT: GENERADOR DEL INSTALADOR Y ARNÉS DE AGENTES (ESTILO GENTLE AI)
 - tsconfig.test.json
 - client.ts
 - install.ts
+- types.ts
+- agent/installer.ts
 
 ## God Nodes (most connected - your core abstractions)
-1. `pathExists()` - 29 edges
-2. `runInstall()` - 25 edges
-3. `runJevCommand()` - 20 edges
-4. `JevError` - 20 edges
-5. `loadConfig()` - 19 edges
-6. `connectObsidianVault()` - 19 edges
-7. `errorMessage()` - 18 edges
-8. `HarnessConfig` - 17 edges
-9. `compilerOptions` - 17 edges
-10. `ensureDir()` - 16 edges
+1. `pathExists()` - 41 edges
+2. `ensureDir()` - 27 edges
+3. `runInstall()` - 25 edges
+4. `errorMessage()` - 25 edges
+5. `runJevCommand()` - 24 edges
+6. `loadConfig()` - 23 edges
+7. `connectObsidianVault()` - 23 edges
+8. `HarnessConfig` - 21 edges
+9. `loadManifest()` - 21 edges
+10. `runCli()` - 20 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Desarrollo` --references--> `score()`  [INFERRED]
@@ -53,31 +60,31 @@
 ## Import Cycles
 - None detected.
 
-## Communities (14 total, 0 thin omitted)
+## Communities (16 total, 0 thin omitted)
 
 ### Community 0 - "manifest.ts"
-Cohesion: 0.10
-Nodes (39): buildTaskDocument(), collectWorkItems(), contextPath(), createScaffoldManifest(), defaultAcceptance(), ensureTaskFile(), findWorkItem(), inferBoundedContexts() (+31 more)
+Cohesion: 0.12
+Nodes (38): runCli(), runAgentCommand(), runArchiveCommand(), runDoctorCommand(), runInit(), runRestoreCommand(), runSkillsCommand(), archiveSpec() (+30 more)
 
 ### Community 1 - "obsidian/installer.ts"
 Cohesion: 0.14
-Nodes (28): ensureObsidianInstalled(), detectObsidian(), downloadFile(), ensureObsidian(), fetchRelease(), installLinux(), installLinuxTarball(), installMac() (+20 more)
+Nodes (25): detectObsidian(), downloadFile(), ensureObsidian(), fetchRelease(), installLinux(), installLinuxTarball(), installMac(), installObsidian() (+17 more)
 
 ### Community 2 - "package.json"
 Cohesion: 0.05
-Nodes (39): author, bin, alvaress, dependencies, @clack/prompts, yaml, description, devDependencies (+31 more)
+Nodes (41): author, bin, alvaress, dependencies, @clack/prompts, yaml, description, devDependencies (+33 more)
 
-### Community 3 - "install.ts"
+### Community 3 - "reliability.test.ts"
 Cohesion: 0.11
-Nodes (41): AgentInstallReport, InitOptions, InitReport, runInit(), isRepository(), runInstall(), CLAUDE_SKILLS_DIR, OPENCODE_SKILLS_DIR (+33 more)
+Nodes (32): runReportCommand(), HARNESS_CACHE_DIR, cacheDirectory(), CacheEntry, jevRequestHash(), readJevCache(), writeJevCache(), JevRequest (+24 more)
 
 ### Community 4 - "loader.ts"
-Cohesion: 0.09
-Nodes (36): runConfigCommand(), assertModel(), assertString(), ConfigPaths, getConfigPaths(), HarnessConfigFile, isRecord(), loadConfig() (+28 more)
+Cohesion: 0.07
+Nodes (51): runConfigCommand(), assertBoolean(), assertModel(), assertPositiveInteger(), assertString(), assertStringList(), ConfigPaths, getConfigPaths() (+43 more)
 
-### Community 5 - "verify.ts"
-Cohesion: 0.19
-Nodes (18): installAider(), installGraphify(), installValidationDependencies(), AiderRunOptions, buildAiderArgs(), buildAiderEnv(), runAider(), formatValidationFailure() (+10 more)
+### Community 5 - "apply.ts"
+Cohesion: 0.07
+Nodes (53): check(), DoctorCheck, DoctorCommandDeps, DoctorDeps, DoctorStatus, runDoctor(), ObsidianCommandDeps, HarnessConfig (+45 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.11
@@ -85,15 +92,15 @@ Nodes (18): compilerOptions, declaration, esModuleInterop, forceConsistentCasing
 
 ### Community 7 - "harness-stack"
 Cohesion: 0.08
-Nodes (23): alvaress, `ask` (petición completa), `choose` (elegir entre opciones), Comandos, Comandos de Obsidian, Configuración, Cómo funciona `apply`, Desarrollo (+15 more)
+Nodes (23): alvaress, `ask` (petición completa), `choose` (elegir entre opciones), Comandos, Comandos de Obsidian, Confiabilidad y seguridad, Configuración, Cómo funciona `apply` (+15 more)
 
 ### Community 8 - "ref_node_path"
-Cohesion: 0.11
-Nodes (25): ObsidianCommandDeps, HarnessConfig, mergeConfig(), ExecutionContext, VerifyOptions, config(), setupProject(), CLI (+17 more)
-
-### Community 9 - "cli.ts"
 Cohesion: 0.16
-Nodes (21): agentFilePath(), AgentInstallOptions, installAgent(), renderAgent(), runCli(), runAgentCommand(), flagValue(), runObsidianCommand() (+13 more)
+Nodes (17): setupProject(), CLI, CliResult, manifest(), project(), baseConfig(), fakeAider(), makeTempDir() (+9 more)
+
+### Community 9 - "pathExists"
+Cohesion: 0.10
+Nodes (47): AgentInstallReport, InitOptions, InitReport, flagValue(), runObsidianCommand(), runState(), summarizeRun(), CLAUDE_SKILLS_DIR (+39 more)
 
 ### Community 10 - "SYSTEM PROMPT: GENERADOR DEL INSTALADOR Y ARNÉS DE AGENTES (ESTILO GENTLE AI)"
 Cohesion: 0.14
@@ -104,31 +111,39 @@ Cohesion: 0.29
 Nodes (6): ./tsconfig.json, compilerOptions, noEmit, rootDir, extends, include
 
 ### Community 12 - "client.ts"
-Cohesion: 0.10
-Nodes (40): Cómo encaja todo, ChoiceOption, JevCommandDeps, ParsedJevArgs, parseJevArgs(), parseNumber(), parseOption(), readRequest() (+32 more)
+Cohesion: 0.07
+Nodes (53): Cómo encaja todo, Desarrollo, `score` (rubrica ordenada), buildDecideRequest(), ChoiceOption, DEFAULT_COMPLEXITY_LEVELS, DEFAULT_PATH_OPTIONS, JevCommandDeps (+45 more)
 
 ### Community 13 - "install.ts"
-Cohesion: 0.20
-Nodes (19): @clack/prompts, askMaxAttempts(), askRequired(), askSecret(), askText(), askValidationCommands(), Component, COMPONENT_VALUES (+11 more)
+Cohesion: 0.10
+Nodes (36): @clack/prompts, askMaxAttempts(), askPackageManager(), askRequired(), askSecret(), askText(), askValidationCommands(), Component (+28 more)
+
+### Community 14 - "types.ts"
+Cohesion: 0.17
+Nodes (16): BoundedContext, OpenSpecSpec, OpenSpecTask, SpecificationStatus, TaskStatus, WorkItem, createsConflict(), dependsOn() (+8 more)
+
+### Community 15 - "agent/installer.ts"
+Cohesion: 0.21
+Nodes (15): agentFilePath(), AgentInstallOptions, installAgent(), installSubagents(), renderAgent(), renderSubagent(), shellAllow(), shellDeny() (+7 more)
 
 ## Knowledge Gaps
 - **5 isolated node(s):** `@types/node`, `oxlint`, `tsx`, `typescript`, `./tsconfig.json`
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 146 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 171 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `@clack/prompts` connect `install.ts` to `package.json`?**
-  _High betweenness centrality (0.089) - this node is a cross-community bridge._
+  _High betweenness centrality (0.068) - this node is a cross-community bridge._
 - **What connects `@types/node`, `oxlint`, `tsx` to the rest of the system?**
   _5 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `manifest.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.09948979591836735 - nodes in this community are weakly interconnected._
-- **Why does `score()` connect `client.ts` to `harness-stack`?**
-  _High betweenness centrality (0.063) - this node is a cross-community bridge._
+  _Cohesion score 0.11843137254901961 - nodes in this community are weakly interconnected._
+- **Why does `yaml` connect `package.json` to `manifest.ts`?**
+  _High betweenness centrality (0.054) - this node is a cross-community bridge._
 - **Should `obsidian/installer.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.14039408866995073 - nodes in this community are weakly interconnected._
-- **Why does `alvaress` connect `harness-stack` to `client.ts`?**
-  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+  _Cohesion score 0.1396011396011396 - nodes in this community are weakly interconnected._
 - **Should `package.json` be split into smaller, more focused modules?**
-  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.047619047619047616 - nodes in this community are weakly interconnected._
+- **Should `reliability.test.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.10569105691056911 - nodes in this community are weakly interconnected._

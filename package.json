@@ -4,6 +4,7 @@
   "description": "Orquestador SDD multiagente con JEV, Aider, OpenSpec, Obsidian y Graphify para OpenCode y Claude",
   "author": "alvaress contributors",
   "type": "module",
+  "packageManager": "pnpm@12.14.0",
   "bin": {
     "alvaress": "dist/index.js"
   },
@@ -13,7 +14,8 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "pnpm": ">=9"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -23,10 +25,10 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "test": "node --import tsx --test test/*.test.ts",
-    "pretest": "npm run build",
-    "validate": "npm run lint && npm run typecheck && npm run typecheck:test",
-    "prepack": "npm run build",
-    "prepublishOnly": "npm run validate && npm test"
+    "pretest": "pnpm run build",
+    "validate": "pnpm run lint && pnpm run typecheck && pnpm run typecheck:test",
+    "prepack": "pnpm run build",
+    "prepublishOnly": "pnpm run validate && pnpm test"
   },
   "keywords": [
     "alvaress",
@@ -40,7 +42,8 @@
     "opencode",
     "claude",
     "sdd",
-    "agents"
+    "agents",
+    "pnpm"
   ],
   "license": "MIT",
   "dependencies": {

@@ -36,6 +36,22 @@ export function writeTextFile(target: string, content: string): void {
   fs.writeFileSync(target, content, 'utf-8');
 }
 
+export function writeTextFileAtomic(target: string, content: string): void {
+  ensureDir(path.dirname(target));
+  const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, content, 'utf-8');
+    fs.renameSync(temporary, target);
+  } catch (error) {
+    try {
+      fs.rmSync(temporary, { force: true });
+    } catch {
+      // El archivo temporal puede no existir.
+    }
+    throw error;
+  }
+}
+
 export function writeTextFileIfMissing(target: string, content: string): boolean {
   if (pathExists(target)) {
     return false;
@@ -54,7 +70,11 @@ export function readJsonFile<T>(target: string): T {
 }
 
 export function writeJsonFile(target: string, value: unknown): void {
-  writeTextFile(target, `${JSON.stringify(value, null, 2)}\n`);
+  writeTextFileAtomic(target, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+export function writeJsonFileAtomic(target: string, value: unknown): void {
+  writeTextFileAtomic(target, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 export type LinkType = 'file' | 'dir';

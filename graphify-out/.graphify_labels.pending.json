@@ -2,15 +2,17 @@
   "0": "manifest.ts",
   "1": "obsidian/installer.ts",
   "2": "package.json",
-  "3": "install.ts",
+  "3": "reliability.test.ts",
   "4": "loader.ts",
-  "5": "verify.ts",
+  "5": "apply.ts",
   "6": "compilerOptions",
   "7": "harness-stack",
   "8": "ref_node_path",
-  "9": "cli.ts",
+  "9": "pathExists",
   "10": "SYSTEM PROMPT: GENERADOR DEL INSTALADOR Y ARNÉS DE AGENTES (ESTILO GENTLE AI)",
   "11": "tsconfig.test.json",
   "12": "client.ts",
-  "13": "install.ts"
+  "13": "install.ts",
+  "14": "types.ts",
+  "15": "agent/installer.ts"
 }

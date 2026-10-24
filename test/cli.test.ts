@@ -203,6 +203,92 @@ test('apply ejecuta Aider y verifica la tarea', () => {
   }
 });
 
+test('agent install escribe también los subagentes', () => {
+  const temp = makeTempDir('harness-agent-sub-');
+  const home = path.join(temp.path, 'home');
+  const root = path.join(temp.path, 'project');
+  fs.mkdirSync(home);
+  fs.mkdirSync(root);
+
+  try {
+    const result = runCli(['agent', 'install'], { cwd: root, home });
+    assert.equal(result.status, 0);
+    for (const name of ['alvaress-explorer', 'alvaress-implementer', 'alvaress-verifier']) {
+      assert.ok(fs.existsSync(path.join(home, '.config', 'opencode', 'agents', `${name}.md`)));
+      assert.ok(fs.existsSync(path.join(root, '.opencode', 'agents', `${name}.md`)));
+    }
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('doctor informa del estado y devuelve JSON', () => {
+  const temp = makeTempDir('harness-doctor-');
+  const home = path.join(temp.path, 'home');
+  fs.mkdirSync(home);
+  const root = project();
+  writeJson(path.join(root, '.alvaressrc.json'), baseConfig({ obsidianVaultPath: '' }));
+
+  try {
+    const result = runCli(['doctor', '--json'], { cwd: root, home });
+    assert.equal(result.status, 0);
+    const parsed = JSON.parse(result.stdout) as { checks: Array<{ name: string; status: string }> };
+    assert.ok(parsed.checks.some((entry) => entry.name === 'manifest' && entry.status === 'ok'));
+    assert.ok(parsed.checks.some((entry) => entry.name === 'package-manager'));
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('report y restore list muestran los artefactos de la ejecución', () => {
+  const temp = makeTempDir('harness-report-');
+  const home = path.join(temp.path, 'home');
+  const bin = path.join(temp.path, 'bin');
+  fs.mkdirSync(home);
+  fs.mkdirSync(bin);
+  fakeAider(bin, { log: path.join(temp.path, 'aider.log') });
+  const root = project();
+
+  try {
+    const applied = runCli(['apply'], { cwd: root, home, pathPrefix: [bin] });
+    assert.equal(applied.status, 0);
+
+    const report = runCli(['report', 'latest'], { cwd: root, home });
+    assert.equal(report.status, 0);
+    const parsed = JSON.parse(report.stdout) as { verified: number };
+    assert.equal(parsed.verified, 1);
+
+    const list = runCli(['report', 'list'], { cwd: root, home });
+    assert.equal(list.status, 0);
+    assert.match(list.stdout, /verified=1/);
+
+    const backups = runCli(['restore', '--list'], { cwd: root, home });
+    assert.equal(backups.status, 0);
+    assert.match(backups.stdout, /openspec\.yaml|bytes/);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('archive archiva una spec completada', () => {
+  const temp = makeTempDir('harness-archive-');
+  const home = path.join(temp.path, 'home');
+  fs.mkdirSync(home);
+  const root = project();
+
+  try {
+    writeFile(
+      path.join(root, 'openspec.yaml'),
+      manifest().replace('status: "Pending"', 'status: "Done"')
+    );
+    const result = runCli(['archive', 'SPEC-001'], { cwd: root, home });
+    assert.equal(result.status, 0);
+    assert.match(fs.readFileSync(path.join(root, 'openspec.yaml'), 'utf-8'), /status: "?Archived"?/);
+  } finally {
+    temp.cleanup();
+  }
+});
+
 test('verify devuelve 0 cuando la validación pasa y 1 cuando falla', () => {
   const temp = makeTempDir('harness-verify-');
   const home = path.join(temp.path, 'home');

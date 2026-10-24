@@ -92,7 +92,8 @@ test('verifyAndRepairTask devuelve true sin comandos configurados', async () => 
   try {
     const verified = await verifyAndRepairTask('TASK-01', {
       root: temp.path,
-      config: configWith([], 3)
+      config: configWith([], 3),
+      requireCommands: false
     });
     assert.equal(verified, true);
   } finally {

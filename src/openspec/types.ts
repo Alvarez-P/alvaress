@@ -7,6 +7,11 @@ export interface OpenSpecTask {
   status: TaskStatus;
   files?: string[];
   acceptance?: string[];
+  depends_on?: string[];
+  validation?: string[];
+  priority?: number;
+  estimate?: string;
+  rollback?: string;
 }
 
 export interface OpenSpecSpec {

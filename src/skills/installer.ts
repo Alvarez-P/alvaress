@@ -27,7 +27,7 @@ export const SKILLS: SkillDefinition[] = [
     name: 'self-healing-verify',
     description: 'Enseña al agente a auto-corregir errores usando el linter y compilador local.',
     scope: 'project',
-    body: 'Al finalizar cualquier edición, debes ejecutar en la terminal `npx oxlint --deny=correctness` y `npx tsc --noEmit`. Si el código de salida (exit code) es diferente de 0, lee el log de error, corrige el archivo inmediatamente y vuelve a validar. No reportes la tarea como lista si los comandos fallan.'
+    body: 'Al finalizar cualquier edición, debes ejecutar en la terminal `pnpm exec oxlint --deny=correctness` y `pnpm exec tsc --noEmit` (o el gestor indicado en `packageManager`). Si el código de salida (exit code) es diferente de 0, lee el log de error, corrige el archivo inmediatamente y vuelve a validar. No reportes la tarea como lista si los comandos fallan.'
   },
   {
     name: 'universal-design-patterns',

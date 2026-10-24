@@ -1,15 +1,23 @@
 import path from 'node:path';
 import {
+  DEFAULT_AIDER_TIMEOUT_MS,
   DEFAULT_IMPLEMENTER_MODEL,
   DEFAULT_JEV_BASE,
+  DEFAULT_JEV_CACHE_TTL_MS,
+  DEFAULT_JEV_MAX_CALLS,
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_ORCHESTRATOR_MODEL,
-  DEFAULT_VALIDATION_COMMANDS,
+  DEFAULT_PACKAGE_MANAGER,
+  DEFAULT_SCOPE,
   GLOBAL_CONFIG_PATH,
   LOCAL_CONFIG_FILENAME
 } from '../constants.js';
 import { ConfigError } from '../utils/errors.js';
 import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
+import { defaultValidationCommands } from '../utils/package-manager.js';
+
+export type PackageManager = 'pnpm' | 'npm';
+export type ScopeMode = 'strict' | 'warn' | 'off';
 
 export interface ModelProviderConfig {
   modelName: string;
@@ -20,6 +28,21 @@ export interface ModelProviderConfig {
 
 export interface HarnessConfig {
   obsidianVaultPath: string;
+  packageManager?: PackageManager;
+  scope?: ScopeMode;
+  graphify?: {
+    autoUpdate?: boolean;
+  };
+  aider?: {
+    timeoutMs?: number;
+    extraArgs?: string[];
+    inheritEnv?: boolean;
+  };
+  jev?: {
+    cache?: boolean;
+    cacheTtlMs?: number;
+    maxCalls?: number;
+  };
   models: {
     jevOrchestrator: ModelProviderConfig;
     aiderImplementer: ModelProviderConfig;
@@ -27,11 +50,27 @@ export interface HarnessConfig {
   validation: {
     maxAttempts: number;
     commands: string[];
+    requireCommands?: boolean;
   };
 }
 
 export interface HarnessConfigFile {
   obsidianVaultPath?: string;
+  packageManager?: PackageManager;
+  scope?: ScopeMode;
+  graphify?: {
+    autoUpdate?: boolean;
+  };
+  aider?: {
+    timeoutMs?: number;
+    extraArgs?: string[];
+    inheritEnv?: boolean;
+  };
+  jev?: {
+    cache?: boolean;
+    cacheTtlMs?: number;
+    maxCalls?: number;
+  };
   models?: {
     jevOrchestrator?: Partial<ModelProviderConfig>;
     aiderImplementer?: Partial<ModelProviderConfig>;
@@ -39,6 +78,7 @@ export interface HarnessConfigFile {
   validation?: {
     maxAttempts?: number;
     commands?: string[];
+    requireCommands?: boolean;
   };
 }
 
@@ -86,12 +126,70 @@ function assertModel(value: unknown, field: string, source: string): void {
   }
 }
 
+function assertBoolean(value: unknown, field: string, source: string): void {
+  if (value !== undefined && typeof value !== 'boolean') {
+    throw new ConfigError(`El campo "${field}" debe ser booleano en ${source}.`);
+  }
+}
+
+function assertStringList(value: unknown, field: string, source: string): void {
+  if (value === undefined) {
+    return;
+  }
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+    throw new ConfigError(`El campo "${field}" debe ser una lista de cadenas en ${source}.`);
+  }
+}
+
+function assertPositiveInteger(value: unknown, field: string, source: string, minimum = 1): void {
+  if (value === undefined) {
+    return;
+  }
+  if (!Number.isInteger(value) || (value as number) < minimum) {
+    throw new ConfigError(
+      `El campo "${field}" debe ser un entero mayor o igual a ${minimum} en ${source}.`
+    );
+  }
+}
+
 export function validateConfigFile(value: unknown, source: string): HarnessConfigFile {
   if (!isRecord(value)) {
     throw new ConfigError(`La configuración de ${source} debe ser un objeto JSON.`);
   }
 
   assertString(value.obsidianVaultPath, 'obsidianVaultPath', source);
+
+  if (value.packageManager !== undefined && value.packageManager !== 'pnpm' && value.packageManager !== 'npm') {
+    throw new ConfigError(`El campo "packageManager" solo admite "pnpm" o "npm" en ${source}.`);
+  }
+  if (value.scope !== undefined && value.scope !== 'strict' && value.scope !== 'warn' && value.scope !== 'off') {
+    throw new ConfigError(`El campo "scope" solo admite "strict", "warn" o "off" en ${source}.`);
+  }
+
+  if (value.graphify !== undefined) {
+    if (!isRecord(value.graphify)) {
+      throw new ConfigError(`El campo "graphify" debe ser un objeto en ${source}.`);
+    }
+    assertBoolean(value.graphify.autoUpdate, 'graphify.autoUpdate', source);
+  }
+
+  if (value.aider !== undefined) {
+    if (!isRecord(value.aider)) {
+      throw new ConfigError(`El campo "aider" debe ser un objeto en ${source}.`);
+    }
+    assertPositiveInteger(value.aider.timeoutMs, 'aider.timeoutMs', source, 1000);
+    assertStringList(value.aider.extraArgs, 'aider.extraArgs', source);
+    assertBoolean(value.aider.inheritEnv, 'aider.inheritEnv', source);
+  }
+
+  if (value.jev !== undefined) {
+    if (!isRecord(value.jev)) {
+      throw new ConfigError(`El campo "jev" debe ser un objeto en ${source}.`);
+    }
+    assertBoolean(value.jev.cache, 'jev.cache', source);
+    assertPositiveInteger(value.jev.cacheTtlMs, 'jev.cacheTtlMs', source, 0);
+    assertPositiveInteger(value.jev.maxCalls, 'jev.maxCalls', source, 1);
+  }
 
   if (value.models !== undefined) {
     if (!isRecord(value.models)) {
@@ -115,6 +213,7 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
         throw new ConfigError(`El campo "validation.commands" debe ser una lista de cadenas en ${source}.`);
       }
     }
+    assertBoolean(value.validation.requireCommands, 'validation.requireCommands', source);
   }
 
   return value as HarnessConfigFile;
@@ -127,6 +226,30 @@ export function readConfigFile(target: string): HarnessConfigFile {
   return validateConfigFile(readJsonFile<unknown>(target), target);
 }
 
+function interpolateEnv(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return value.replace(/\$\{([A-Z_][A-Z0-9_]*)\}/g, (_match, name: string) => process.env[name] ?? '');
+}
+
+function interpolateEnvRecord(
+  record: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (record === undefined) {
+    return undefined;
+  }
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(record)) {
+    result[key] = interpolateEnv(value) ?? '';
+  }
+  return result;
+}
+
+function interpolateCommands(commands: string[] | undefined): string[] | undefined {
+  return commands?.map((command) => interpolateEnv(command) ?? command);
+}
+
 export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: HarnessConfigFile): HarnessConfig {
   const globalOrchestrator = globalConfig.models?.jevOrchestrator;
   const localOrchestrator = localConfig.models?.jevOrchestrator;
@@ -134,27 +257,54 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
   const localImplementer = localConfig.models?.aiderImplementer;
 
   return {
-    obsidianVaultPath: localConfig.obsidianVaultPath || globalConfig.obsidianVaultPath || '',
+    obsidianVaultPath: interpolateEnv(localConfig.obsidianVaultPath || globalConfig.obsidianVaultPath) ?? '',
+    packageManager: localConfig.packageManager ?? globalConfig.packageManager ?? DEFAULT_PACKAGE_MANAGER,
+    scope: localConfig.scope ?? globalConfig.scope ?? DEFAULT_SCOPE,
+    graphify: {
+      autoUpdate: localConfig.graphify?.autoUpdate ?? globalConfig.graphify?.autoUpdate ?? false
+    },
+    aider: {
+      timeoutMs: localConfig.aider?.timeoutMs ?? globalConfig.aider?.timeoutMs ?? DEFAULT_AIDER_TIMEOUT_MS,
+      extraArgs: localConfig.aider?.extraArgs ?? globalConfig.aider?.extraArgs ?? [],
+      inheritEnv: localConfig.aider?.inheritEnv ?? globalConfig.aider?.inheritEnv ?? true
+    },
+    jev: {
+      cache: localConfig.jev?.cache ?? globalConfig.jev?.cache ?? true,
+      cacheTtlMs: localConfig.jev?.cacheTtlMs ?? globalConfig.jev?.cacheTtlMs ?? DEFAULT_JEV_CACHE_TTL_MS,
+      maxCalls: localConfig.jev?.maxCalls ?? globalConfig.jev?.maxCalls ?? DEFAULT_JEV_MAX_CALLS
+    },
     models: {
       jevOrchestrator: {
         modelName:
           localOrchestrator?.modelName || globalOrchestrator?.modelName || DEFAULT_ORCHESTRATOR_MODEL,
-        apiKey: localOrchestrator?.apiKey || globalOrchestrator?.apiKey || '',
-        apiBase: localOrchestrator?.apiBase || globalOrchestrator?.apiBase || DEFAULT_JEV_BASE,
-        env: { ...globalOrchestrator?.env, ...localOrchestrator?.env }
+        apiKey: interpolateEnv(localOrchestrator?.apiKey || globalOrchestrator?.apiKey) ?? '',
+        apiBase:
+          interpolateEnv(localOrchestrator?.apiBase || globalOrchestrator?.apiBase) ?? DEFAULT_JEV_BASE,
+        env: {
+          ...interpolateEnvRecord(globalOrchestrator?.env),
+          ...interpolateEnvRecord(localOrchestrator?.env)
+        }
       },
       aiderImplementer: {
         modelName: localImplementer?.modelName || globalImplementer?.modelName || DEFAULT_IMPLEMENTER_MODEL,
-        apiKey: localImplementer?.apiKey || globalImplementer?.apiKey || '',
-        apiBase: localImplementer?.apiBase || globalImplementer?.apiBase || '',
-        env: { ...globalImplementer?.env, ...localImplementer?.env }
+        apiKey: interpolateEnv(localImplementer?.apiKey || globalImplementer?.apiKey) ?? '',
+        apiBase: interpolateEnv(localImplementer?.apiBase || globalImplementer?.apiBase) ?? '',
+        env: {
+          ...interpolateEnvRecord(globalImplementer?.env),
+          ...interpolateEnvRecord(localImplementer?.env)
+        }
       }
     },
     validation: {
       maxAttempts:
         localConfig.validation?.maxAttempts || globalConfig.validation?.maxAttempts || DEFAULT_MAX_ATTEMPTS,
       commands:
-        localConfig.validation?.commands || globalConfig.validation?.commands || [...DEFAULT_VALIDATION_COMMANDS]
+        interpolateCommands(localConfig.validation?.commands || globalConfig.validation?.commands) ??
+        defaultValidationCommands(
+          localConfig.packageManager ?? globalConfig.packageManager ?? DEFAULT_PACKAGE_MANAGER
+        ),
+      requireCommands:
+        localConfig.validation?.requireCommands ?? globalConfig.validation?.requireCommands ?? true
     }
   };
 }
@@ -167,6 +317,21 @@ export function loadConfig(root: string = process.cwd()): HarnessConfig {
 export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
   return {
     obsidianVaultPath: config.obsidianVaultPath,
+    packageManager: config.packageManager ?? DEFAULT_PACKAGE_MANAGER,
+    scope: config.scope ?? DEFAULT_SCOPE,
+    graphify: {
+      autoUpdate: config.graphify?.autoUpdate ?? false
+    },
+    aider: {
+      timeoutMs: config.aider?.timeoutMs ?? DEFAULT_AIDER_TIMEOUT_MS,
+      extraArgs: config.aider?.extraArgs ?? [],
+      inheritEnv: config.aider?.inheritEnv ?? true
+    },
+    jev: {
+      cache: config.jev?.cache ?? true,
+      cacheTtlMs: config.jev?.cacheTtlMs ?? DEFAULT_JEV_CACHE_TTL_MS,
+      maxCalls: config.jev?.maxCalls ?? DEFAULT_JEV_MAX_CALLS
+    },
     models: {
       jevOrchestrator: {
         modelName: config.models.jevOrchestrator.modelName,
@@ -183,7 +348,8 @@ export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
     },
     validation: {
       maxAttempts: config.validation.maxAttempts,
-      commands: config.validation.commands
+      commands: config.validation.commands,
+      requireCommands: config.validation.requireCommands ?? true
     }
   };
 }
@@ -203,6 +369,11 @@ function maskValue(value: string): string {
 export function maskConfig(config: HarnessConfig): HarnessConfig {
   return {
     obsidianVaultPath: config.obsidianVaultPath,
+    packageManager: config.packageManager,
+    scope: config.scope,
+    graphify: config.graphify,
+    aider: config.aider,
+    jev: config.jev,
     models: {
       jevOrchestrator: {
         ...config.models.jevOrchestrator,
@@ -217,7 +388,8 @@ export function maskConfig(config: HarnessConfig): HarnessConfig {
     },
     validation: {
       maxAttempts: config.validation.maxAttempts,
-      commands: [...config.validation.commands]
+      commands: [...config.validation.commands],
+      requireCommands: config.validation.requireCommands
     }
   };
 }

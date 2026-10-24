@@ -3,7 +3,19 @@ export interface ParsedArgs {
   flags: Record<string, string | boolean>;
 }
 
-const BOOLEAN_FLAGS = new Set(['dry-run', 'no-link', 'no-global', 'no-project']);
+const BOOLEAN_FLAGS = new Set([
+  'dry-run',
+  'no-link',
+  'no-global',
+  'no-project',
+  'force',
+  'no-lock',
+  'update-graph',
+  'gate',
+  'no-cache',
+  'no-redact',
+  'json'
+]);
 
 export function parseArgs(args: string[]): ParsedArgs {
   const positional: string[] = [];

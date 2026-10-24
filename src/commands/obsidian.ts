@@ -4,9 +4,13 @@ import type { HarnessConfig } from '../config/loader.js';
 import {
   appendVaultNoteEntry,
   connectObsidianVault,
-  getVaultNotePath
+  getVaultNotePath,
+  getVaultTaskIndexPath
 } from '../obsidian/vault.js';
+import type { VaultCurrentState } from '../obsidian/vault.js';
 import { inferProjectName } from '../openspec/manifest.js';
+import { readRun } from '../orchestrator/report.js';
+import type { RunReport, RunTaskReport } from '../orchestrator/report.js';
 import { parseArgs } from '../utils/args.js';
 import { pathExists } from '../utils/fs.js';
 import { expandHome } from '../utils/prompt.js';
@@ -15,9 +19,11 @@ const HELP = `alvaress obsidian
 
 Uso:
   alvaress obsidian status          Muestra la bóveda configurada, la nota y sus enlaces.
-  alvaress obsidian sync            Crea o verifica la bóveda, la nota y los enlaces.
+  alvaress obsidian sync            Crea o verifica la bóveda, la nota, el índice y los enlaces.
   alvaress obsidian note --summary "<texto>" [--task TASK-01]
       [--validation "<texto>"] [--risk "<texto>"] [--next "<texto>"]
+      [--objective "<texto>"] [--architecture "<texto>"] [--decision "<texto>"]
+      [--from-run latest|<id>]
 
 La bóveda es un espejo de lectura: la fuente de verdad es openspec.yaml y
 .harness/tasks. El orquestador usa "obsidian note" al cerrar una tarea.`;
@@ -30,6 +36,52 @@ export interface ObsidianCommandDeps {
 function flagValue(flags: Record<string, string | boolean>, name: string): string | undefined {
   const value = flags[name];
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function summarizeRun(report: RunReport, taskId?: string): {
+  summary: string;
+  validation?: string;
+  risks?: string;
+  next?: string;
+} {
+  const results = taskId === undefined
+    ? report.results
+    : report.results.filter((result) => result.taskId === taskId);
+  if (taskId !== undefined && results.length === 0) {
+    throw new Error(`El reporte ${report.id} no contiene la tarea ${taskId}.`);
+  }
+  const failed = results.filter((result) => result.outcome === 'failed');
+  const verified = results.filter((result) => result.outcome === 'verified');
+  const summary =
+    taskId === undefined
+      ? `apply ${report.id}: ${verified.length} verificadas, ${failed.length} fallidas de ${results.length}.`
+      : `${taskId}: ${results[0]?.outcome ?? 'sin resultado'}${results[0]?.error ? ` (${results[0].error})` : ''}.`;
+  const risks = [
+    ...failed.map((result) => `${result.taskId}: ${result.error ?? 'falló'}`),
+    ...results.flatMap((result) =>
+      (result.outOfScope ?? []).map((file) => `${result.taskId}: cambio fuera de alcance (${file})`)
+    )
+  ];
+  const validation = results
+    .map((result) => `${result.taskId}: ${result.validation ?? result.outcome}`)
+    .join('; ');
+  return {
+    summary,
+    validation: validation.length > 0 ? validation : undefined,
+    risks: risks.length > 0 ? risks.join('; ') : undefined,
+    next: failed.length > 0 ? 'Revisar las tareas fallidas y volver a validar.' : 'Sin pendientes.'
+  };
+}
+
+function runState(flags: Record<string, string | boolean>): VaultCurrentState | undefined {
+  const state: VaultCurrentState = {
+    objective: flagValue(flags, 'objective'),
+    architecture: flagValue(flags, 'architecture'),
+    decisions: flagValue(flags, 'decision'),
+    risks: flagValue(flags, 'risk'),
+    next: flagValue(flags, 'next')
+  };
+  return Object.values(state).some((value) => value !== undefined) ? state : undefined;
 }
 
 export function runObsidianCommand(
@@ -62,6 +114,7 @@ export function runObsidianCommand(
   const projectName = inferProjectName(root);
   const notePath = getVaultNotePath(vaultPath, projectName);
   const harnessDir = path.join(vaultPath, 'Harness');
+  const taskIndexPath = getVaultTaskIndexPath(vaultPath);
 
   if (subcommand === 'status') {
     stdout(
@@ -73,6 +126,8 @@ export function runObsidianCommand(
           harnessDir,
           notePath,
           noteExists: pathExists(notePath),
+          taskIndexPath,
+          taskIndexExists: pathExists(taskIndexPath),
           tasksLink: path.join(harnessDir, 'Tasks'),
           manifestLink: path.join(harnessDir, 'openspec.yaml')
         },
@@ -91,18 +146,32 @@ export function runObsidianCommand(
 
   if (subcommand === 'note') {
     const { flags } = parseArgs(rest);
-    const summary = flagValue(flags, 'summary');
+    const summaryFlag = flagValue(flags, 'summary');
+    const fromRun = flagValue(flags, 'from-run');
+    const task = flagValue(flags, 'task');
+
+    let derived: ReturnType<typeof summarizeRun> | undefined;
+    if (fromRun !== undefined) {
+      const report = readRun(root, fromRun);
+      if (report === undefined) {
+        throw new Error(`No existe el reporte "${fromRun}". Ejecuta "alvaress report list".`);
+      }
+      derived = summarizeRun(report, task);
+    }
+
+    const summary = summaryFlag ?? derived?.summary;
     if (summary === undefined) {
-      throw new Error('Uso: alvaress obsidian note --summary "<texto>" [opciones]');
+      throw new Error('Uso: alvaress obsidian note --summary "<texto>" o --from-run latest');
     }
 
     connectObsidianVault(root, vaultPath);
     appendVaultNoteEntry(notePath, {
       summary,
-      task: flagValue(flags, 'task'),
-      validation: flagValue(flags, 'validation'),
-      risks: flagValue(flags, 'risk'),
-      next: flagValue(flags, 'next')
+      task,
+      validation: flagValue(flags, 'validation') ?? derived?.validation,
+      risks: flagValue(flags, 'risk') ?? derived?.risks,
+      next: flagValue(flags, 'next') ?? derived?.next,
+      state: runState(flags)
     });
     stdout(`[alvaress] OK: Nota de Obsidian actualizada en ${notePath}`);
     return;
@@ -112,3 +181,5 @@ export function runObsidianCommand(
     `Subcomando de obsidian desconocido: ${subcommand}. Usa "alvaress obsidian status", "sync" o "note".`
   );
 }
+
+export type { RunReport, RunTaskReport };

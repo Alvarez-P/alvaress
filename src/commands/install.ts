@@ -2,11 +2,12 @@ import path from 'node:path';
 import * as p from '@clack/prompts';
 import { installAgent } from '../agent/installer.js';
 import { loadConfig, getConfigPaths, saveGlobalConfig } from '../config/loader.js';
-import type { HarnessConfig, HarnessConfigFile } from '../config/loader.js';
+import type { HarnessConfig, HarnessConfigFile, PackageManager } from '../config/loader.js';
 import {
   COMMAND_SEPARATOR,
   DEFAULT_JEV_BASE,
   DEFAULT_OBSIDIAN_VAULT,
+  DEFAULT_PACKAGE_MANAGER,
   HARNESS_DIR
 } from '../constants.js';
 import { detectObsidian, installObsidian } from '../obsidian/installer.js';
@@ -17,6 +18,10 @@ import { ensureDir, pathExists, relativeTo, writeJsonFile } from '../utils/fs.js
 import { logger } from '../utils/logger.js';
 import { runCommand } from '../utils/process.js';
 import { commandExists } from '../utils/process.js';
+import {
+  packageManagerInstallArgs,
+  resolvePackageManager
+} from '../utils/package-manager.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
 const COMPONENT_VALUES = ['agent', 'obsidian', 'graphify', 'aider', 'validation'] as const;
@@ -46,7 +51,7 @@ const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
   {
     value: 'validation',
     label: '⚡ Oxlint & TSC (Validación local)',
-    hint: 'npm install -D oxlint typescript @types/node'
+    hint: 'pnpm add -D oxlint typescript @types/node'
   }
 ];
 
@@ -92,7 +97,7 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
   }
 
   if (selected.includes('validation')) {
-    await installValidationDependencies(root);
+    await installValidationDependencies(root, config);
   }
 
   if (!pathExists(paths.global)) {
@@ -153,6 +158,9 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
     const agent = installAgent(root, { global: true, project: true });
     for (const file of agent.files) {
       p.log.success(`Agente ${agent.name} instalado en ${file}`);
+    }
+    for (const file of agent.subagents) {
+      p.log.success(`Subagente instalado en ${file}`);
     }
     p.log.info('En OpenCode, selecciona el agente "alvaress" con Tab o con --agent alvaress.');
   }
@@ -253,24 +261,31 @@ async function installAider(): Promise<void> {
   spinner.stop('Aider instalado correctamente.');
 }
 
-async function installValidationDependencies(root: string): Promise<void> {
+async function installValidationDependencies(root: string, config: HarnessConfig): Promise<void> {
   const spinner = p.spinner();
   spinner.start('Comprobando dependencias de validación');
   if (!pathExists(path.join(root, 'package.json'))) {
     spinner.stop('No hay package.json; se omite la instalación de oxlint y TypeScript.');
     return;
   }
-  if (!commandExists('npm')) {
-    spinner.error('npm no está disponible.');
-    throw new Error('npm es necesario para instalar oxlint y TypeScript.');
+  const manager = resolvePackageManager(config);
+  if (!commandExists(manager)) {
+    spinner.error(`${manager} no está disponible.`);
+    throw new Error(
+      `Instala ${manager} antes de continuar. alvaress usa pnpm por defecto; puedes cambiarlo con "packageManager" en la configuración.`
+    );
   }
-  spinner.message('Instalando oxlint, typescript y @types/node');
-  const result = await runCommand('npm', ['install', '-D', 'oxlint', 'typescript', '@types/node'], {
-    cwd: root
-  });
+  spinner.message(`Instalando oxlint, typescript y @types/node con ${manager}`);
+  const result = await runCommand(
+    manager,
+    packageManagerInstallArgs(manager, ['oxlint', 'typescript', '@types/node']),
+    { cwd: root }
+  );
   if (result.code !== 0) {
     spinner.error('No se pudieron instalar las dependencias de validación.');
-    throw new Error(`npm install -D falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
+    throw new Error(
+      `${manager} falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
+    );
   }
   spinner.stop('Dependencias de validación instaladas.');
 }
@@ -309,9 +324,12 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
 
   const maxAttempts = await askMaxAttempts(base.validation.maxAttempts);
   const commands = await askValidationCommands(base.validation.commands);
+  const packageManager = await askPackageManager(base.packageManager ?? DEFAULT_PACKAGE_MANAGER);
 
   return {
+    ...base,
     obsidianVaultPath: path.resolve(expandHome(vaultPath)),
+    packageManager,
     models: {
       jevOrchestrator: {
         modelName: orchestratorModel,
@@ -348,9 +366,11 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
   );
   const maxAttempts = await askMaxAttempts(base.validation.maxAttempts);
   const commands = await askValidationCommands(base.validation.commands);
+  const packageManager = await askPackageManager(base.packageManager ?? DEFAULT_PACKAGE_MANAGER);
 
   return {
     obsidianVaultPath: path.resolve(expandHome(vaultPath)),
+    packageManager,
     models: {
       jevOrchestrator: { modelName: orchestratorModel },
       aiderImplementer: { modelName: implementerModel }
@@ -399,6 +419,20 @@ async function askRequired(message: string, defaultValue: string): Promise<strin
 async function askSecret(message: string): Promise<string | undefined> {
   const value = unwrap(await p.password({ message }));
   return value.trim().length > 0 ? value.trim() : undefined;
+}
+
+async function askPackageManager(defaultValue: PackageManager): Promise<PackageManager> {
+  const answer = unwrap(
+    await p.select<PackageManager>({
+      message: 'Gestor de paquetes del proyecto',
+      options: [
+        { value: 'pnpm', label: 'pnpm', hint: 'recomendado y opción por defecto' },
+        { value: 'npm', label: 'npm', hint: 'solo si el proyecto lo exige' }
+      ],
+      initialValue: defaultValue
+    })
+  );
+  return answer;
 }
 
 async function askMaxAttempts(defaultValue: number): Promise<number> {
