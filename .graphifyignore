@@ -1,0 +1,2 @@
+# Third-party skills vendored for local tooling; not part of the project graph.
+.agents/skills/
