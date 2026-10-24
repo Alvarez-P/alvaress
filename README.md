@@ -506,6 +506,34 @@ alvaress obsidian note --from-run latest --task TASK-01
 - `note` exige `--summary` y añade una entrada a la sección `## Registro` de la
   nota del proyecto.
 
+## Commits
+
+El repositorio usa **Conventional Commits** y los valida con husky + commitlint:
+
+- `pre-commit`: lint-staged ejecuta `oxlint` solo sobre los archivos TS/JS staged.
+- `commit-msg`: commitlint rechaza mensajes que no sigan el formato.
+- CI valida los commits de cada pull request.
+
+Formato:
+
+```text
+<tipo>(<scope opcional>): <descripción corta>
+```
+
+Tipos habituales: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `build`,
+`ci`, `perf` y `style`.
+
+```bash
+git commit -m "feat(jev): añadir caché de decisiones"
+git commit -m "fix(apply): liberar el lock al fallar"
+```
+
+Validar un rango manualmente:
+
+```bash
+pnpm run commitlint --from HEAD~3 --to HEAD
+```
+
 ## Desarrollo
 
 ```bash

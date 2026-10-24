@@ -44,3 +44,19 @@ test('incluye README, LICENSE y scripts de publicación', () => {
   assert.match(pkg.scripts.prepublishOnly ?? '', /validate/);
   assert.match(pkg.scripts.prepublishOnly ?? '', /test/);
 });
+
+test('configura husky, lint-staged y commitlint', () => {
+  assert.equal(pkg.scripts.prepare, 'husky');
+  assert.equal(pkg.scripts.commitlint, 'commitlint');
+  assert.ok(fs.existsSync(path.join(root, '.husky', 'pre-commit')));
+  assert.ok(fs.existsSync(path.join(root, '.husky', 'commit-msg')));
+  assert.ok(fs.existsSync(path.join(root, 'commitlint.config.js')));
+  assert.match(
+    fs.readFileSync(path.join(root, '.husky', 'commit-msg'), 'utf-8'),
+    /commitlint --edit/
+  );
+  assert.match(
+    fs.readFileSync(path.join(root, '.husky', 'pre-commit'), 'utf-8'),
+    /lint-staged/
+  );
+});
