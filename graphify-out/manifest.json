@@ -1,8 +1,8 @@
 {
   "package.json": {
-    "mtime": 1792812637.9625943,
-    "seen": 1792812809.4949965,
-    "ast_hash": "77318e842802338faff915a47f1fcd4f",
+    "mtime": 1792814163.9385524,
+    "seen": 1792814218.9099834,
+    "ast_hash": "b80f94cf34ad8915e35cc7bb37a163c7",
     "semantic_hash": ""
   },
   "src/cli.ts": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792814041.294556,
-    "seen": 1792814050.4476583,
-    "ast_hash": "38f6bf3ca9e543add1f6c64fe536a4a3",
+    "mtime": 1792814191.4465518,
+    "seen": 1792814218.9100583,
+    "ast_hash": "e1196ed5d0467a637859bd499a945910",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "test/package.test.ts": {
-    "mtime": 1792812592.942595,
-    "seen": 1792812809.495062,
-    "ast_hash": "49acb04f9128a953442b370ed2d10af6",
+    "mtime": 1792814197.1985517,
+    "seen": 1792814218.9100504,
+    "ast_hash": "d84c7f847dec097932bcbaafc60374a4",
     "semantic_hash": ""
   },
   "test/skills.test.ts": {
@@ -384,9 +384,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1792812695.6825926,
-    "seen": 1792812809.4950676,
-    "ast_hash": "125ba9ce6cf8eed331274c7cc6b132d8",
+    "mtime": 1792814187.678552,
+    "seen": 1792814218.910056,
+    "ast_hash": "fb1bab0a5e390c63db310c355dd6c5c5",
     "semantic_hash": ""
   },
   ".github/workflows/release.yml": {
@@ -399,6 +399,12 @@
     "mtime": 1792812654.4185948,
     "seen": 1792812809.4950714,
     "ast_hash": "b742abf2d03aa9d79c3290767176eb41",
+    "semantic_hash": ""
+  },
+  "commitlint.config.js": {
+    "mtime": 1792814159.5745525,
+    "seen": 1792814218.909978,
+    "ast_hash": "51a2d68f588db418c14cf578d1836253",
     "semantic_hash": ""
   }
 }

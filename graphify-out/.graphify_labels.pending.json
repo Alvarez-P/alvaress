@@ -4,7 +4,7 @@
   "2": "package.json",
   "3": "reliability.test.ts",
   "4": "loader.ts",
-  "5": "apply.ts",
+  "5": "verify.ts",
   "6": "compilerOptions",
   "7": "harness-stack",
   "8": "ref_node_path",
@@ -13,6 +13,13 @@
   "11": "tsconfig.test.json",
   "12": "client.ts",
   "13": "install.ts",
-  "14": "types.ts",
-  "15": "agent/installer.ts"
+  "14": "apply.ts",
+  "15": "orchestrator/report.ts",
+  "16": "scripts",
+  "17": "devDependencies",
+  "18": "dependencies",
+  "19": "engines",
+  "20": "bin",
+  "21": "lint-staged",
+  "22": "commitlint.config.js"
 }
