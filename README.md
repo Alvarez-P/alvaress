@@ -1,5 +1,9 @@
 # alvaress
 
+<p align="center">
+  <img src="assets/alvaress-logo.svg" alt="alvaress: SDD harness para OpenCode" width="420">
+</p>
+
 **Tu copiloto SDD para [OpenCode](https://opencode.ai):** decide en local con
 [kev o laya](https://ollama.com/search?c=decision), ejecuta con
 [Aider](https://aider.chat) cuando conviene y valida cada cambio antes de dar
@@ -17,6 +21,7 @@ configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission
 ## Contenido
 
 - [¿Qué es alvaress?](#qué-es-alvaress)
+- [El nombre](#el-nombre)
 - [El flujo en una imagen](#el-flujo-en-una-imagen)
 - [Cómo funciona, en 5 pasos](#cómo-funciona-en-5-pasos)
 - [Requisitos](#requisitos)
@@ -53,6 +58,16 @@ Te puede servir si:
   remoto;
 - quieres validación real (lint, tipos, tests) antes de cerrar una tarea;
 - quieres un historial de ejecución y una nota de proyecto en Obsidian.
+
+## El nombre
+
+<p align="center">
+  <img src="assets/alvaress-intro.gif" alt="Alvarez + Harness = Alvaress" width="640">
+</p>
+
+`alvaress` nace de **Alvarez** + **Harness**: tu apellido y el entorno de
+trabajo. La animación muestra cómo la `z` de *Alvarez* se va y las `ss` de
+*Harness* se quedan para formar **Alvaress**.
 
 ## El flujo en una imagen
 
@@ -617,6 +632,9 @@ El diagrama de este README se dibujó con la skill
 para este proyecto en `.agents/skills/svg-diagram`. El SVG vive en
 `assets/alvaress-flow.svg`.
 
+El logo está en `assets/alvaress-logo.svg` y la animación del nombre en
+`assets/alvaress-intro.gif`.
+
 Si cambias el flujo, actualiza el SVG y valida que siga el estilo de la casa:
 
 ```bash
@@ -695,7 +713,7 @@ src/
 ├── obsidian/        conexión con la bóveda
 └── utils/           args, errores, FS, lock, gestor de paquetes, pipx, redacción, logger y procesos
 test/                pruebas con node:test
-assets/              diagramas SVG del README
+assets/              logo, animación y diagramas SVG del README
 .agents/skills/      skills locales del proyecto (svg-diagram)
 docs/spec.md         prompt original de generación del proyecto
 ```
