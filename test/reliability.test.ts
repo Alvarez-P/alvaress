@@ -7,10 +7,10 @@ import { installAgent, renderSubagent, SUBAGENTS } from '../src/agent/installer.
 import { runArchiveCommand } from '../src/commands/archive.js';
 import { runDoctor, runDoctorCommand } from '../src/commands/doctor.js';
 import { runObsidianCommand } from '../src/commands/obsidian.js';
-import { runJevCommand } from '../src/commands/jev.js';
+import { runDecideCommand } from '../src/commands/decide.js';
 import { mergeConfig } from '../src/config/loader.js';
-import { readJevCache, writeJevCache } from '../src/jev/cache.js';
-import type { JevRequest, JevResponse } from '../src/jev/client.js';
+import { readDecisionCache, writeDecisionCache } from '../src/decision/cache.js';
+import type { DecisionRequest, DecisionResponse } from '../src/decision/client.js';
 import { loadManifest, saveManifest, scaffoldManifest } from '../src/openspec/manifest.js';
 import { applyTasks } from '../src/orchestrator/apply.js';
 import { backupManifest, listManifestBackups, restoreManifestBackup } from '../src/orchestrator/backup.js';
@@ -236,7 +236,8 @@ test('doctor detecta configuración, gestor y grafo', () => {
         {}
       ),
       commandExists: () => true,
-      graphStatus: { exists: true, path: path.join(root, 'graphify-out', 'graph.json'), stale: false }
+      graphStatus: { exists: true, path: path.join(root, 'graphify-out', 'graph.json'), stale: false },
+      ollamaStatus: { installed: true, running: true, version: '0.35.0', models: ['kev:latest'] }
     });
     const byName = new Map(checks.map((entry) => [entry.name, entry]));
     assert.equal(byName.get('node')?.status, 'ok');
@@ -248,6 +249,7 @@ test('doctor detecta configuración, gestor y grafo', () => {
     const lines: string[] = [];
     const code = runDoctorCommand(['--json'], root, {
       config: mergeConfig({ obsidianVaultPath: '' }, {}),
+      ollamaStatus: { installed: true, running: true, version: '0.35.0', models: ['kev:latest'] },
       stdout: (line) => lines.push(line)
     });
     assert.equal(code, 0);
@@ -257,40 +259,40 @@ test('doctor detecta configuración, gestor y grafo', () => {
   }
 });
 
-test('la caché de JEV reutiliza respuestas y respeta el TTL', () => {
-  const root = makeTempDir('alvaress-jev-cache-').path;
-  const request: JevRequest = {
+test('la caché de decisión reutiliza respuestas y respeta el TTL', () => {
+  const root = makeTempDir('alvaress-decision-cache-').path;
+  const request: DecisionRequest = {
     state: 'estado',
     questions: { q: { type: 'noul', instructions: '¿Sí?' } }
   };
-  const response: JevResponse = {
-    model: 'jev-latest',
+  const response: DecisionResponse = {
+    model: 'kev',
     answers: { q: { type: 'noul', noul: 0.9 } }
   };
   try {
-    assert.equal(readJevCache(root, request, 60_000), undefined);
-    writeJevCache(root, request, response);
-    assert.deepEqual(readJevCache(root, request, 60_000), response);
-    assert.equal(readJevCache(root, { ...request, state: 'otro' }, 60_000), undefined);
+    assert.equal(readDecisionCache(root, request, 60_000), undefined);
+    writeDecisionCache(root, request, response);
+    assert.deepEqual(readDecisionCache(root, request, 60_000), response);
+    assert.equal(readDecisionCache(root, { ...request, state: 'otro' }, 60_000), undefined);
   } finally {
     cleanup(root);
   }
 });
 
-test('jev decide resuelve las tres preguntas en una sola llamada y cachea', async () => {
-  const root = makeTempDir('alvaress-jev-decide-').path;
+test('decide resuelve las tres preguntas en una sola llamada y cachea', async () => {
+  const root = makeTempDir('alvaress-decide-').path;
   const config = mergeConfig(
     {
       obsidianVaultPath: '',
+      decision: { model: 'kev', apiBase: 'http://127.0.0.1:11434' },
       models: {
-        jevOrchestrator: { modelName: 'jev-latest', apiKey: 'test-key' },
         aiderImplementer: { modelName: 'implementer' }
       }
     },
     {}
   );
-  let payload: JevResponse = {
-    model: 'jev-latest',
+  let payload: DecisionResponse = {
+    model: 'kev',
     answers: {
       clarity: { type: 'noul', noul: 0.9 },
       path: { type: 'choice', choice: 'apply', confidence: 0.8, probabilities: { apply: 0.8 } },
@@ -305,7 +307,7 @@ test('jev decide resuelve las tres preguntas en una sola llamada y cachea', asyn
 
   try {
     const lines: string[] = [];
-    const code = await runJevCommand(['decide', '--state', 'cambio'], root, {
+    const code = await runDecideCommand(['--state', 'cambio'], root, {
       config,
       fetchImpl,
       stdout: (line) => lines.push(line)
@@ -317,7 +319,7 @@ test('jev decide resuelve las tres preguntas en una sola llamada y cachea', asyn
     assert.equal(result.cached, false);
 
     const cachedLines: string[] = [];
-    await runJevCommand(['decide', '--state', 'cambio'], root, {
+    await runDecideCommand(['--state', 'cambio'], root, {
       config,
       fetchImpl,
       stdout: (line) => cachedLines.push(line)
@@ -329,7 +331,7 @@ test('jev decide resuelve las tres preguntas en una sola llamada y cachea', asyn
       ...payload,
       answers: { ...payload.answers, clarity: { type: 'noul', noul: 0.2 } }
     };
-    const gated = await runJevCommand(['decide', '--state', 'cambio', '--no-cache', '--gate'], root, {
+    const gated = await runDecideCommand(['--state', 'cambio', '--no-cache', '--gate'], root, {
       config,
       fetchImpl,
       stdout: () => undefined

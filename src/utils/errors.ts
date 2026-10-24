@@ -19,10 +19,10 @@ export class ManifestError extends Error {
   }
 }
 
-export class JevError extends Error {
+export class DecisionError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'JevError';
+    this.name = 'DecisionError';
   }
 }
 

@@ -22,12 +22,18 @@ export const OPENCODE_PROJECT_DIR = '.opencode';
 export const OPENCODE_AGENTS_DIRNAME = 'agents';
 
 export const DEFAULT_OBSIDIAN_VAULT = path.join(os.homedir(), 'Obsidian');
-export const DEFAULT_ORCHESTRATOR_MODEL = 'jev-latest';
+export const DECISION_MODELS = ['kev', 'laya'] as const;
+export type DecisionModelName = (typeof DECISION_MODELS)[number];
+export const DEFAULT_DECISION_MODEL: DecisionModelName = 'kev';
+export const DEFAULT_DECISION_BASE = 'http://127.0.0.1:11434';
+export const DEFAULT_DECISION_TIMEOUT_MS = 60000;
+export const DEFAULT_DECISION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+export const DEFAULT_DECISION_MAX_CALLS = 3;
 export const DEFAULT_IMPLEMENTER_MODEL = 'deepseek/deepseek-chat';
-export const DEFAULT_JEV_BASE = 'https://api.typesafe.ai/v1';
-export const DEFAULT_JEV_TIMEOUT_MS = 30000;
-export const DEFAULT_JEV_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-export const DEFAULT_JEV_MAX_CALLS = 3;
+
+export function isDecisionModel(value: string): boolean {
+  return /^(kev|laya)(:[a-z0-9._-]+)?$/i.test(value.trim());
+}
 export const DEFAULT_VALIDATION_COMMANDS = ['pnpm exec oxlint --deny=correctness --deny=suspicious', 'pnpm exec tsc --noEmit'];
 export const DEFAULT_MAX_ATTEMPTS = 3;
 export const DEFAULT_PACKAGE_MANAGER = 'pnpm';

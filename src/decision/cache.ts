@@ -2,28 +2,28 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { HARNESS_CACHE_DIR } from '../constants.js';
 import { ensureDir, pathExists, readJsonFile, writeJsonFileAtomic } from '../utils/fs.js';
-import type { JevRequest, JevResponse } from './client.js';
+import type { DecisionRequest, DecisionResponse } from './client.js';
 
 interface CacheEntry {
   createdAt: string;
   requestHash: string;
-  response: JevResponse;
+  response: DecisionResponse;
 }
 
 function cacheDirectory(root: string): string {
-  return path.join(root, HARNESS_CACHE_DIR, 'jev');
+  return path.join(root, HARNESS_CACHE_DIR, 'decision');
 }
 
-export function jevRequestHash(request: JevRequest): string {
+export function decisionRequestHash(request: DecisionRequest): string {
   return crypto.createHash('sha256').update(JSON.stringify(request)).digest('hex');
 }
 
-export function readJevCache(
+export function readDecisionCache(
   root: string,
-  request: JevRequest,
+  request: DecisionRequest,
   ttlMs: number
-): JevResponse | undefined {
-  const hash = jevRequestHash(request);
+): DecisionResponse | undefined {
+  const hash = decisionRequestHash(request);
   const target = path.join(cacheDirectory(root), `${hash}.json`);
   if (!pathExists(target)) {
     return undefined;
@@ -40,8 +40,12 @@ export function readJevCache(
   }
 }
 
-export function writeJevCache(root: string, request: JevRequest, response: JevResponse): void {
-  const hash = jevRequestHash(request);
+export function writeDecisionCache(
+  root: string,
+  request: DecisionRequest,
+  response: DecisionResponse
+): void {
+  const hash = decisionRequestHash(request);
   const directory = cacheDirectory(root);
   ensureDir(directory);
   writeJsonFileAtomic(path.join(directory, `${hash}.json`), {

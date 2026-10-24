@@ -69,13 +69,16 @@ export function fakeAider(binDir: string, options: { log?: string; exitCode?: nu
 export function baseConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     obsidianVaultPath: '/tmp/vault',
+    decision: {
+      model: 'kev',
+      apiBase: 'http://127.0.0.1:11434',
+      apiKey: '',
+      timeoutMs: 60000,
+      cache: true,
+      cacheTtlMs: 86400000,
+      maxCalls: 3
+    },
     models: {
-      jevOrchestrator: {
-        modelName: 'orchestrator-model',
-        apiKey: '',
-        apiBase: 'http://localhost:11434/v1',
-        env: {}
-      },
       aiderImplementer: {
         modelName: 'implementer-model',
         apiKey: '',

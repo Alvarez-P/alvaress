@@ -127,7 +127,7 @@ test('agent show imprime el prompt y agent install escribe las dos ubicaciones',
     assert.equal(show.status, 0);
     assert.match(show.stdout, /^---/);
     assert.match(show.stdout, /mode: primary/);
-    assert.match(show.stdout, /alvaress jev choose/);
+    assert.match(show.stdout, /alvaress decide choose/);
 
     const install = runCli(['agent', 'install'], { cwd: root, home });
     assert.equal(install.status, 0);
@@ -145,8 +145,8 @@ test('config paths y config show respetan HOME y enmascaran secretos', () => {
   fs.mkdirSync(home);
   fs.mkdirSync(root);
   writeJson(path.join(home, '.alvaressconfig.json'), baseConfig({
+    decision: { model: 'laya', apiKey: 'decision-secret' },
     models: {
-      jevOrchestrator: { modelName: 'global-orchestrator', apiKey: 'global-secret', env: {} },
       aiderImplementer: { modelName: 'global-implementer', apiKey: 'implementer-secret', env: {} }
     }
   }));

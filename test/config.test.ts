@@ -16,13 +16,12 @@ import { makeTempDir, writeFile, writeJson } from './helpers.js';
 test('mergeConfig aplica precedencia local y fusiona env', () => {
   const globalConfig: HarnessConfigFile = {
     obsidianVaultPath: '/global/vault',
+    decision: {
+      model: 'kev',
+      apiBase: 'http://global:11434',
+      apiKey: 'global-key'
+    },
     models: {
-      jevOrchestrator: {
-        modelName: 'global-orchestrator',
-        apiKey: 'global-key',
-        apiBase: 'http://global',
-        env: { SHARED: 'global', GLOBAL_ONLY: 'yes' }
-      },
       aiderImplementer: {
         modelName: 'global-implementer',
         apiKey: 'global-implementer-key',
@@ -33,8 +32,8 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
   };
   const localConfig: HarnessConfigFile = {
     obsidianVaultPath: '/local/vault',
+    decision: { model: 'laya', apiBase: 'http://local:11434' },
     models: {
-      jevOrchestrator: { modelName: 'local-orchestrator', env: { SHARED: 'local', LOCAL_ONLY: 'yes' } },
       aiderImplementer: { modelName: 'local-implementer' }
     },
     validation: { maxAttempts: 2, commands: ['local-command'] }
@@ -43,14 +42,9 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
   const merged = mergeConfig(globalConfig, localConfig);
 
   assert.equal(merged.obsidianVaultPath, '/local/vault');
-  assert.equal(merged.models.jevOrchestrator.modelName, 'local-orchestrator');
-  assert.equal(merged.models.jevOrchestrator.apiKey, 'global-key');
-  assert.equal(merged.models.jevOrchestrator.apiBase, 'http://global');
-  assert.deepEqual(merged.models.jevOrchestrator.env, {
-    SHARED: 'local',
-    GLOBAL_ONLY: 'yes',
-    LOCAL_ONLY: 'yes'
-  });
+  assert.equal(merged.decision.model, 'laya');
+  assert.equal(merged.decision.apiKey, 'global-key');
+  assert.equal(merged.decision.apiBase, 'http://local:11434');
   assert.equal(merged.models.aiderImplementer.modelName, 'local-implementer');
   assert.equal(merged.models.aiderImplementer.apiKey, 'global-implementer-key');
   assert.deepEqual(merged.models.aiderImplementer.env, { DEEPSEEK_API_KEY: 'global-implementer-key' });
@@ -62,10 +56,13 @@ test('mergeConfig usa valores por defecto sin configuración', () => {
   const merged = mergeConfig({}, {});
 
   assert.equal(merged.obsidianVaultPath, '');
-  assert.equal(merged.models.jevOrchestrator.modelName, 'jev-latest');
-  assert.equal(merged.models.jevOrchestrator.apiBase, 'https://api.typesafe.ai/v1');
+  assert.equal(merged.decision.model, 'kev');
+  assert.equal(merged.decision.apiBase, 'http://127.0.0.1:11434');
+  assert.equal(merged.decision.apiKey, '');
+  assert.equal(merged.decision.timeoutMs, 60000);
+  assert.equal(merged.decision.cache, true);
+  assert.equal(merged.decision.maxCalls, 3);
   assert.equal(merged.models.aiderImplementer.modelName, 'deepseek/deepseek-chat');
-  assert.deepEqual(merged.models.jevOrchestrator.env, {});
   assert.equal(merged.validation.maxAttempts, 3);
   assert.deepEqual(merged.validation.commands, [
     'pnpm exec oxlint --deny=correctness --deny=suspicious',
@@ -81,8 +78,8 @@ test('loadConfig lee el archivo local del proyecto', () => {
   try {
     writeJson(path.join(temp.path, '.alvaressrc.json'), {
       obsidianVaultPath: '/vault',
+      decision: { model: 'laya' },
       models: {
-        jevOrchestrator: { modelName: 'local-orchestrator' },
         aiderImplementer: { modelName: 'local-implementer' }
       },
       validation: { maxAttempts: 1, commands: ['true'] }
@@ -91,7 +88,7 @@ test('loadConfig lee el archivo local del proyecto', () => {
     const config = loadConfig(temp.path);
 
     assert.equal(config.obsidianVaultPath, '/vault');
-    assert.equal(config.models.jevOrchestrator.modelName, 'local-orchestrator');
+    assert.equal(config.decision.model, 'laya');
     assert.equal(config.models.aiderImplementer.modelName, 'local-implementer');
     assert.equal(config.validation.maxAttempts, 1);
     assert.deepEqual(config.validation.commands, ['true']);
@@ -119,13 +116,16 @@ test('validateConfigFile acepta la estructura completa', () => {
   const value = validateConfigFile(
     {
       obsidianVaultPath: '/vault',
+      decision: {
+        model: 'kev:9b',
+        apiBase: 'http://127.0.0.1:11434',
+        apiKey: '',
+        timeoutMs: 60000,
+        cache: true,
+        cacheTtlMs: 86400000,
+        maxCalls: 3
+      },
       models: {
-        jevOrchestrator: {
-          modelName: 'qwen2.5-coder:3b',
-          apiKey: '',
-          apiBase: 'http://localhost:11434/v1',
-          env: {}
-        },
         aiderImplementer: {
           modelName: 'deepseek/deepseek-chat',
           apiKey: 'sk-test',
@@ -139,14 +139,17 @@ test('validateConfigFile acepta la estructura completa', () => {
   );
 
   assert.equal(value.obsidianVaultPath, '/vault');
+  assert.equal(value.decision?.model, 'kev:9b');
   assert.equal(value.validation?.maxAttempts, 3);
 });
 
 test('validateConfigFile rechaza tipos incorrectos', () => {
   assert.throws(() => validateConfigFile([], 'test'), ConfigError);
   assert.throws(() => validateConfigFile({ obsidianVaultPath: 42 }, 'test'), ConfigError);
+  assert.throws(() => validateConfigFile({ decision: [] }, 'test'), ConfigError);
+  assert.throws(() => validateConfigFile({ decision: { model: 'gpt-4' } }, 'test'), ConfigError);
   assert.throws(() => validateConfigFile({ models: [] }, 'test'), ConfigError);
-  assert.throws(() => validateConfigFile({ models: { jevOrchestrator: 'x' } }, 'test'), ConfigError);
+  assert.throws(() => validateConfigFile({ models: { aiderImplementer: 'x' } }, 'test'), ConfigError);
   assert.throws(
     () => validateConfigFile({ models: { aiderImplementer: { env: { KEY: 1 } } } }, 'test'),
     ConfigError
@@ -163,33 +166,39 @@ test('toConfigFile conserva todas las claves del esquema', () => {
 
   assert.deepEqual(Object.keys(file).toSorted(), [
     'aider',
+    'decision',
     'graphify',
-    'jev',
     'models',
     'obsidianVaultPath',
     'packageManager',
     'scope',
     'validation'
   ]);
-  assert.deepEqual(Object.keys(file.models ?? {}).toSorted(), ['aiderImplementer', 'jevOrchestrator']);
-  assert.deepEqual(Object.keys(file.models?.jevOrchestrator ?? {}).toSorted(), [
+  assert.deepEqual(Object.keys(file.models ?? {}).toSorted(), ['aiderImplementer']);
+  assert.deepEqual(Object.keys(file.decision ?? {}).toSorted(), [
     'apiBase',
     'apiKey',
-    'env',
-    'modelName'
+    'cache',
+    'cacheTtlMs',
+    'maxCalls',
+    'model',
+    'timeoutMs'
   ]);
 });
 
 test('maskConfig oculta claves y secretos de entorno', () => {
   const config: HarnessConfig = {
     obsidianVaultPath: '/vault',
+    decision: {
+      model: 'kev',
+      apiBase: 'http://localhost:11434',
+      apiKey: 'secret-decision',
+      timeoutMs: 60000,
+      cache: true,
+      cacheTtlMs: 1000,
+      maxCalls: 3
+    },
     models: {
-      jevOrchestrator: {
-        modelName: 'orchestrator',
-        apiKey: 'secret-orchestrator',
-        apiBase: 'http://localhost',
-        env: { API_TOKEN: 'token-value', PLAIN: 'visible' }
-      },
       aiderImplementer: {
         modelName: 'implementer',
         apiKey: 'secret-implementer',
@@ -202,10 +211,8 @@ test('maskConfig oculta claves y secretos de entorno', () => {
 
   const masked = maskConfig(config);
 
-  assert.equal(masked.models.jevOrchestrator.apiKey, '********');
+  assert.equal(masked.decision.apiKey, '********');
   assert.equal(masked.models.aiderImplementer.apiKey, '********');
-  assert.equal(masked.models.jevOrchestrator.env?.API_TOKEN, '********');
-  assert.equal(masked.models.jevOrchestrator.env?.PLAIN, 'visible');
   assert.equal(masked.models.aiderImplementer.env?.DEEPSEEK_API_KEY, '********');
   assert.equal(masked.models.aiderImplementer.env?.OTHER, 'value');
   assert.equal(masked.obsidianVaultPath, '/vault');

@@ -1,20 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runJevCommand } from '../src/commands/jev.js';
+import { runDecideCommand } from '../src/commands/decide.js';
 import { mergeConfig } from '../src/config/loader.js';
 import type { HarnessConfig } from '../src/config/loader.js';
-import type { FetchLike } from '../src/jev/client.js';
+import type { FetchLike } from '../src/decision/client.js';
+import { makeTempDir } from './helpers.js';
 
-function configWithKey(): HarnessConfig {
+function configWithModel(model = 'kev'): HarnessConfig {
   return mergeConfig(
     {
-      models: {
-        jevOrchestrator: {
-          modelName: 'jev-latest',
-          apiKey: 'test-key',
-          apiBase: 'https://api.typesafe.ai/v1',
-          env: {}
-        }
+      decision: {
+        model,
+        apiBase: 'http://127.0.0.1:11434'
       }
     },
     {}
@@ -43,27 +40,29 @@ function capture(): { lines: string[]; write: (line: string) => void } {
   return { lines, write: (line) => lines.push(line) };
 }
 
-test('jev predict envía una pregunta noul y aplica el threshold', async () => {
+test('decide predict envía una pregunta noul y aplica el threshold', async () => {
   const { fetchImpl, calls } = fakeFetch({
-    model: 'jev-1.13.0',
+    model: 'kev',
     answers: { decision: { type: 'noul', noul: 0.91 } }
   });
   const output = capture();
 
-  const code = await runJevCommand(
+  const code = await runDecideCommand(
     ['predict', '--state', 'Cambio pequeño en un archivo', '--question', '¿Puedo aplicarlo?', '--threshold', '0.8'],
     '/tmp',
-    { config: configWithKey(), fetchImpl, stdout: output.write }
+    { config: configWithModel(), fetchImpl, stdout: output.write }
   );
 
   assert.equal(code, 0);
-  assert.equal(calls[0]?.url, 'https://api.typesafe.ai/v1/systemone');
+  assert.equal(calls[0]?.url, 'http://127.0.0.1:11434/v1/systemone');
+  const headers = calls[0]?.init?.headers as Record<string, string>;
+  assert.equal(headers.Authorization, undefined);
   const body = JSON.parse(String(calls[0]?.init?.body)) as {
     model: string;
     state: string;
     questions: { decision: { type: string; instructions: string } };
   };
-  assert.equal(body.model, 'jev-latest');
+  assert.equal(body.model, 'kev');
   assert.equal(body.state, 'Cambio pequeño en un archivo');
   assert.equal(body.questions.decision.type, 'noul');
   const result = JSON.parse(output.lines[0] ?? '{}') as { probability: number; pass: boolean };
@@ -71,17 +70,17 @@ test('jev predict envía una pregunta noul y aplica el threshold', async () => {
   assert.equal(result.pass, true);
 });
 
-test('jev predict devuelve exit code 1 cuando no alcanza el threshold', async () => {
+test('decide predict devuelve exit code 1 cuando no alcanza el threshold', async () => {
   const { fetchImpl } = fakeFetch({
-    model: 'jev-1.13.0',
+    model: 'kev',
     answers: { decision: { type: 'noul', noul: 0.42 } }
   });
   const output = capture();
 
-  const code = await runJevCommand(
+  const code = await runDecideCommand(
     ['predict', '--state', 'x', '--question', '¿?', '--threshold', '0.8'],
     '/tmp',
-    { config: configWithKey(), fetchImpl, stdout: output.write }
+    { config: configWithModel(), fetchImpl, stdout: output.write }
   );
 
   assert.equal(code, 1);
@@ -89,9 +88,9 @@ test('jev predict devuelve exit code 1 cuando no alcanza el threshold', async ()
   assert.equal(result.pass, false);
 });
 
-test('jev choose devuelve la opción y respeta min-confidence', async () => {
+test('decide choose devuelve la opción y respeta min-confidence', async () => {
   const { fetchImpl, calls } = fakeFetch({
-    model: 'jev-1.13.0',
+    model: 'laya',
     answers: {
       decision: {
         type: 'choice',
@@ -103,7 +102,7 @@ test('jev choose devuelve la opción y respeta min-confidence', async () => {
   });
   const output = capture();
 
-  const code = await runJevCommand(
+  const code = await runDecideCommand(
     [
       'choose',
       '--state',
@@ -118,13 +117,15 @@ test('jev choose devuelve la opción y respeta min-confidence', async () => {
       '0.6'
     ],
     '/tmp',
-    { config: configWithKey(), fetchImpl, stdout: output.write }
+    { config: configWithModel('laya'), fetchImpl, stdout: output.write }
   );
 
   assert.equal(code, 0);
   const body = JSON.parse(String(calls[0]?.init?.body)) as {
+    model: string;
     questions: { decision: { criteria: Record<string, string> } };
   };
+  assert.equal(body.model, 'laya');
   assert.deepEqual(body.questions.decision.criteria, {
     spec: 'Crear especificación',
     apply: 'Ejecutar con Aider'
@@ -134,9 +135,9 @@ test('jev choose devuelve la opción y respeta min-confidence', async () => {
   assert.equal(result.pass, true);
 });
 
-test('jev score devuelve score, leyenda y probabilidades', async () => {
+test('decide score devuelve score, leyenda y probabilidades', async () => {
   const { fetchImpl } = fakeFetch({
-    model: 'jev-1.13.0',
+    model: 'kev',
     answers: {
       decision: {
         type: 'score',
@@ -149,7 +150,7 @@ test('jev score devuelve score, leyenda y probabilidades', async () => {
   });
   const output = capture();
 
-  const code = await runJevCommand(
+  const code = await runDecideCommand(
     [
       'score',
       '--state',
@@ -164,7 +165,7 @@ test('jev score devuelve score, leyenda y probabilidades', async () => {
       'alta'
     ],
     '/tmp',
-    { config: configWithKey(), fetchImpl, stdout: output.write }
+    { config: configWithModel(), fetchImpl, stdout: output.write }
   );
 
   assert.equal(code, 0);
@@ -176,9 +177,9 @@ test('jev score devuelve score, leyenda y probabilidades', async () => {
   assert.equal(result.legend['1'], 'media');
 });
 
-test('jev ask reenvía una petición completa', async () => {
+test('decide ask reenvía una petición completa', async () => {
   const { fetchImpl, calls } = fakeFetch({
-    model: 'jev-1.13.0',
+    model: 'kev',
     answers: { q: { type: 'noul', noul: 0.5 } }
   });
   const output = capture();
@@ -187,8 +188,8 @@ test('jev ask reenvía una petición completa', async () => {
     questions: { q: { type: 'noul', instructions: '¿Es válido?' } }
   });
 
-  const code = await runJevCommand(['ask', '--request', request], '/tmp', {
-    config: configWithKey(),
+  const code = await runDecideCommand(['ask', '--request', request], '/tmp', {
+    config: configWithModel(),
     fetchImpl,
     stdout: output.write
   });
@@ -200,67 +201,102 @@ test('jev ask reenvía una petición completa', async () => {
   assert.equal(response.answers.q.noul, 0.5);
 });
 
-test('jev models lista los modelos disponibles', async () => {
+test('decide sin subcomando ejecuta la decisión compuesta', async () => {
   const { fetchImpl, calls } = fakeFetch({
-    models: [
-      { name: 'jev-latest', description: 'General-purpose system one model.', release_date: '2026-09-15' }
-    ]
+    model: 'kev',
+    answers: {
+      clarity: { type: 'noul', noul: 0.9 },
+      path: { type: 'choice', choice: 'apply', confidence: 0.8, probabilities: { apply: 0.8 } },
+      complexity: {
+        type: 'score',
+        score: 1,
+        confidence: 0.7,
+        legend: { '0': 'trivial', '1': 'media' },
+        probabilities: { '0': 0.2, '1': 0.8 }
+      }
+    }
+  });
+  const output = capture();
+  const temp = makeTempDir('alvaress-decide-composite-');
+
+  try {
+    const code = await runDecideCommand(['--state', 'cambio', '--gate'], temp.path, {
+      config: configWithModel(),
+      fetchImpl,
+      stdout: output.write
+    });
+
+    assert.equal(code, 0);
+    const body = JSON.parse(String(calls[0]?.init?.body)) as {
+      questions: Record<string, { type: string }>;
+    };
+    assert.deepEqual(Object.keys(body.questions).toSorted(), ['clarity', 'complexity', 'path']);
+    const result = JSON.parse(output.lines[0] ?? '{}') as { path: { choice: string } };
+    assert.equal(result.path.choice, 'apply');
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('decide --model sobrescribe el modelo configurado', async () => {
+  const { fetchImpl, calls } = fakeFetch({
+    model: 'laya',
+    answers: { decision: { type: 'noul', noul: 0.9 } }
   });
   const output = capture();
 
-  const code = await runJevCommand(['models'], '/tmp', {
-    config: configWithKey(),
-    fetchImpl,
-    stdout: output.write
-  });
+  const code = await runDecideCommand(
+    ['predict', '--state', 'x', '--question', '¿?', '--model', 'laya'],
+    '/tmp',
+    { config: configWithModel('kev'), fetchImpl, stdout: output.write }
+  );
 
   assert.equal(code, 0);
-  assert.equal(calls[0]?.url, 'https://api.typesafe.ai/v1/models');
-  const result = JSON.parse(output.lines[0] ?? '{}') as { models: Array<{ name: string }> };
-  assert.equal(result.models[0]?.name, 'jev-latest');
+  const body = JSON.parse(String(calls[0]?.init?.body)) as { model: string };
+  assert.equal(body.model, 'laya');
 });
 
-test('jev devuelve exit code 2 sin API key', async () => {
+test('decide rechaza un modelo no soportado', async () => {
   const errors = capture();
-  const code = await runJevCommand(
-    ['predict', '--state', 'x', '--question', '¿?'],
+  const code = await runDecideCommand(
+    ['predict', '--state', 'x', '--question', '¿?', '--model', 'gpt-4'],
     '/tmp',
-    { config: mergeConfig({}, {}), stderr: errors.write }
+    { config: configWithModel(), stderr: errors.write }
   );
 
   assert.equal(code, 2);
-  assert.match(errors.lines[0] ?? '', /API key/);
+  assert.match(errors.lines[0] ?? '', /kev|laya/);
 });
 
 const failingFetch: FetchLike = async () => new Response('boom', { status: 500 });
 
-test('jev devuelve exit code 2 ante un error HTTP', async () => {
+test('decide devuelve exit code 2 ante un error HTTP', async () => {
   const errors = capture();
 
-  const code = await runJevCommand(
+  const code = await runDecideCommand(
     ['predict', '--state', 'x', '--question', '¿?'],
     '/tmp',
-    { config: configWithKey(), fetchImpl: failingFetch, stderr: errors.write }
+    { config: configWithModel(), fetchImpl: failingFetch, stderr: errors.write }
   );
 
   assert.equal(code, 2);
   assert.match(errors.lines[0] ?? '', /HTTP 500/);
 });
 
-test('jev rechaza opciones desconocidas y estados ambiguos', async () => {
+test('decide rechaza opciones desconocidas y estados ambiguos', async () => {
   const errors = capture();
 
-  const unknown = await runJevCommand(['predict', '--inventado', 'x'], '/tmp', {
-    config: configWithKey(),
+  const unknown = await runDecideCommand(['predict', '--inventado', 'x'], '/tmp', {
+    config: configWithModel(),
     stderr: errors.write
   });
   assert.equal(unknown, 2);
   assert.match(errors.lines[0] ?? '', /Opción desconocida/);
 
-  const ambiguous = await runJevCommand(
+  const ambiguous = await runDecideCommand(
     ['predict', '--state', 'x', '--state-json', '{}', '--question', '¿?'],
     '/tmp',
-    { config: configWithKey(), stderr: errors.write }
+    { config: configWithModel(), stderr: errors.write }
   );
   assert.equal(ambiguous, 2);
   assert.match(errors.lines[1] ?? '', /Usa solo uno/);

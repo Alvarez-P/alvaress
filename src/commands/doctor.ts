@@ -1,6 +1,15 @@
 import path from 'node:path';
 import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
+import { DEFAULT_DECISION_MODEL } from '../constants.js';
+import {
+  detectOllamaSync,
+  hasOllamaModel,
+  ollamaInstallHint,
+  ollamaStartHint,
+  ollamaVersionWarning
+} from '../decision/ollama.js';
+import type { OllamaStatus } from '../decision/ollama.js';
 import { detectObsidian } from '../obsidian/installer.js';
 import { getManifestPath, getTasksDir, loadManifest, taskFilePath } from '../openspec/manifest.js';
 import { getGraphStatus } from '../graphify/status.js';
@@ -21,6 +30,7 @@ export interface DoctorDeps {
   config?: HarnessConfig;
   commandExists?: (command: string) => boolean;
   graphStatus?: ReturnType<typeof getGraphStatus>;
+  ollamaStatus?: OllamaStatus;
 }
 
 function check(
@@ -68,6 +78,40 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
       hasCommand(tool)
         ? check(tool, 'ok', `${tool} disponible.`)
         : check(tool, 'warn', `${tool} no está instalado; el flujo continuará con menos automatización.`)
+    );
+  }
+
+  const decisionModel = config?.decision.model ?? DEFAULT_DECISION_MODEL;
+  const ollama = deps.ollamaStatus ?? detectOllamaSync();
+  if (!ollama.installed) {
+    checks.push(
+      check(
+        'ollama',
+        'warn',
+        `Ollama no está instalado; se usarán heurísticas locales. ${ollamaInstallHint()}`
+      )
+    );
+  } else if (!ollama.running) {
+    checks.push(
+      check('ollama', 'warn', `Ollama está instalado pero no responde. ${ollamaStartHint()}`)
+    );
+  } else {
+    const versionWarning = ollamaVersionWarning(ollama.version);
+    checks.push(
+      check(
+        'ollama',
+        versionWarning === undefined ? 'ok' : 'warn',
+        versionWarning ?? `Ollama ${ollama.version ?? ''} disponible.`.trim()
+      )
+    );
+    checks.push(
+      hasOllamaModel(ollama.models, decisionModel)
+        ? check('decision-model', 'ok', `Modelo ${decisionModel} disponible.`)
+        : check(
+            'decision-model',
+            'warn',
+            `Falta el modelo ${decisionModel}; ejecuta "ollama pull ${decisionModel}".`
+          )
     );
   }
 
@@ -188,6 +232,7 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
 
 export interface DoctorCommandDeps {
   config?: HarnessConfig;
+  ollamaStatus?: OllamaStatus;
   stdout?: (line: string) => void;
 }
 
@@ -198,7 +243,10 @@ export function runDoctorCommand(
 ): number {
   const stdout = deps.stdout ?? ((line: string) => console.log(line));
   const json = args.includes('--json');
-  const checks = runDoctor(root, { config: deps.config });
+  const checks = runDoctor(root, {
+    config: deps.config,
+    ollamaStatus: deps.ollamaStatus
+  });
 
   if (json) {
     stdout(JSON.stringify({ checks, errors: checks.filter((entry) => entry.status === 'error').length }, null, 2));

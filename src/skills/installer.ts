@@ -44,7 +44,7 @@ export const SKILLS: SkillDefinition[] = [
 ## Puntos de uso en el flujo SDD
 
 - **Fase 1 · Entender:** el orquestador ejecuta \`alvaress obsidian status\` y lee la nota del proyecto para recuperar contexto, decisiones y riesgos. Los subagentes de exploración pueden leer la nota y los enlaces, nunca escribir.
-- **Fase 2 · Decidir:** el orquestador usa la nota para resumir el estado que enviará a JEV. No incluyas secretos. Los subagentes no consultan JEV.
+- **Fase 2 · Decidir:** el orquestador usa la nota para resumir el estado que enviará al modelo de decisión (kev o laya). No incluyas secretos. Los subagentes no consultan el modelo de decisión.
 - **Fase 3 · Ejecutar:** el orquestador y los subagentes escriben en \`.harness/tasks/\` y \`openspec.yaml\`. La bóveda es de solo lectura para los subagentes y no se edita directamente.
 - **Fase 4 · Validar:** la bóveda no sustituye la validación. Los subagentes de verificación ejecutan los comandos locales y no escriben en la bóveda.
 - **Fase 5 · Cerrar:** solo el orquestador actualiza la nota con \`alvaress obsidian note --summary ... --validation ... --risk ... --next ...\`.
@@ -54,7 +54,7 @@ export const SKILLS: SkillDefinition[] = [
 - Si no hay bóveda configurada, continúa sin ella; no la crees desde el agente.
 - No edites \`<bóveda>/Harness/\` a mano. Usa \`alvaress obsidian note\`.
 - No crees una nota por tarea: usa la nota del proyecto y los enlaces \`[[Tasks/...]]\`.
-- No envíes a JEV contenido de la bóveda con secretos, tokens o datos personales.
+- No envíes al modelo de decisión contenido de la bóveda con secretos, tokens o datos personales.
 - Al delegar en un subagente, pásale la ruta de la bóveda y la instrucción de solo lectura.`
   }
 ];

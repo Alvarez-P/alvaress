@@ -1,7 +1,8 @@
 # alvaress
 
 Orquestador **Spec-Driven Development (SDD)** para [OpenCode](https://opencode.ai) que
-decide con [JEV](https://typesafe.ai), ejecuta con [Aider](https://aider.chat) cuando
+decide con modelos locales [kev o laya](https://ollama.com/search?c=decision) servidos
+por [Ollama](https://ollama.com), ejecuta con [Aider](https://aider.chat) cuando
 conviene y valida cada cambio con las herramientas locales del proyecto.
 
 `alvaress` instala un agente de OpenCode llamado **`alvaress`**, sus skills y la
@@ -19,7 +20,7 @@ Usuario
   │
   ▼
 OpenCode · agente alvaress
-  ├─ JEV (TypeSafe)        decisiones tipadas y probabilidades
+  ├─ kev / laya (Ollama)   decisiones tipadas y probabilidades
   ├─ Graphify              localizar código sin leer el repo entero
   ├─ OpenSpec              openspec.yaml + .harness/tasks/*.md
   ├─ Aider                 ejecución de tareas SDD y reparaciones
@@ -27,10 +28,10 @@ OpenCode · agente alvaress
   └─ Validación local      oxlint + tsc (configurable)
 ```
 
-JEV no genera texto: recibe un `state` y preguntas tipadas (`noul`, `choice`,
-`score`) y devuelve probabilidades calibradas. `alvaress` lo usa para decidir si
-la solicitud está clara, qué camino tomar y qué complejidad tiene el cambio.
-Si no hay API key de TypeSafe, el agente sigue funcionando con heurísticas.
+`kev` y `laya` no generan texto: reciben un `state` y preguntas tipadas (`noul`,
+`choice`, `score`) y devuelven probabilidades calibradas. `alvaress` los usa para
+decidir si la solicitud está clara, qué camino tomar y qué complejidad tiene el
+cambio. Si Ollama no está disponible, el agente sigue funcionando con heurísticas.
 
 ## Requisitos
 
@@ -38,7 +39,8 @@ Si no hay API key de TypeSafe, el agente sigue funcionando con heurísticas.
 - Git recomendado; el instalador detecta repositorios por `.git` o `package.json`.
 - `aider` en el `PATH` para ejecutar tareas con Aider.
 - Opcional: `pipx` y Python para que el instalador instale `aider-chat` y `graphify`.
-- Opcional: una API key de TypeSafe para usar JEV.
+- Opcional: Ollama 0.35 o superior con el modelo `kev` o `laya` descargado
+  (`ollama pull kev` o `ollama pull laya`).
 - Opcional: Obsidian. El instalador lo detecta y, si falta, intenta instalarlo y
   crea la bóveda global (`~/Obsidian` por defecto).
 
@@ -58,6 +60,7 @@ pnpm dlx alvaress --help
 
 ```bash
 # 1. Instalador interactivo: agente, skills, componentes y configuración
+#    Elige kev o laya cuando te pregunte por el modelo de decisión.
 alvaress install
 
 # 2. Inicializa el proyecto (manifiesto, tareas, skills y agente local)
@@ -75,8 +78,8 @@ Dentro de OpenCode, el agente `alvaress` ya sabe qué hacer:
 Implementa la próxima tarea pendiente de openspec.yaml.
 ```
 
-Él leerá la spec, consultará a JEV si hace falta, ejecutará Aider o editará
-directamente, validará y actualizará el estado de la tarea.
+Él leerá la spec, consultará el modelo de decisión si hace falta, ejecutará Aider
+o editará directamente, validará y actualizará el estado de la tarea.
 
 ## El agente `alvaress`
 
@@ -101,10 +104,11 @@ Los tres tienen la bóveda Obsidian como solo lectura y no pueden hacer `git pus
 Su prompt incluye:
 
 - El flujo SDD obligatorio: entender → decidir → ejecutar → validar → cerrar.
-- El uso de JEV en los puntos de decisión (máximo 3 llamadas por solicitud).
+- El uso del modelo de decisión (kev o laya) en los puntos de decisión (máximo 3
+  llamadas por solicitud).
 - La política de ejecución: Aider para tareas SDD y cambios multi-archivo;
   edición directa para cambios triviales.
-- La prohibición de enviar secretos o código completo a JEV.
+- La prohibición de enviar secretos o código completo al modelo de decisión.
 - Reglas de eficiencia de tokens: Graphify antes de `grep`/`read`, lecturas
   localizadas y resúmenes en lugar de logs completos.
 - Personalidad amigable, con modismos mexicanos ligeros y ocasionales, y
@@ -135,41 +139,57 @@ alvaress agent install --no-project
 | `alvaress skills [--no-link]` | Reinstala las skills del proyecto y sus enlaces globales. |
 | `alvaress agent [install\|show]` | Instala el agente `alvaress` y sus subagentes en OpenCode, o imprime el prompt del orquestador. |
 | `alvaress obsidian [status\|sync\|note]` | Consulta la bóveda y la nota del proyecto (`status`), las crea o repara (`sync`), o registra el cierre de una tarea (`note`, también con `--from-run latest`). |
-| `alvaress jev <decide\|predict\|choose\|score\|ask\|models>` | Consulta las decisiones tipadas de JEV. `decide` combina claridad, camino y complejidad en una sola llamada con caché. |
+| `alvaress decide [predict\|choose\|score\|ask]` | Consulta las decisiones tipadas del modelo local. Sin subcomando combina claridad, camino y complejidad en una sola llamada con caché. |
+| `alvaress model [status\|list\|kev\|laya]` | Inspecciona o cambia el modelo de decisión (`kev` o `laya`) y comprueba el estado de Ollama. |
 | `alvaress config [show\|paths]` | Muestra la configuración resuelta (con secretos enmascarados) o las rutas de configuración. |
 
-Códigos de salida: `0` éxito, `1` error o tarea fallida, `2` error de JEV, `130`
-operación cancelada.
+Códigos de salida: `0` éxito, `1` error o tarea fallida, `2` error del modelo de
+decisión u Ollama, `130` operación cancelada.
 
-## JEV
+## Modelo de decisión (kev o laya)
 
-`alvaress` habla directamente con la API System One de TypeSafe; no necesitas
-instalar el CLI `jev` ni Rust.
+`alvaress` habla con el endpoint `/v1/systemone` de Ollama. No hay API key ni
+servicio remoto: el modelo corre en tu máquina. Elige uno:
 
-Configura la API key en `~/.alvaressconfig.json`:
+| Modelo | Base | Cuándo conviene |
+| --- | --- | --- |
+| `kev` | Qwen3.5 calibrado | Equilibrio entre precisión y velocidad. |
+| `laya` | ModernBERT | Muy rápido en CPU y con poca memoria. |
+
+`alvaress install` te pregunta cuál usar y descarga lo que falte. Para cambiarlo
+después:
+
+```bash
+alvaress model               # estado actual
+alvaress model list          # modelos instalados en Ollama
+alvaress model kev           # cambia el modelo global
+alvaress model laya --local  # solo este proyecto
+```
+
+La configuración vive en `~/.alvaressconfig.json`:
 
 ```json
 {
-  "models": {
-    "jevOrchestrator": {
-      "modelName": "jev-latest",
-      "apiKey": "tu-api-key-de-typesafe",
-      "apiBase": "https://api.typesafe.ai/v1",
-      "env": {
-        "TYPESAFE_API_KEY": "tu-api-key-de-typesafe"
-      }
-    }
+  "decision": {
+    "model": "kev",
+    "apiBase": "http://127.0.0.1:11434",
+    "timeoutMs": 60000,
+    "cache": true,
+    "cacheTtlMs": 86400000,
+    "maxCalls": 3
   }
 }
 ```
 
-También puedes usar la variable de entorno `TYPESAFE_API_KEY`. La precedencia es:
-flag de CLI → configuración → entorno.
+Variables de entorno: `ALVARESS_OLLAMA_BASE` (endpoint) y
+`ALVARESS_DECISION_MODEL` (modelo). La precedencia es: flag de CLI →
+configuración → entorno. Si usas un Ollama remoto con autenticación, define
+`decision.apiKey` o `ALVARESS_DECISION_API_KEY`.
 
 ### `predict` (sí/no)
 
 ```bash
-alvaress jev predict \
+alvaress decide predict \
   --state "Cambio en un solo archivo, función pura y con tests existentes" \
   --question "¿Es seguro implementarlo directamente?" \
   --threshold 0.7
@@ -178,7 +198,7 @@ alvaress jev predict \
 Salida:
 
 ```json
-{"type":"noul","probability":0.93,"threshold":0.7,"pass":true,"model":"jev-1.13.0"}
+{"type":"noul","probability":0.93,"threshold":0.7,"pass":true,"model":"kev"}
 ```
 
 Si la probabilidad no alcanza el umbral, el comando devuelve exit code `1` y la
@@ -187,7 +207,7 @@ respuesta se imprime igualmente. Así el agente puede usar el exit code como gat
 ### `choose` (elegir entre opciones)
 
 ```bash
-alvaress jev choose \
+alvaress decide choose \
   --state "Tres tareas pendientes con archivos definidos" \
   --question "¿Cuál es el siguiente paso más eficiente?" \
   --option "spec=Actualizar la especificación" \
@@ -199,13 +219,13 @@ alvaress jev choose \
 Salida:
 
 ```json
-{"type":"choice","choice":"apply","confidence":0.84,"probabilities":{"spec":0.1,"apply":0.84,"direct":0.06},"minConfidence":0.55,"pass":true,"model":"jev-1.13.0"}
+{"type":"choice","choice":"apply","confidence":0.84,"probabilities":{"spec":0.1,"apply":0.84,"direct":0.06},"minConfidence":0.55,"pass":true,"model":"kev"}
 ```
 
 ### `score` (rubrica ordenada)
 
 ```bash
-alvaress jev score \
+alvaress decide score \
   --state "Cambio en varios módulos y una migración de base de datos" \
   --question "¿Qué complejidad tiene?" \
   --level "trivial: un archivo" \
@@ -216,7 +236,7 @@ alvaress jev score \
 ### `ask` (petición completa)
 
 ```bash
-alvaress jev ask --request-file peticion.json
+alvaress decide ask --request-file peticion.json
 ```
 
 ```json
@@ -229,32 +249,33 @@ alvaress jev ask --request-file peticion.json
 }
 ```
 
-### `models` (modelos disponibles)
+### `model list` (modelos disponibles)
 
 ```bash
-alvaress jev models
-alvaress jev models --format text
+alvaress model list
+alvaress model list --json
 ```
 
-### `decide` (decisión compuesta con caché)
+### Decisión compuesta con caché
 
-Una sola llamada resuelve claridad, camino y complejidad. Las respuestas se
-cachean en `.harness/cache/jev/` durante 24 h por defecto; usa `--no-cache` para
-forzar una llamada nueva.
+Sin subcomando, una sola llamada resuelve claridad, camino y complejidad. Las
+respuestas se cachean en `.harness/cache/decision/` durante 24 h por defecto; usa
+`--no-cache` para forzar una llamada nueva.
 
 ```bash
-alvaress jev decide --state "Tres tareas pendientes con archivos definidos" --gate
+alvaress decide --state "Tres tareas pendientes con archivos definidos" --gate
 ```
 
 - `--gate` devuelve exit code `1` si la claridad o la confianza no superan los
   umbrales.
 - `--threshold` (claridad) y `--min-confidence` (camino) ajustan los umbrales.
+- `--model kev|laya` sobrescribe el modelo configurado para esa llamada.
 - El `state` se redacta antes de enviarse: claves, tokens y contraseñas se
   sustituyen por `[REDACTED_*]`. Usa `--no-redact` solo si controlas el estado.
 
 ### Privacidad
 
-El `state` se envía a la API de TypeSafe. No incluyas claves, tokens, datos
+El `state` se envía a tu instancia de Ollama. No incluyas claves, tokens, datos
 personales ni código propietario completo. Usa un resumen de 1-3 frases. El
 prompt del agente `alvaress` ya lo exige y `alvaress` redacta secretos por defecto.
 
@@ -275,15 +296,16 @@ prompt del agente `alvaress` ya lo exige y `alvaress` redacta secretos por defec
   `"off"` lo desactiva.
 - **Timeout de Aider** configurable (`aider.timeoutMs`, 10 min por defecto) con
   terminación `SIGTERM` y luego `SIGKILL`.
-- **Entorno saneado** para Aider: no hereda tokens de TypeSafe, npm ni GitHub.
-- **Caché de JEV** por hash de la petición y TTL configurable (`jev.cacheTtlMs`).
+- **Entorno saneado** para Aider: no hereda credenciales de Ollama, npm ni GitHub.
+- **Caché de decisión** por hash de la petición y TTL configurable
+  (`decision.cacheTtlMs`).
 - **Frescura de Graphify** comprobada por `doctor`; `apply --update-graph` o
   `graphify.autoUpdate: true` lo actualizan al terminar.
 - **Permisos estrictos** en el agente y los subagentes: shell con allowlist,
   `git push`/`reset --hard`/`rm -rf` denegados y bóveda de solo lectura para
   subagentes.
-- **Redacción de secretos** antes de enviar a JEV y al escribir la nota de
-  Obsidian.
+- **Redacción de secretos** antes de enviar al modelo de decisión y al escribir la
+  nota de Obsidian.
 - **CI** con pnpm en Node 20/22/24 y release con `pnpm publish --provenance`.
 
 ## Configuración
@@ -304,14 +326,15 @@ ninguno de los dos, se aplica el valor por defecto.
   "scope": "warn",
   "graphify": { "autoUpdate": false },
   "aider": { "timeoutMs": 600000, "extraArgs": [], "inheritEnv": true },
-  "jev": { "cache": true, "cacheTtlMs": 86400000, "maxCalls": 3 },
+  "decision": {
+    "model": "kev",
+    "apiBase": "http://127.0.0.1:11434",
+    "timeoutMs": 60000,
+    "cache": true,
+    "cacheTtlMs": 86400000,
+    "maxCalls": 3
+  },
   "models": {
-    "jevOrchestrator": {
-      "modelName": "jev-latest",
-      "apiKey": "sk-typesafe",
-      "apiBase": "https://api.typesafe.ai/v1",
-      "env": { "TYPESAFE_API_KEY": "sk-typesafe" }
-    },
     "aiderImplementer": {
       "modelName": "deepseek/deepseek-chat",
       "apiKey": "sk-deepseek",
@@ -333,13 +356,14 @@ Valores por defecto:
 
 | Campo | Valor |
 | --- | --- |
-| `models.jevOrchestrator.modelName` | `jev-latest` |
-| `models.jevOrchestrator.apiBase` | `https://api.typesafe.ai/v1` |
+| `decision.model` | `kev` |
+| `decision.apiBase` | `http://127.0.0.1:11434` |
+| `decision.timeoutMs` | `60000` (1 min) |
+| `decision.cacheTtlMs` | `86400000` (24 h) |
 | `models.aiderImplementer.modelName` | `deepseek/deepseek-chat` |
 | `packageManager` | `pnpm` |
 | `scope` | `warn` |
 | `aider.timeoutMs` | `600000` (10 min) |
-| `jev.cacheTtlMs` | `86400000` (24 h) |
 | `validation.maxAttempts` | `3` |
 | `validation.commands` | `pnpm exec oxlint --deny=correctness --deny=suspicious`, `pnpm exec tsc --noEmit` |
 
@@ -471,7 +495,7 @@ La skill `obsidian-sdd` define el uso por fase:
 | Fase | Orquestador | Subagentes |
 | --- | --- | --- |
 | 1 · Entender | Ejecuta `alvaress obsidian status` y lee la nota del proyecto para recuperar contexto, decisiones y riesgos. | Los de exploración pueden leer la nota y los enlaces. |
-| 2 · Decidir | Usa la nota para resumir el estado que envía a JEV. Sin secretos. | No consultan JEV ni escriben en la bóveda. |
+| 2 · Decidir | Usa la nota para resumir el estado que envía al modelo de decisión. Sin secretos. | No consultan el modelo de decisión ni escriben en la bóveda. |
 | 3 · Ejecutar | Escribe en `.harness/tasks/` y `openspec.yaml`. | Escriben solo en el proyecto; la bóveda es de solo lectura. |
 | 4 · Validar | Ejecuta la validación local. | Ejecutan los comandos locales y no tocan la bóveda. |
 | 5 · Cerrar | Registra el cierre con `alvaress obsidian note`. | Devuelven el resultado al orquestador. |
@@ -524,7 +548,7 @@ Tipos habituales: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `build`,
 `ci`, `perf` y `style`.
 
 ```bash
-git commit -m "feat(jev): añadir caché de decisiones"
+git commit -m "feat(decision): añadir caché de decisiones"
 git commit -m "fix(apply): liberar el lock al fallar"
 ```
 
@@ -549,8 +573,9 @@ Pruebas incluidas:
 - Argumentos, utilidades de FS, enlaces simbólicos y skills.
 - Verificación y bucle self-healing con Aider simulado.
 - `apply` con grupos paralelos/secuenciales, fallos y dry-run.
-- Cliente JEV y comandos `decide`/`predict`/`choose`/`score`/`ask` con `fetch` simulado.
-- Caché de JEV, redacción de secretos, lock, backups, reportes y alcance del diff.
+- Cliente de decisión y comandos `decide`/`predict`/`choose`/`score`/`ask` con `fetch` simulado.
+- Selección de modelo (`model status|list|kev|laya`) y detección de Ollama.
+- Caché de decisión, redacción de secretos, lock, backups, reportes y alcance del diff.
 - `doctor`, `report`, `restore`, `archive` y subagentes.
 - Detección e instalación de Obsidian, bóveda, nota y comandos `obsidian`.
 - Instalación del agente global, de proyecto y de subagentes.
@@ -562,10 +587,10 @@ Pruebas incluidas:
 src/
 ├── cli.ts
 ├── agent/           prompt, subagentes e instalación
-├── commands/        install, init, agent, jev, obsidian, skills, config, doctor, report, restore, archive
+├── commands/        install, init, agent, decide, model, obsidian, skills, config, doctor, report, restore, archive
 ├── config/          loader con precedencia global/local
+├── decision/        cliente de Ollama System One, detección y caché
 ├── graphify/        estado y actualización del grafo
-├── jev/             cliente de TypeSafe System One y caché
 ├── openspec/        manifiesto y tipos
 ├── orchestrator/    agrupación, Aider, verificación, apply, backups, reportes y alcance
 ├── skills/          definición e instalación de skills

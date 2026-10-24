@@ -1,15 +1,17 @@
 import path from 'node:path';
 import {
   DEFAULT_AIDER_TIMEOUT_MS,
+  DEFAULT_DECISION_BASE,
+  DEFAULT_DECISION_CACHE_TTL_MS,
+  DEFAULT_DECISION_MAX_CALLS,
+  DEFAULT_DECISION_MODEL,
+  DEFAULT_DECISION_TIMEOUT_MS,
   DEFAULT_IMPLEMENTER_MODEL,
-  DEFAULT_JEV_BASE,
-  DEFAULT_JEV_CACHE_TTL_MS,
-  DEFAULT_JEV_MAX_CALLS,
   DEFAULT_MAX_ATTEMPTS,
-  DEFAULT_ORCHESTRATOR_MODEL,
   DEFAULT_PACKAGE_MANAGER,
   DEFAULT_SCOPE,
   GLOBAL_CONFIG_PATH,
+  isDecisionModel,
   LOCAL_CONFIG_FILENAME
 } from '../constants.js';
 import { ConfigError } from '../utils/errors.js';
@@ -26,6 +28,16 @@ export interface ModelProviderConfig {
   env?: Record<string, string>;
 }
 
+export interface DecisionConfig {
+  model: string;
+  apiBase: string;
+  apiKey?: string;
+  timeoutMs: number;
+  cache: boolean;
+  cacheTtlMs: number;
+  maxCalls: number;
+}
+
 export interface HarnessConfig {
   obsidianVaultPath: string;
   packageManager?: PackageManager;
@@ -38,13 +50,8 @@ export interface HarnessConfig {
     extraArgs?: string[];
     inheritEnv?: boolean;
   };
-  jev?: {
-    cache?: boolean;
-    cacheTtlMs?: number;
-    maxCalls?: number;
-  };
+  decision: DecisionConfig;
   models: {
-    jevOrchestrator: ModelProviderConfig;
     aiderImplementer: ModelProviderConfig;
   };
   validation: {
@@ -66,13 +73,16 @@ export interface HarnessConfigFile {
     extraArgs?: string[];
     inheritEnv?: boolean;
   };
-  jev?: {
+  decision?: {
+    model?: string;
+    apiBase?: string;
+    apiKey?: string;
+    timeoutMs?: number;
     cache?: boolean;
     cacheTtlMs?: number;
     maxCalls?: number;
   };
   models?: {
-    jevOrchestrator?: Partial<ModelProviderConfig>;
     aiderImplementer?: Partial<ModelProviderConfig>;
   };
   validation?: {
@@ -182,20 +192,28 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
     assertBoolean(value.aider.inheritEnv, 'aider.inheritEnv', source);
   }
 
-  if (value.jev !== undefined) {
-    if (!isRecord(value.jev)) {
-      throw new ConfigError(`El campo "jev" debe ser un objeto en ${source}.`);
+  if (value.decision !== undefined) {
+    if (!isRecord(value.decision)) {
+      throw new ConfigError(`El campo "decision" debe ser un objeto en ${source}.`);
     }
-    assertBoolean(value.jev.cache, 'jev.cache', source);
-    assertPositiveInteger(value.jev.cacheTtlMs, 'jev.cacheTtlMs', source, 0);
-    assertPositiveInteger(value.jev.maxCalls, 'jev.maxCalls', source, 1);
+    assertString(value.decision.model, 'decision.model', source);
+    assertString(value.decision.apiBase, 'decision.apiBase', source);
+    assertString(value.decision.apiKey, 'decision.apiKey', source);
+    assertPositiveInteger(value.decision.timeoutMs, 'decision.timeoutMs', source, 1000);
+    assertBoolean(value.decision.cache, 'decision.cache', source);
+    assertPositiveInteger(value.decision.cacheTtlMs, 'decision.cacheTtlMs', source, 0);
+    assertPositiveInteger(value.decision.maxCalls, 'decision.maxCalls', source, 1);
+    if (typeof value.decision.model === 'string' && !isDecisionModel(value.decision.model)) {
+      throw new ConfigError(
+        `El campo "decision.model" solo admite "kev" o "laya" (opcionalmente con etiqueta) en ${source}.`
+      );
+    }
   }
 
   if (value.models !== undefined) {
     if (!isRecord(value.models)) {
       throw new ConfigError(`El campo "models" debe ser un objeto en ${source}.`);
     }
-    assertModel(value.models.jevOrchestrator, 'models.jevOrchestrator', source);
     assertModel(value.models.aiderImplementer, 'models.aiderImplementer', source);
   }
 
@@ -251,8 +269,8 @@ function interpolateCommands(commands: string[] | undefined): string[] | undefin
 }
 
 export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: HarnessConfigFile): HarnessConfig {
-  const globalOrchestrator = globalConfig.models?.jevOrchestrator;
-  const localOrchestrator = localConfig.models?.jevOrchestrator;
+  const globalDecision = globalConfig.decision;
+  const localDecision = localConfig.decision;
   const globalImplementer = globalConfig.models?.aiderImplementer;
   const localImplementer = localConfig.models?.aiderImplementer;
 
@@ -268,23 +286,19 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
       extraArgs: localConfig.aider?.extraArgs ?? globalConfig.aider?.extraArgs ?? [],
       inheritEnv: localConfig.aider?.inheritEnv ?? globalConfig.aider?.inheritEnv ?? true
     },
-    jev: {
-      cache: localConfig.jev?.cache ?? globalConfig.jev?.cache ?? true,
-      cacheTtlMs: localConfig.jev?.cacheTtlMs ?? globalConfig.jev?.cacheTtlMs ?? DEFAULT_JEV_CACHE_TTL_MS,
-      maxCalls: localConfig.jev?.maxCalls ?? globalConfig.jev?.maxCalls ?? DEFAULT_JEV_MAX_CALLS
+    decision: {
+      model: localDecision?.model || globalDecision?.model || DEFAULT_DECISION_MODEL,
+      apiBase:
+        interpolateEnv(localDecision?.apiBase || globalDecision?.apiBase) || DEFAULT_DECISION_BASE,
+      apiKey: interpolateEnv(localDecision?.apiKey || globalDecision?.apiKey) ?? '',
+      timeoutMs:
+        localDecision?.timeoutMs ?? globalDecision?.timeoutMs ?? DEFAULT_DECISION_TIMEOUT_MS,
+      cache: localDecision?.cache ?? globalDecision?.cache ?? true,
+      cacheTtlMs:
+        localDecision?.cacheTtlMs ?? globalDecision?.cacheTtlMs ?? DEFAULT_DECISION_CACHE_TTL_MS,
+      maxCalls: localDecision?.maxCalls ?? globalDecision?.maxCalls ?? DEFAULT_DECISION_MAX_CALLS
     },
     models: {
-      jevOrchestrator: {
-        modelName:
-          localOrchestrator?.modelName || globalOrchestrator?.modelName || DEFAULT_ORCHESTRATOR_MODEL,
-        apiKey: interpolateEnv(localOrchestrator?.apiKey || globalOrchestrator?.apiKey) ?? '',
-        apiBase:
-          interpolateEnv(localOrchestrator?.apiBase || globalOrchestrator?.apiBase) ?? DEFAULT_JEV_BASE,
-        env: {
-          ...interpolateEnvRecord(globalOrchestrator?.env),
-          ...interpolateEnvRecord(localOrchestrator?.env)
-        }
-      },
       aiderImplementer: {
         modelName: localImplementer?.modelName || globalImplementer?.modelName || DEFAULT_IMPLEMENTER_MODEL,
         apiKey: interpolateEnv(localImplementer?.apiKey || globalImplementer?.apiKey) ?? '',
@@ -327,18 +341,16 @@ export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
       extraArgs: config.aider?.extraArgs ?? [],
       inheritEnv: config.aider?.inheritEnv ?? true
     },
-    jev: {
-      cache: config.jev?.cache ?? true,
-      cacheTtlMs: config.jev?.cacheTtlMs ?? DEFAULT_JEV_CACHE_TTL_MS,
-      maxCalls: config.jev?.maxCalls ?? DEFAULT_JEV_MAX_CALLS
+    decision: {
+      model: config.decision.model,
+      apiBase: config.decision.apiBase,
+      apiKey: config.decision.apiKey ?? '',
+      timeoutMs: config.decision.timeoutMs,
+      cache: config.decision.cache,
+      cacheTtlMs: config.decision.cacheTtlMs,
+      maxCalls: config.decision.maxCalls
     },
     models: {
-      jevOrchestrator: {
-        modelName: config.models.jevOrchestrator.modelName,
-        apiKey: config.models.jevOrchestrator.apiKey ?? '',
-        apiBase: config.models.jevOrchestrator.apiBase ?? '',
-        env: config.models.jevOrchestrator.env ?? {}
-      },
       aiderImplementer: {
         modelName: config.models.aiderImplementer.modelName,
         apiKey: config.models.aiderImplementer.apiKey ?? '',
@@ -373,13 +385,11 @@ export function maskConfig(config: HarnessConfig): HarnessConfig {
     scope: config.scope,
     graphify: config.graphify,
     aider: config.aider,
-    jev: config.jev,
+    decision: {
+      ...config.decision,
+      apiKey: maskValue(config.decision.apiKey ?? '')
+    },
     models: {
-      jevOrchestrator: {
-        ...config.models.jevOrchestrator,
-        apiKey: maskValue(config.models.jevOrchestrator.apiKey ?? ''),
-        env: maskEnv(config.models.jevOrchestrator.env)
-      },
       aiderImplementer: {
         ...config.models.aiderImplementer,
         apiKey: maskValue(config.models.aiderImplementer.apiKey ?? ''),

@@ -9,8 +9,16 @@ import { makeTempDir, writeJson } from './helpers.js';
 function configWith(vaultPath: string): HarnessConfig {
   return {
     obsidianVaultPath: vaultPath,
+    decision: {
+      model: 'kev',
+      apiBase: 'http://127.0.0.1:11434',
+      apiKey: '',
+      timeoutMs: 60000,
+      cache: true,
+      cacheTtlMs: 86400000,
+      maxCalls: 3
+    },
     models: {
-      jevOrchestrator: { modelName: 'jev-latest', apiKey: '', apiBase: '', env: {} },
       aiderImplementer: { modelName: 'deepseek/deepseek-chat', apiKey: '', apiBase: '', env: {} }
     },
     validation: { maxAttempts: 1, commands: [] }

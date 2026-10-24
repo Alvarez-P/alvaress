@@ -1,33 +1,37 @@
 import fs from 'node:fs';
 import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
-import { DEFAULT_JEV_CACHE_TTL_MS } from '../constants.js';
-import { readJevCache, writeJevCache } from '../jev/cache.js';
+import { DEFAULT_DECISION_CACHE_TTL_MS } from '../constants.js';
+import { readDecisionCache, writeDecisionCache } from '../decision/cache.js';
 import {
+  assertDecisionModel,
   choice,
   choiceAnswer,
-  listJevModels,
   noul,
   noulAnswer,
-  requestJev,
-  resolveJevClient,
+  requestDecision,
+  resolveDecisionClient,
   score,
   scoreAnswer
-} from '../jev/client.js';
-import type { FetchLike, JevQuestion, JevRequest, JevResponse } from '../jev/client.js';
-import { errorMessage, JevError } from '../utils/errors.js';
+} from '../decision/client.js';
+import type {
+  DecisionQuestion,
+  DecisionRequest,
+  DecisionResponse,
+  FetchLike
+} from '../decision/client.js';
+import { DecisionError, errorMessage } from '../utils/errors.js';
 import { redactValue } from '../utils/redact.js';
 
-const HELP = `alvaress jev
+const HELP = `alvaress decide
 
 Uso:
-  alvaress jev decide  --state "<texto>" [--state-file <ruta>] [--gate]
-  alvaress jev predict --state "<texto>" --question "<pregunta>" [--threshold 0.8]
-  alvaress jev choose  --state "<texto>" --question "<pregunta>" --option clave="descripción" --option ...
-  alvaress jev score   --state "<texto>" --question "<pregunta>" --level "nivel 0" --level "nivel 1" ...
-  alvaress jev ask     --request-file peticion.json
-  alvaress jev ask     --request '{"state":...,"questions":{...}}'
-  alvaress jev models
+  alvaress decide --state "<texto>" [--state-file <ruta>] [--gate]
+  alvaress decide predict --state "<texto>" --question "<pregunta>" [--threshold 0.8]
+  alvaress decide choose  --state "<texto>" --question "<pregunta>" --option clave="descripción" --option ...
+  alvaress decide score   --state "<texto>" --question "<pregunta>" --level "nivel 0" --level "nivel 1" ...
+  alvaress decide ask     --request-file peticion.json
+  alvaress decide ask     --request '{"state":...,"questions":{...}}'
 
 Entrada de estado:
   --state "<texto>"        Estado en texto plano.
@@ -36,7 +40,7 @@ Entrada de estado:
 
 Opciones:
   --format json|text       Salida JSON (por defecto) o solo el valor.
-  --model <modelo>         Sobrescribe el modelo (por defecto jev-latest).
+  --model <modelo>         Sobrescribe el modelo: kev o laya (admite etiquetas, p. ej. kev:9b).
   --threshold <0..1>       En predict/decide, exige claridad mínima.
   --min-confidence <0..1>  En choose/decide, exige confianza mínima.
   --gate                   En decide, devuelve exit 1 si no se superan los umbrales.
@@ -49,7 +53,8 @@ Códigos de salida:
   1  Gate no superado (la respuesta se imprime igualmente).
   2  Error de configuración, red o API.
 
-JEV es opcional: si no hay TYPESAFE_API_KEY, el agente alvaress continúa con heurísticas locales.`;
+El modelo de decisión corre en Ollama (/v1/systemone). Es opcional: si Ollama no
+responde, el agente alvaress continúa con heurísticas locales.`;
 
 const DEFAULT_CLARITY_QUESTION =
   '¿La solicitud es suficientemente clara y completa para implementarse sin preguntas adicionales?';
@@ -73,7 +78,7 @@ interface ChoiceOption {
   description: string;
 }
 
-interface ParsedJevArgs {
+interface ParsedDecisionArgs {
   state?: string;
   stateJson?: string;
   stateFile?: string;
@@ -93,7 +98,7 @@ interface ParsedJevArgs {
   help: boolean;
 }
 
-export interface JevCommandDeps {
+export interface DecideCommandDeps {
   config?: HarnessConfig;
   fetchImpl?: FetchLike;
   stdout?: (line: string) => void;
@@ -104,7 +109,7 @@ export interface JevCommandDeps {
 function parseNumber(value: string, flag: string): number {
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed)) {
-    throw new JevError(`${flag} necesita un número válido.`);
+    throw new DecisionError(`${flag} necesita un número válido.`);
   }
   return parsed;
 }
@@ -112,18 +117,18 @@ function parseNumber(value: string, flag: string): number {
 function parseOption(value: string): ChoiceOption {
   const separator = value.indexOf('=');
   if (separator <= 0) {
-    throw new JevError('Cada --option debe tener el formato clave="descripción".');
+    throw new DecisionError('Cada --option debe tener el formato clave="descripción".');
   }
   const key = value.slice(0, separator).trim();
   const description = value.slice(separator + 1).trim();
   if (key.length === 0 || description.length === 0) {
-    throw new JevError('Cada --option necesita una clave y una descripción no vacías.');
+    throw new DecisionError('Cada --option necesita una clave y una descripción no vacías.');
   }
   return { key, description };
 }
 
-function parseJevArgs(args: string[]): ParsedJevArgs {
-  const parsed: ParsedJevArgs = {
+function parseDecisionArgs(args: string[]): ParsedDecisionArgs {
+  const parsed: ParsedDecisionArgs = {
     options: [],
     levels: [],
     format: 'json',
@@ -133,7 +138,7 @@ function parseJevArgs(args: string[]): ParsedJevArgs {
   const take = (index: number, flag: string): [string, number] => {
     const value = args[index + 1];
     if (value === undefined) {
-      throw new JevError(`Falta el valor de ${flag}.`);
+      throw new DecisionError(`Falta el valor de ${flag}.`);
     }
     return [value, index + 1];
   };
@@ -192,7 +197,7 @@ function parseJevArgs(args: string[]): ParsedJevArgs {
       case '--format': {
         const [value, next] = take(index, argument);
         if (value !== 'json' && value !== 'text') {
-          throw new JevError('--format solo admite "json" o "text".');
+          throw new DecisionError('--format solo admite "json" o "text".');
         }
         parsed.format = value;
         index = next;
@@ -200,7 +205,7 @@ function parseJevArgs(args: string[]): ParsedJevArgs {
       }
       case '--model': {
         const [value, next] = take(index, argument);
-        parsed.model = value;
+        parsed.model = assertDecisionModel(value);
         index = next;
         break;
       }
@@ -236,7 +241,7 @@ function parseJevArgs(args: string[]): ParsedJevArgs {
         parsed.help = true;
         break;
       default:
-        throw new JevError(`Opción desconocida para jev: ${argument}`);
+        throw new DecisionError(`Opción desconocida para decide: ${argument}`);
     }
   }
 
@@ -252,23 +257,23 @@ async function readStdinDefault(): Promise<string> {
 }
 
 async function readState(
-  parsed: ParsedJevArgs,
+  parsed: ParsedDecisionArgs,
   readStdin: () => Promise<string>
 ): Promise<unknown> {
   const provided = [parsed.state, parsed.stateJson, parsed.stateFile].filter(
     (value) => value !== undefined
   ).length;
   if (provided === 0) {
-    throw new JevError('Falta el estado: usa --state, --state-json o --state-file.');
+    throw new DecisionError('Falta el estado: usa --state, --state-json o --state-file.');
   }
   if (provided > 1) {
-    throw new JevError('Usa solo uno de --state, --state-json o --state-file.');
+    throw new DecisionError('Usa solo uno de --state, --state-json o --state-file.');
   }
   if (parsed.stateJson !== undefined) {
     try {
       return JSON.parse(parsed.stateJson);
     } catch {
-      throw new JevError('--state-json no contiene JSON válido.');
+      throw new DecisionError('--state-json no contiene JSON válido.');
     }
   }
   if (parsed.stateFile !== undefined) {
@@ -278,29 +283,29 @@ async function readState(
     try {
       return fs.readFileSync(parsed.stateFile, 'utf-8');
     } catch (error) {
-      throw new JevError(`No se pudo leer el estado de ${parsed.stateFile}: ${errorMessage(error)}`);
+      throw new DecisionError(`No se pudo leer el estado de ${parsed.stateFile}: ${errorMessage(error)}`);
     }
   }
   return parsed.state;
 }
 
-function requireQuestion(parsed: ParsedJevArgs): string {
+function requireQuestion(parsed: ParsedDecisionArgs): string {
   if (parsed.question === undefined || parsed.question.trim().length === 0) {
-    throw new JevError('Falta --question.');
+    throw new DecisionError('Falta --question.');
   }
   return parsed.question;
 }
 
 async function readRequest(
-  parsed: ParsedJevArgs,
+  parsed: ParsedDecisionArgs,
   readStdin: () => Promise<string>
-): Promise<JevRequest> {
+): Promise<DecisionRequest> {
   const provided = [parsed.request, parsed.requestFile].filter((value) => value !== undefined).length;
   if (provided === 0) {
-    throw new JevError('Falta --request o --request-file para "jev ask".');
+    throw new DecisionError('Falta --request o --request-file para "decide ask".');
   }
   if (provided > 1) {
-    throw new JevError('Usa solo uno de --request o --request-file.');
+    throw new DecisionError('Usa solo uno de --request o --request-file.');
   }
 
   let raw: string;
@@ -312,7 +317,7 @@ async function readRequest(
     try {
       raw = fs.readFileSync(parsed.requestFile ?? '', 'utf-8');
     } catch (error) {
-      throw new JevError(`No se pudo leer ${parsed.requestFile}: ${errorMessage(error)}`);
+      throw new DecisionError(`No se pudo leer ${parsed.requestFile}: ${errorMessage(error)}`);
     }
   }
 
@@ -320,30 +325,30 @@ async function readRequest(
   try {
     value = JSON.parse(raw);
   } catch {
-    throw new JevError('La petición de "jev ask" no contiene JSON válido.');
+    throw new DecisionError('La petición de "decide ask" no contiene JSON válido.');
   }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new JevError('La petición de "jev ask" debe ser un objeto JSON.');
+    throw new DecisionError('La petición de "decide ask" debe ser un objeto JSON.');
   }
   const request = value as Record<string, unknown>;
   if (request.state === undefined) {
-    throw new JevError('La petición de "jev ask" necesita "state".');
+    throw new DecisionError('La petición de "decide ask" necesita "state".');
   }
   if (typeof request.questions !== 'object' || request.questions === null || Array.isArray(request.questions)) {
-    throw new JevError('La petición de "jev ask" necesita "questions" como objeto.');
+    throw new DecisionError('La petición de "decide ask" necesita "questions" como objeto.');
   }
   return {
     state: request.state,
-    questions: request.questions as Record<string, JevQuestion>,
+    questions: request.questions as Record<string, DecisionQuestion>,
     model: typeof request.model === 'string' ? request.model : undefined
   };
 }
 
-function maybeRedact(state: unknown, parsed: ParsedJevArgs): unknown {
+function maybeRedact(state: unknown, parsed: ParsedDecisionArgs): unknown {
   return parsed.redact === false ? state : redactValue(state);
 }
 
-function buildDecideRequest(state: unknown): JevRequest {
+function buildDecideRequest(state: unknown): DecisionRequest {
   return {
     state,
     questions: {
@@ -359,7 +364,8 @@ function renderDecideText(result: {
   path: { choice: string; confidence: number; pass: boolean };
   complexity: { score: number; legend: Record<string, string> };
 }): string {
-  const complexity = result.complexity.legend[String(result.complexity.score)] ?? String(result.complexity.score);
+  const complexity =
+    result.complexity.legend[String(result.complexity.score)] ?? String(result.complexity.score);
   return [
     `Claridad: ${result.clarity.probability.toFixed(3)} (${result.clarity.pass ? 'OK' : 'preguntar'})`,
     `Camino: ${result.path.choice} (${result.path.confidence.toFixed(3)}, ${result.path.pass ? 'OK' : 'revisar'})`,
@@ -369,23 +375,23 @@ function renderDecideText(result: {
 
 async function runDecide(
   state: unknown,
-  parsed: ParsedJevArgs,
+  parsed: ParsedDecisionArgs,
   config: HarnessConfig,
   root: string,
-  client: ReturnType<typeof resolveJevClient>,
+  client: ReturnType<typeof resolveDecisionClient>,
   stdout: (line: string) => void
 ): Promise<number> {
   const request = buildDecideRequest(state);
-  const cacheEnabled = parsed.cache !== false && (config.jev?.cache ?? true);
-  const ttl = parsed.cacheTtlMs ?? config.jev?.cacheTtlMs ?? DEFAULT_JEV_CACHE_TTL_MS;
-  let response: JevResponse | undefined = cacheEnabled
-    ? readJevCache(root, request, ttl)
+  const cacheEnabled = parsed.cache !== false && config.decision.cache;
+  const ttl = parsed.cacheTtlMs ?? config.decision.cacheTtlMs ?? DEFAULT_DECISION_CACHE_TTL_MS;
+  let response: DecisionResponse | undefined = cacheEnabled
+    ? readDecisionCache(root, request, ttl)
     : undefined;
   const cached = response !== undefined;
   if (response === undefined) {
-    response = await requestJev(request, client);
+    response = await requestDecision(request, client);
     if (cacheEnabled) {
-      writeJevCache(root, request, response);
+      writeDecisionCache(root, request, response);
     }
   }
 
@@ -425,24 +431,28 @@ async function runDecide(
   return 0;
 }
 
-export async function runJevCommand(
+export async function runDecideCommand(
   args: string[],
   root: string = process.cwd(),
-  deps: JevCommandDeps = {}
+  deps: DecideCommandDeps = {}
 ): Promise<number> {
   const stdout = deps.stdout ?? ((line: string) => console.log(line));
   const stderr = deps.stderr ?? ((line: string) => console.error(line));
   const readStdin = deps.readStdin ?? readStdinDefault;
 
-  const [subcommand, ...rest] = args;
-  if (subcommand === undefined || subcommand === 'help' || subcommand === '--help' || subcommand === '-h') {
+  const first = args[0];
+  if (first === 'help' || first === '--help' || first === '-h') {
     stdout(HELP);
     return 0;
   }
 
-  let parsed: ParsedJevArgs;
+  const composite = first === undefined || first === 'decide' || first.startsWith('-');
+  const subcommand = composite ? 'decide' : first;
+  const rest = composite ? (first === 'decide' ? args.slice(1) : args) : args.slice(1);
+
+  let parsed: ParsedDecisionArgs;
   try {
-    parsed = parseJevArgs(rest);
+    parsed = parseDecisionArgs(rest);
   } catch (error) {
     stderr(`[alvaress] ERROR: ${errorMessage(error)}`);
     return 2;
@@ -454,20 +464,10 @@ export async function runJevCommand(
 
   try {
     const config = deps.config ?? loadConfig(root);
-    const client = resolveJevClient(config, {
+    const client = resolveDecisionClient(config, {
       model: parsed.model,
       fetchImpl: deps.fetchImpl
     });
-
-    if (subcommand === 'models') {
-      const models = await listJevModels(client);
-      stdout(
-        parsed.format === 'text'
-          ? models.map((model) => `${model.name}\t${model.description}`).join('\n')
-          : JSON.stringify({ models })
-      );
-      return 0;
-    }
 
     if (subcommand === 'ask') {
       const request = await readRequest(parsed, readStdin);
@@ -475,7 +475,7 @@ export async function runJevCommand(
         parsed.redact === false
           ? request
           : { ...request, state: redactValue(request.state) };
-      const response = await requestJev(effectiveRequest, client);
+      const response = await requestDecision(effectiveRequest, client);
       stdout(JSON.stringify(response));
       return 0;
     }
@@ -489,7 +489,7 @@ export async function runJevCommand(
     const question = requireQuestion(parsed);
 
     if (subcommand === 'predict' || subcommand === 'will' || subcommand === 'noul') {
-      const response = await requestJev(
+      const response = await requestDecision(
         { state, questions: { decision: noul(question) } },
         client
       );
@@ -508,16 +508,16 @@ export async function runJevCommand(
 
     if (subcommand === 'choose' || subcommand === 'pick') {
       if (parsed.options.length < 2) {
-        throw new JevError('"jev choose" necesita al menos dos --option.');
+        throw new DecisionError('"decide choose" necesita al menos dos --option.');
       }
       const criteria: Record<string, string> = {};
       for (const option of parsed.options) {
         if (criteria[option.key] !== undefined) {
-          throw new JevError(`La opción "${option.key}" está repetida.`);
+          throw new DecisionError(`La opción "${option.key}" está repetida.`);
         }
         criteria[option.key] = option.description;
       }
-      const response = await requestJev(
+      const response = await requestDecision(
         { state, questions: { decision: choice(question, criteria) } },
         client
       );
@@ -539,9 +539,9 @@ export async function runJevCommand(
 
     if (subcommand === 'score' || subcommand === 'rate') {
       if (parsed.levels.length < 2) {
-        throw new JevError('"jev score" necesita al menos dos --level.');
+        throw new DecisionError('"decide score" necesita al menos dos --level.');
       }
-      const response = await requestJev(
+      const response = await requestDecision(
         { state, questions: { decision: score(question, parsed.levels) } },
         client
       );
@@ -558,7 +558,7 @@ export async function runJevCommand(
       return 0;
     }
 
-    throw new JevError(`Subcomando de jev desconocido: ${subcommand}`);
+    throw new DecisionError(`Subcomando de decide desconocido: ${subcommand}`);
   } catch (error) {
     stderr(`[alvaress] ERROR: ${errorMessage(error)}`);
     return 2;

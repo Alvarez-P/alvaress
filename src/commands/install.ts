@@ -5,11 +5,21 @@ import { loadConfig, getConfigPaths, saveGlobalConfig } from '../config/loader.j
 import type { HarnessConfig, HarnessConfigFile, PackageManager } from '../config/loader.js';
 import {
   COMMAND_SEPARATOR,
-  DEFAULT_JEV_BASE,
+  DECISION_MODELS,
+  DEFAULT_DECISION_BASE,
+  DEFAULT_DECISION_MODEL,
   DEFAULT_OBSIDIAN_VAULT,
   DEFAULT_PACKAGE_MANAGER,
   HARNESS_DIR
 } from '../constants.js';
+import type { DecisionModelName } from '../constants.js';
+import {
+  detectOllama,
+  hasOllamaModel,
+  ollamaInstallHint,
+  ollamaStartHint,
+  pullOllamaModel
+} from '../decision/ollama.js';
 import { detectObsidian, installObsidian } from '../obsidian/installer.js';
 import { connectObsidianVault } from '../obsidian/vault.js';
 import { ensureHarnessDirs, getManifestPath, inferProjectName, scaffoldManifest } from '../openspec/manifest.js';
@@ -24,7 +34,7 @@ import {
 } from '../utils/package-manager.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
-const COMPONENT_VALUES = ['agent', 'obsidian', 'graphify', 'aider', 'validation'] as const;
+const COMPONENT_VALUES = ['agent', 'decision', 'obsidian', 'graphify', 'aider', 'validation'] as const;
 type Component = (typeof COMPONENT_VALUES)[number];
 
 const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
@@ -32,6 +42,11 @@ const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
     value: 'agent',
     label: '🧭 Agente alvaress (OpenCode)',
     hint: 'instala el orquestador global y en el proyecto'
+  },
+  {
+    value: 'decision',
+    label: '🧠 Modelo de decisión (kev o laya vía Ollama)',
+    hint: 'elige el modelo y descarga lo que falte'
   },
   {
     value: 'obsidian',
@@ -100,11 +115,21 @@ export async function runInstall(root: string = process.cwd()): Promise<void> {
     await installValidationDependencies(root, config);
   }
 
+  let decisionChanged = false;
+  if (selected.includes('decision')) {
+    config = await configureDecision(config);
+    decisionChanged = true;
+  }
+
   if (!pathExists(paths.global)) {
     config = await promptFullConfig(config);
     saveGlobalConfig(config);
     p.log.success(`Configuración global creada en ${paths.global}`);
   } else {
+    if (decisionChanged) {
+      saveGlobalConfig(config);
+      p.log.success('Modelo de decisión actualizado en la configuración global.');
+    }
     p.log.info(`Configuración global detectada en ${paths.global}`);
   }
 
@@ -290,25 +315,76 @@ async function installValidationDependencies(root: string, config: HarnessConfig
   spinner.stop('Dependencias de validación instaladas.');
 }
 
+async function configureDecision(base: HarnessConfig): Promise<HarnessConfig> {
+  const model = await askDecisionModel(base.decision.model);
+  const apiBase = base.decision.apiBase || DEFAULT_DECISION_BASE;
+  const status = await detectOllama(apiBase);
+
+  if (!status.running) {
+    p.log.warn(`Ollama no responde en ${apiBase}.`);
+    p.log.info(status.installed ? ollamaStartHint() : ollamaInstallHint());
+  } else {
+    p.log.success(`Ollama disponible${status.version ? ` (${status.version})` : ''}.`);
+    if (hasOllamaModel(status.models, model)) {
+      p.log.success(`Modelo ${model} ya instalado.`);
+    } else {
+      const pull = unwrap(
+        await p.confirm({
+          message: `¿Descargar ${model} con "ollama pull ${model}"?`,
+          initialValue: true
+        })
+      );
+      if (pull) {
+        const spinner = p.spinner();
+        spinner.start(`Descargando ${model}`);
+        const result = await pullOllamaModel(model);
+        if (result.code === 0) {
+          spinner.stop(`Modelo ${model} descargado.`);
+        } else {
+          spinner.stop(`No se pudo descargar ${model}.`);
+          p.log.warn(
+            result.stderr.trim() || result.error || `Ejecuta "ollama pull ${model}" manualmente.`
+          );
+        }
+      } else {
+        p.log.warn(`Recuerda descargarlo: ollama pull ${model}`);
+      }
+    }
+  }
+
+  return { ...base, decision: { ...base.decision, model, apiBase } };
+}
+
+async function askDecisionModel(defaultValue: string): Promise<DecisionModelName> {
+  const initial = (DECISION_MODELS as readonly string[]).includes(defaultValue)
+    ? (defaultValue as DecisionModelName)
+    : DEFAULT_DECISION_MODEL;
+
+  return unwrap(
+    await p.select<DecisionModelName>({
+      message: 'Modelo de decisión local (Ollama)',
+      options: [
+        {
+          value: 'kev',
+          label: 'kev',
+          hint: 'Qwen3.5 calibrado; equilibrio entre precisión y velocidad'
+        },
+        {
+          value: 'laya',
+          label: 'laya',
+          hint: 'ModernBERT encoder; muy rápido en CPU'
+        }
+      ],
+      initialValue: initial
+    })
+  );
+}
+
 async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
   const vaultPath =
     base.obsidianVaultPath.length > 0
       ? base.obsidianVaultPath
       : await askRequired('Ruta de la bóveda Obsidian', DEFAULT_OBSIDIAN_VAULT);
-
-  const orchestratorModel = await askRequired(
-    'Modelo de JEV (TypeSafe)',
-    base.models.jevOrchestrator.modelName
-  );
-  const orchestratorBase = await askText(
-    'API base de JEV',
-    base.models.jevOrchestrator.apiBase || DEFAULT_JEV_BASE
-  );
-  const orchestratorKey = await askSecret(
-    base.models.jevOrchestrator.apiKey
-      ? 'API key de JEV (Enter conserva la actual)'
-      : 'API key de JEV / TYPESAFE_API_KEY (Enter para vacío)'
-  );
 
   const implementerModel = await askRequired(
     'Modelo del implementador (Aider)',
@@ -331,15 +407,6 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
     obsidianVaultPath: path.resolve(expandHome(vaultPath)),
     packageManager,
     models: {
-      jevOrchestrator: {
-        modelName: orchestratorModel,
-        apiKey: orchestratorKey ?? base.models.jevOrchestrator.apiKey ?? '',
-        apiBase: orchestratorBase,
-        env: {
-          ...base.models.jevOrchestrator.env,
-          ...(orchestratorKey ? { TYPESAFE_API_KEY: orchestratorKey } : {})
-        }
-      },
       aiderImplementer: {
         modelName: implementerModel,
         apiKey: implementerKey ?? base.models.aiderImplementer.apiKey ?? '',
@@ -356,10 +423,7 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
 
 async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigFile> {
   const vaultPath = await askRequired('Ruta de la bóveda Obsidian (local)', base.obsidianVaultPath);
-  const orchestratorModel = await askRequired(
-    'Modelo de JEV (local)',
-    base.models.jevOrchestrator.modelName
-  );
+  const decisionModel = await askDecisionModel(base.decision.model);
   const implementerModel = await askRequired(
     'Modelo del implementador (local)',
     base.models.aiderImplementer.modelName
@@ -371,8 +435,8 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
   return {
     obsidianVaultPath: path.resolve(expandHome(vaultPath)),
     packageManager,
+    decision: { model: decisionModel },
     models: {
-      jevOrchestrator: { modelName: orchestratorModel },
       aiderImplementer: { modelName: implementerModel }
     },
     validation: { maxAttempts, commands }

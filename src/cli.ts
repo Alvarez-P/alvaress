@@ -2,10 +2,11 @@ import { PACKAGE_NAME, VERSION } from './constants.js';
 import { runAgentCommand } from './commands/agent.js';
 import { runArchiveCommand } from './commands/archive.js';
 import { runConfigCommand } from './commands/config.js';
+import { runDecideCommand } from './commands/decide.js';
 import { runDoctorCommand } from './commands/doctor.js';
 import { runInit } from './commands/init.js';
 import { runInstall } from './commands/install.js';
-import { runJevCommand } from './commands/jev.js';
+import { runModelCommand } from './commands/model.js';
 import { runObsidianCommand } from './commands/obsidian.js';
 import { runReportCommand } from './commands/report.js';
 import { runRestoreCommand } from './commands/restore.js';
@@ -31,7 +32,8 @@ Uso:
   alvaress skills [--no-link]         Reinstala las skills del proyecto y sus enlaces globales.
   alvaress agent [install|show]       Instala o muestra el agente orquestador alvaress y sus subagentes.
   alvaress obsidian [status|sync|note]  Consulta o actualiza la bóveda Obsidian.
-  alvaress jev <decide|predict|choose|score|ask|models>  Consulta las decisiones tipadas de JEV.
+  alvaress decide [predict|choose|score|ask]  Consulta decisiones tipadas (kev o laya en Ollama).
+  alvaress model [status|list|kev|laya]  Elige o inspecciona el modelo de decisión local.
   alvaress doctor [--json]            Diagnóstico previo: configuración, herramientas, grafo y lock.
   alvaress report [latest|list|show]  Reportes de ejecución de .harness/runs.
   alvaress restore [latest|<id>]      Restaura openspec.yaml desde .harness/backups.
@@ -46,7 +48,8 @@ Ejemplos:
   alvaress verify TASK-01
   alvaress report latest
   alvaress agent install
-  alvaress jev decide --state "Cambio pequeño en un archivo" --gate
+  alvaress model kev
+  alvaress decide --state "Cambio pequeño en un archivo" --gate
 `;
 
 export async function runCli(argv: string[]): Promise<void> {
@@ -159,12 +162,24 @@ export async function runCli(argv: string[]): Promise<void> {
       runObsidianCommand(rest, process.cwd());
       return;
     }
-    case 'jev': {
-      const code = await runJevCommand(rest, process.cwd());
+    case 'decide': {
+      const code = await runDecideCommand(rest, process.cwd());
       if (code !== 0) {
         process.exitCode = code;
       }
       return;
+    }
+    case 'model': {
+      const code = await runModelCommand(rest, process.cwd());
+      if (code !== 0) {
+        process.exitCode = code;
+      }
+      return;
+    }
+    case 'jev': {
+      throw new Error(
+        'El comando "jev" se reemplazó por "decide". Usa "alvaress decide --help".'
+      );
     }
     case 'config': {
       runConfigCommand(rest, process.cwd());
