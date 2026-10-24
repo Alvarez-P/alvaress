@@ -1,0 +1,112 @@
+<svg viewBox="15 0 750 585" width="750" height="585" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flujo de trabajo del agente alvaress">
+  <style>
+    text { font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', system-ui, sans-serif; }
+  </style>
+  <defs>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#f59e0b"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#22c55e"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#a855f7"/>
+    </marker>
+  </defs>
+
+  <!-- Layer 0: white canvas, so the diagram reads as a light card on a dark page -->
+  <rect x="15" y="0" width="750" height="585" fill="#ffffff"/>
+
+  <!-- Title: content spans x=40..740, so its centre is x=390 -->
+  <text x="390" y="32" font-size="16" fill="#1e293b" text-anchor="middle">Flujo de trabajo del agente alvaress</text>
+
+  <!-- Layer 1: dashed groups. Left group x=40..340, right group x=400..740, both y=105..520 -->
+  <rect x="40" y="105" width="300" height="415" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6,4"/>
+  <text x="50" y="119" font-size="11" fill="#64748b">Agente alvaress</text>
+  <rect x="400" y="105" width="340" height="415" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6,4"/>
+  <text x="410" y="119" font-size="11" fill="#64748b">Herramientas y artefactos</text>
+
+  <!-- Layer 2: ordinary connectors. start = source edge + 5, end = target edge - 11 -->
+  <!-- User box bottom=96, first phase top=126 -->
+  <path d="M190,101 L 190,115" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <!-- Phase spine: boxes at y=126, 206, 286, 366, 446; height=54; gap=26 -->
+  <path d="M190,185 L 190,195" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <path d="M190,265 L 190,275" fill="none" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <path d="M190,345 L 190,355" fill="none" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow-orange)"/>
+  <path d="M190,425 L 190,435" fill="none" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <!-- Phase to tool: phase right edge=320, tool left edge=420 -->
+  <path d="M325,153 L 409,153" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <path d="M325,233 L 409,233" fill="none" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+  <path d="M325,313 L 409,313" fill="none" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow-orange)"/>
+  <path d="M325,393 L 409,393" fill="none" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <path d="M325,473 L 409,473" fill="none" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- Layer 3: boxes and labels. Two-line baseline: box y + 22 and box y + 40 -->
+  <!-- User request -->
+  <rect x="60" y="60" width="260" height="36" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="190" y="82" font-size="12" fill="#1e40af" text-anchor="middle">Petición del usuario · OpenCode</text>
+
+  <!-- Phase 1: Entender -->
+  <rect x="60" y="126" width="260" height="54" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="190" y="148" font-size="12" fill="#1e40af" text-anchor="middle">1 · Entender</text>
+  <text x="190" y="166" font-size="10" fill="#1e40af" text-anchor="middle">spec, contexto y grafo</text>
+
+  <!-- Phase 2: Decidir -->
+  <rect x="60" y="206" width="260" height="54" rx="6" fill="#f3e8ff" stroke="#a855f7"/>
+  <text x="190" y="228" font-size="12" fill="#6b21a8" text-anchor="middle">2 · Decidir</text>
+  <text x="190" y="246" font-size="10" fill="#6b21a8" text-anchor="middle">camino y complejidad</text>
+
+  <!-- Phase 3: Ejecutar -->
+  <rect x="60" y="286" width="260" height="54" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="190" y="308" font-size="12" fill="#b45309" text-anchor="middle">3 · Ejecutar</text>
+  <text x="190" y="326" font-size="10" fill="#b45309" text-anchor="middle">Aider o edición directa</text>
+
+  <!-- Phase 4: Validar -->
+  <rect x="60" y="366" width="260" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="190" y="388" font-size="12" fill="#166534" text-anchor="middle">4 · Validar</text>
+  <text x="190" y="406" font-size="10" fill="#166534" text-anchor="middle">lint, tipos y tests</text>
+
+  <!-- Phase 5: Cerrar -->
+  <rect x="60" y="446" width="260" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="190" y="468" font-size="12" fill="#166534" text-anchor="middle">5 · Cerrar</text>
+  <text x="190" y="486" font-size="10" fill="#166534" text-anchor="middle">estado, reporte y nota</text>
+
+  <!-- Tool 1: Graphify -->
+  <rect x="420" y="126" width="300" height="54" rx="6" fill="#f3e8ff" stroke="#a855f7"/>
+  <text x="570" y="148" font-size="12" fill="#6b21a8" text-anchor="middle">Graphify</text>
+  <text x="570" y="166" font-size="10" fill="#6b21a8" text-anchor="middle">mapa AST del repo</text>
+
+  <!-- Tool 2: decision model -->
+  <rect x="420" y="206" width="300" height="54" rx="6" fill="#f3e8ff" stroke="#a855f7"/>
+  <text x="570" y="228" font-size="12" fill="#6b21a8" text-anchor="middle">kev / laya</text>
+  <text x="570" y="246" font-size="10" fill="#6b21a8" text-anchor="middle">Ollama · /v1/systemone</text>
+
+  <!-- Tool 3: Aider -->
+  <rect x="420" y="286" width="300" height="54" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="570" y="308" font-size="12" fill="#b45309" text-anchor="middle">Aider</text>
+  <text x="570" y="326" font-size="10" fill="#b45309" text-anchor="middle">aider-chat · cambios multiarchivo</text>
+
+  <!-- Tool 4: local validation -->
+  <rect x="420" y="366" width="300" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="570" y="388" font-size="12" fill="#166534" text-anchor="middle">Validación local</text>
+  <text x="570" y="406" font-size="10" fill="#166534" text-anchor="middle">oxlint + tsc</text>
+
+  <!-- Tool 5: OpenSpec and Obsidian -->
+  <rect x="420" y="446" width="300" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="570" y="468" font-size="12" fill="#166534" text-anchor="middle">OpenSpec + Obsidian</text>
+  <text x="570" y="486" font-size="10" fill="#166534" text-anchor="middle">estado · runs · nota</text>
+
+  <!-- Connector labels: centred in the gap x=340..400, 14px above each line -->
+  <text x="370" y="139" font-size="10" fill="#64748b" text-anchor="middle">lee</text>
+  <text x="370" y="219" font-size="10" fill="#64748b" text-anchor="middle">consulta</text>
+  <text x="370" y="299" font-size="10" fill="#64748b" text-anchor="middle">delega</text>
+  <text x="370" y="379" font-size="10" fill="#64748b" text-anchor="middle">valida</text>
+  <text x="370" y="459" font-size="10" fill="#64748b" text-anchor="middle">registra</text>
+
+  <!-- Bottom note -->
+  <text x="390" y="548" font-size="10" fill="#64748b" text-anchor="middle">Obsidian refleja el estado en solo lectura.</text>
+  <text x="390" y="562" font-size="10" fill="#64748b" text-anchor="middle">Solo el orquestador escribe en la bóveda.</text>
+</svg>
