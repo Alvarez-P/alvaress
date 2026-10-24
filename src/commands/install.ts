@@ -257,10 +257,10 @@ async function installGraphify(): Promise<void> {
     throw new Error('Instala pipx antes de continuar: https://pipx.pypa.io');
   }
   spinner.message('Instalando graphify con pipx');
-  const result = await runCommand('pipx', ['install', 'graphify']);
+  const result = await runCommand('pipx', ['install', 'graphifyy']);
   if (result.code !== 0) {
     spinner.error('No se pudo instalar Graphify.');
-    throw new Error(`pipx install graphify falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
+    throw new Error(`pipx install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
   }
   spinner.stop('Graphify instalado correctamente.');
 }

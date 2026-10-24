@@ -38,7 +38,8 @@ cambio. Si Ollama no está disponible, el agente sigue funcionando con heurísti
 - Node.js 20 o superior y **pnpm** (gestor por defecto; npm solo si el proyecto lo exige).
 - Git recomendado; el instalador detecta repositorios por `.git` o `package.json`.
 - `aider` en el `PATH` para ejecutar tareas con Aider.
-- Opcional: `pipx` y Python para que el instalador instale `aider-chat` y `graphify`.
+- Opcional: `pipx` y Python para que el instalador instale `aider-chat` y
+  `graphify` (el paquete de PyPI se llama `graphifyy`).
 - Opcional: Ollama 0.35 o superior con el modelo `kev` o `laya` descargado
   (`ollama pull kev` o `ollama pull laya`).
 - Opcional: Obsidian. El instalador lo detecta y, si falta, intenta instalarlo y
