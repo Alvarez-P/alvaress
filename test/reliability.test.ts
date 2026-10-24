@@ -277,7 +277,7 @@ test('la caché de JEV reutiliza respuestas y respeta el TTL', () => {
   }
 });
 
-test('jev decide devuelve una decisión compuesta y aplica el gate', async () => {
+test('jev decide resuelve las tres preguntas en una sola llamada y cachea', async () => {
   const root = makeTempDir('alvaress-jev-decide-').path;
   const config = mergeConfig(
     {
@@ -297,20 +297,33 @@ test('jev decide devuelve una decisión compuesta y aplica el gate', async () =>
       complexity: { type: 'score', score: 1, confidence: 0.7, legend: { '1': 'media' }, probabilities: {} }
     }
   };
-  const fetchImpl = async (): Promise<Response> =>
-    new Response(JSON.stringify(payload), { status: 200 });
+  let calls = 0;
+  const fetchImpl = async (): Promise<Response> => {
+    calls += 1;
+    return new Response(JSON.stringify(payload), { status: 200 });
+  };
 
   try {
     const lines: string[] = [];
-    const code = await runJevCommand(['decide', '--state', 'cambio', '--no-cache'], root, {
+    const code = await runJevCommand(['decide', '--state', 'cambio'], root, {
       config,
       fetchImpl,
       stdout: (line) => lines.push(line)
     });
     assert.equal(code, 0);
+    assert.equal(calls, 1);
     const result = JSON.parse(lines.join('\n')) as { path: { choice: string }; cached: boolean };
     assert.equal(result.path.choice, 'apply');
     assert.equal(result.cached, false);
+
+    const cachedLines: string[] = [];
+    await runJevCommand(['decide', '--state', 'cambio'], root, {
+      config,
+      fetchImpl,
+      stdout: (line) => cachedLines.push(line)
+    });
+    assert.equal(calls, 1);
+    assert.equal((JSON.parse(cachedLines.join('\n')) as { cached: boolean }).cached, true);
 
     payload = {
       ...payload,
@@ -322,6 +335,7 @@ test('jev decide devuelve una decisión compuesta y aplica el gate', async () =>
       stdout: () => undefined
     });
     assert.equal(gated, 1);
+    assert.equal(calls, 2);
   } finally {
     cleanup(root);
   }
