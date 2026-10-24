@@ -4,7 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runModelCommand } from '../src/commands/model.js';
 import { mergeConfig } from '../src/config/loader.js';
-import { compareVersions, hasOllamaModel, parseOllamaVersion } from '../src/decision/ollama.js';
+import {
+  compareVersions,
+  hasOllamaModel,
+  minimumOllamaVersion,
+  ollamaInstallPlan,
+  ollamaVersionWarning,
+  parseOllamaVersion
+} from '../src/decision/ollama.js';
 import type { OllamaStatus } from '../src/decision/ollama.js';
 import { makeTempDir } from './helpers.js';
 
@@ -20,7 +27,7 @@ function capture(): { lines: string[]; write: (line: string) => void } {
 const running: OllamaStatus = {
   installed: true,
   running: true,
-  version: '0.35.0',
+  version: '0.40.4',
   models: ['kev:latest']
 };
 
@@ -79,7 +86,7 @@ test('model status en JSON incluye el estado de Ollama', async () => {
   assert.equal(parsed.model, 'kev');
   assert.equal(parsed.installed, true);
   assert.equal(parsed.ollama.running, true);
-  assert.equal(parsed.ollama.version, '0.35.0');
+  assert.equal(parsed.ollama.version, '0.40.4');
 });
 
 test('model list imprime los modelos instalados', async () => {
@@ -125,4 +132,36 @@ test('model rechaza modelos no soportados', async () => {
 
   assert.equal(code, 2);
   assert.match(errors.lines[0] ?? '', /kev|laya/);
+});
+
+test('ollamaInstallPlan elige el método según la plataforma', () => {
+  const linux = ollamaInstallPlan('linux', () => true);
+  assert.equal(linux?.shell, true);
+  assert.match(linux?.command ?? '', /ollama\.com\/install\.sh/);
+
+  assert.equal(ollamaInstallPlan('linux', (command) => command !== 'curl'), undefined);
+
+  const mac = ollamaInstallPlan('darwin', () => true);
+  assert.equal(mac?.command, 'brew');
+  assert.deepEqual(mac?.args, ['install', 'ollama']);
+
+  assert.equal(ollamaInstallPlan('darwin', (command) => command !== 'brew'), undefined);
+
+  const windows = ollamaInstallPlan('win32', () => true);
+  assert.equal(windows?.command, 'winget');
+  assert.deepEqual(windows?.args.slice(0, 4), ['install', '--id', 'Ollama.Ollama', '-e']);
+
+  assert.equal(ollamaInstallPlan('freebsd', () => true), undefined);
+});
+
+test('ollamaVersionWarning exige la versión mínima de cada modelo', () => {
+  assert.equal(minimumOllamaVersion('kev'), '0.40.4');
+  assert.equal(minimumOllamaVersion('laya:421m'), '0.40.0');
+  assert.equal(minimumOllamaVersion('otro'), '0.35.0');
+  assert.equal(minimumOllamaVersion(), '0.35.0');
+
+  assert.equal(ollamaVersionWarning('0.40.4', 'kev'), undefined);
+  assert.match(ollamaVersionWarning('0.40.3', 'kev') ?? '', /0\.40\.4/);
+  assert.equal(ollamaVersionWarning('0.40.0', 'laya'), undefined);
+  assert.match(ollamaVersionWarning('0.39.9', 'laya') ?? '', /0\.40\.0/);
 });

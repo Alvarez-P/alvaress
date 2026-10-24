@@ -237,7 +237,7 @@ test('doctor detecta configuración, gestor y grafo', () => {
       ),
       commandExists: () => true,
       graphStatus: { exists: true, path: path.join(root, 'graphify-out', 'graph.json'), stale: false },
-      ollamaStatus: { installed: true, running: true, version: '0.35.0', models: ['kev:latest'] }
+      ollamaStatus: { installed: true, running: true, version: '0.40.4', models: ['kev:latest'] }
     });
     const byName = new Map(checks.map((entry) => [entry.name, entry]));
     assert.equal(byName.get('node')?.status, 'ok');
@@ -249,7 +249,7 @@ test('doctor detecta configuración, gestor y grafo', () => {
     const lines: string[] = [];
     const code = runDoctorCommand(['--json'], root, {
       config: mergeConfig({ obsidianVaultPath: '' }, {}),
-      ollamaStatus: { installed: true, running: true, version: '0.35.0', models: ['kev:latest'] },
+      ollamaStatus: { installed: true, running: true, version: '0.40.4', models: ['kev:latest'] },
       stdout: (line) => lines.push(line)
     });
     assert.equal(code, 0);

@@ -96,7 +96,7 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
       check('ollama', 'warn', `Ollama está instalado pero no responde. ${ollamaStartHint()}`)
     );
   } else {
-    const versionWarning = ollamaVersionWarning(ollama.version);
+    const versionWarning = ollamaVersionWarning(ollama.version, decisionModel);
     checks.push(
       check(
         'ollama',

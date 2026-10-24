@@ -15,10 +15,14 @@ import {
 import type { DecisionModelName } from '../constants.js';
 import {
   detectOllama,
+  ensureOllamaRunning,
   hasOllamaModel,
+  installOllama,
   ollamaInstallHint,
   ollamaStartHint,
-  pullOllamaModel
+  ollamaVersionWarning,
+  pullOllamaModel,
+  waitForOllama
 } from '../decision/ollama.js';
 import { detectObsidian, installObsidian } from '../obsidian/installer.js';
 import { connectObsidianVault } from '../obsidian/vault.js';
@@ -46,7 +50,7 @@ const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
   {
     value: 'decision',
     label: '🧠 Modelo de decisión (kev o laya vía Ollama)',
-    hint: 'elige el modelo y descarga lo que falte'
+    hint: 'instala Ollama si falta, elige el modelo y descárgalo'
   },
   {
     value: 'obsidian',
@@ -318,13 +322,50 @@ async function installValidationDependencies(root: string, config: HarnessConfig
 async function configureDecision(base: HarnessConfig): Promise<HarnessConfig> {
   const model = await askDecisionModel(base.decision.model);
   const apiBase = base.decision.apiBase || DEFAULT_DECISION_BASE;
-  const status = await detectOllama(apiBase);
+  let status = await detectOllama(apiBase);
+
+  if (!status.installed) {
+    const shouldInstall = unwrap(
+      await p.confirm({
+        message: 'Ollama no está instalado. ¿Instalarlo ahora?',
+        initialValue: true
+      })
+    );
+    if (shouldInstall) {
+      const spinner = p.spinner();
+      spinner.start('Instalando Ollama');
+      const result = await installOllama();
+      if (result.code === 0) {
+        spinner.stop('Ollama instalado.');
+        status = await waitForOllama(apiBase);
+      } else {
+        spinner.stop('No se pudo instalar Ollama automáticamente.');
+        p.log.warn(result.error ?? result.stderr.trim() ?? 'Instalación cancelada.');
+        p.log.info(ollamaInstallHint());
+      }
+    } else {
+      p.log.info(ollamaInstallHint());
+    }
+  }
+
+  if (status.installed && !status.running) {
+    p.log.info('Arrancando Ollama...');
+    status = await ensureOllamaRunning(apiBase);
+    if (!status.running) {
+      p.log.warn(`Ollama no responde en ${apiBase}. ${ollamaStartHint()}`);
+    }
+  }
 
   if (!status.running) {
-    p.log.warn(`Ollama no responde en ${apiBase}.`);
-    p.log.info(status.installed ? ollamaStartHint() : ollamaInstallHint());
+    p.log.warn(`Ollama no está disponible; el agente usará heurísticas locales.`);
   } else {
-    p.log.success(`Ollama disponible${status.version ? ` (${status.version})` : ''}.`);
+    const versionWarning = ollamaVersionWarning(status.version, model);
+    if (versionWarning !== undefined) {
+      p.log.warn(versionWarning);
+    } else {
+      p.log.success(`Ollama disponible${status.version ? ` (${status.version})` : ''}.`);
+    }
+
     if (hasOllamaModel(status.models, model)) {
       p.log.success(`Modelo ${model} ya instalado.`);
     } else {

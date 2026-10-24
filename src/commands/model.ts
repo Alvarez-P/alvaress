@@ -73,7 +73,7 @@ function renderStatus(
   }
   stdout(`Estado: disponible${status.version ? ` (${status.version})` : ''}`);
   stdout(`Modelo ${model}: ${installed ? 'instalado' : 'no instalado'}`);
-  const warning = ollamaVersionWarning(status.version);
+  const warning = ollamaVersionWarning(status.version, model);
   if (warning !== undefined) {
     stdout(warning);
   }

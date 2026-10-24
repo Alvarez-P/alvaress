@@ -40,8 +40,9 @@ cambio. Si Ollama no está disponible, el agente sigue funcionando con heurísti
 - `aider` en el `PATH` para ejecutar tareas con Aider.
 - Opcional: `pipx` y Python para que el instalador instale `aider-chat` y
   `graphify` (el paquete de PyPI se llama `graphifyy`).
-- Opcional: Ollama 0.35 o superior con el modelo `kev` o `laya` descargado
-  (`ollama pull kev` o `ollama pull laya`).
+- Opcional: Ollama. El instalador lo instala si falta (brew, winget o el script de
+  Linux) y descarga el modelo elegido (`kev` o `laya`). `kev` necesita Ollama
+  0.40.4 o superior; `laya`, 0.40.0 o superior.
 - Opcional: Obsidian. El instalador lo detecta y, si falta, intenta instalarlo y
   crea la bóveda global (`~/Obsidian` por defecto).
 
@@ -134,7 +135,7 @@ alvaress agent install --no-project
 | `alvaress apply [TASK...] [--dry-run] [--force] [--update-graph]` | Ejecuta las tareas pendientes (o los ids indicados) con Aider. `--dry-run` muestra los grupos sin invocar a Aider ni modificar el manifiesto. `--force` ignora un lock huérfano y `--update-graph` actualiza Graphify al terminar. |
 | `alvaress verify <TASK_ID>` | Ejecuta los comandos de validación (los de la tarea o los del proyecto) y, si fallan, pide a Aider una reparación automática. |
 | `alvaress archive <SPEC_ID>` | Archiva una spec con todas sus tareas en `Done`; antes crea un backup del manifiesto. |
-| `alvaress doctor [--json]` | Diagnóstico previo: Node, configuración, gestor de paquetes, git, Aider, Graphify, Obsidian, manifiesto, comandos de validación, frescura del grafo y locks. |
+| `alvaress doctor [--json]` | Diagnóstico previo: Node, configuración, gestor de paquetes, git, Aider, Graphify, Ollama, modelo de decisión, Obsidian, manifiesto, comandos de validación, frescura del grafo y locks. |
 | `alvaress report [latest\|list\|show <id>]` | Muestra los reportes de ejecución guardados en `.harness/runs/`. |
 | `alvaress restore [--list\|latest\|<id>]` | Lista o restaura `openspec.yaml` desde `.harness/backups/`. |
 | `alvaress skills [--no-link]` | Reinstala las skills del proyecto y sus enlaces globales. |
@@ -157,8 +158,9 @@ servicio remoto: el modelo corre en tu máquina. Elige uno:
 | `kev` | Qwen3.5 calibrado | Equilibrio entre precisión y velocidad. |
 | `laya` | ModernBERT | Muy rápido en CPU y con poca memoria. |
 
-`alvaress install` te pregunta cuál usar y descarga lo que falte. Para cambiarlo
-después:
+`alvaress install` te pregunta cuál usar, instala Ollama si falta (con
+confirmación) y descarga el modelo. Si está instalado pero apagado, intenta
+arrancarlo con `ollama serve`. Para cambiarlo después:
 
 ```bash
 alvaress model               # estado actual
