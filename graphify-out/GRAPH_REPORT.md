@@ -1,17 +1,17 @@
-# Graph Report - alvaress  (2026-10-23)
+# Graph Report - alvaress  (2026-10-24)
 
 ## Corpus Check
-- 72 files · ~43,159 words
+- 72 files · ~59,107 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 5 file(s) not represented in the graph (top: (none) 5)
 
 ## Summary
-- 649 nodes · 2013 edges · 23 communities (20 shown, 3 thin omitted)
+- 651 nodes · 2015 edges · 24 communities (22 shown, 2 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 23 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `4d2461ef`
+- Built from commit: `6929bd34`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,7 +21,7 @@
 - package.json
 - install.ts
 - loader.ts
-- reliability.test.ts
+- cli.ts
 - compilerOptions
 - harness-stack
 - ref_node_path
@@ -38,6 +38,7 @@
 - engines
 - bin
 - lint-staged
+- orchestrator/report.ts
 
 ## God Nodes (most connected - your core abstractions)
 1. `pathExists()` - 41 edges
@@ -47,7 +48,7 @@
 5. `HarnessConfig` - 24 edges
 6. `runDecideCommand()` - 23 edges
 7. `connectObsidianVault()` - 23 edges
-8. `alvaress` - 22 edges
+8. `alvaress` - 23 edges
 9. `runCli()` - 21 edges
 10. `runInstall()` - 21 edges
 
@@ -66,7 +67,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (23 total, 3 thin omitted)
+## Communities (24 total, 2 thin omitted)
 
 ### Community 0 - "lock.ts"
 Cohesion: 0.21
@@ -81,16 +82,16 @@ Cohesion: 0.10
 Nodes (20): author, description, files, keywords, license, main, name, packageManager (+12 more)
 
 ### Community 3 - "install.ts"
-Cohesion: 0.10
-Nodes (40): @clack/prompts, askDecisionModel(), askMaxAttempts(), askPackageManager(), askRequired(), askSecret(), askText(), askValidationCommands() (+32 more)
+Cohesion: 0.11
+Nodes (39): @clack/prompts, askDecisionModel(), askMaxAttempts(), askPackageManager(), askRequired(), askSecret(), askText(), askValidationCommands() (+31 more)
 
 ### Community 4 - "loader.ts"
-Cohesion: 0.08
-Nodes (45): runConfigCommand(), assertBoolean(), assertModel(), assertPositiveInteger(), assertString(), assertStringList(), ConfigPaths, DecisionConfig (+37 more)
+Cohesion: 0.06
+Nodes (49): assertBoolean(), assertModel(), assertPositiveInteger(), assertString(), assertStringList(), ConfigPaths, DecisionConfig, isRecord() (+41 more)
 
-### Community 5 - "reliability.test.ts"
-Cohesion: 0.07
-Nodes (52): agentFilePath(), AgentInstallOptions, installAgent(), installSubagents(), renderAgent(), renderSubagent(), shellAllow(), shellDeny() (+44 more)
+### Community 5 - "cli.ts"
+Cohesion: 0.10
+Nodes (38): agentFilePath(), AgentInstallOptions, installAgent(), installSubagents(), renderAgent(), renderSubagent(), shellAllow(), shellDeny() (+30 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.11
@@ -98,15 +99,15 @@ Nodes (18): compilerOptions, declaration, esModuleInterop, forceConsistentCasing
 
 ### Community 7 - "harness-stack"
 Cohesion: 0.08
-Nodes (24): alvaress, Comandos, Comandos de Obsidian, Commits, Confiabilidad y seguridad, Configuración, Contenido, Cómo funciona `apply` (+16 more)
+Nodes (25): alvaress, Comandos, Comandos de Obsidian, Commits, Confiabilidad y seguridad, Configuración, Contenido, Cómo funciona `apply` (+17 more)
 
 ### Community 8 - "ref_node_path"
 Cohesion: 0.10
-Nodes (26): interpolateCommands(), interpolateEnv(), interpolateEnvRecord(), mergeConfig(), config(), setupProject(), CLI, CliResult (+18 more)
+Nodes (25): interpolateCommands(), interpolateEnv(), interpolateEnvRecord(), mergeConfig(), config(), setupProject(), CLI, CliResult (+17 more)
 
 ### Community 9 - "fs.ts"
-Cohesion: 0.10
-Nodes (53): AgentInstallReport, InitOptions, InitReport, runInit(), flagValue(), ObsidianCommandDeps, runObsidianCommand(), runState() (+45 more)
+Cohesion: 0.08
+Nodes (65): AgentInstallReport, runArchiveCommand(), InitOptions, InitReport, runInit(), runRestoreCommand(), CLAUDE_SKILLS_DIR, OPENCODE_SKILLS_DIR (+57 more)
 
 ### Community 10 - "SYSTEM PROMPT: GENERADOR DEL INSTALADOR Y ARNÉS DE AGENTES (ESTILO GENTLE AI)"
 Cohesion: 0.14
@@ -117,20 +118,20 @@ Cohesion: 0.29
 Nodes (6): ./tsconfig.json, compilerOptions, noEmit, rootDir, extends, include
 
 ### Community 12 - "decide.ts"
-Cohesion: 0.07
-Nodes (60): `ask` (petición completa), `choose` (elegir entre opciones), Decisión compuesta con caché, `model list` (modelos disponibles), Modelo de decisión (kev o laya), `predict` (sí/no), Privacidad, `score` (rúbrica ordenada) (+52 more)
+Cohesion: 0.08
+Nodes (51): `ask` (petición completa), `choose` (elegir entre opciones), Decisión compuesta con caché, `model list` (modelos disponibles), Modelo de decisión (kev o laya), `predict` (sí/no), Privacidad, `score` (rúbrica ordenada) (+43 more)
 
 ### Community 13 - "install.ts"
-Cohesion: 0.08
-Nodes (47): DecideCommandDeps, check(), DoctorCheck, DoctorCommandDeps, DoctorDeps, DoctorStatus, runDoctor(), InstallRuntime (+39 more)
+Cohesion: 0.11
+Nodes (42): DecideCommandDeps, check(), DoctorCheck, DoctorCommandDeps, DoctorDeps, DoctorStatus, runDoctor(), runDoctorCommand() (+34 more)
 
 ### Community 14 - "manifest.ts"
-Cohesion: 0.11
-Nodes (29): buildTaskDocument(), collectWorkItems(), createScaffoldManifest(), defaultAcceptance(), ensureTaskFile(), findWorkItem(), inferBoundedContexts(), parseManifest() (+21 more)
+Cohesion: 0.17
+Nodes (16): BoundedContext, OpenSpecSpec, OpenSpecTask, SpecificationStatus, TaskStatus, WorkItem, createsConflict(), dependsOn() (+8 more)
 
 ### Community 15 - "verify.ts"
-Cohesion: 0.08
-Nodes (43): GRAPHIFY_DIR, GRAPHIFY_GRAPH_FILENAME, OllamaInstallDeps, getGraphStatus(), GraphStatus, IGNORED_DIRECTORIES, SOURCE_EXTENSIONS, updateGraph() (+35 more)
+Cohesion: 0.07
+Nodes (49): GRAPHIFY_DIR, GRAPHIFY_GRAPH_FILENAME, OllamaInstallDeps, GraphStatus, IGNORED_DIRECTORIES, SOURCE_EXTENSIONS, updateGraph(), walkNewest() (+41 more)
 
 ### Community 16 - "scripts"
 Cohesion: 0.14
@@ -148,25 +149,33 @@ Nodes (3): dependencies, @clack/prompts, yaml
 Cohesion: 0.67
 Nodes (3): engines, node, pnpm
 
+### Community 21 - "lint-staged"
+Cohesion: 0.67
+Nodes (3): lint-staged, src/**/*.{ts,tsx,js,mjs,cjs}, test/**/*.{ts,tsx,js,mjs,cjs}
+
+### Community 23 - "orchestrator/report.ts"
+Cohesion: 0.16
+Nodes (21): runReportCommand(), HARNESS_CACHE_DIR, cacheDirectory(), CacheEntry, decisionRequestHash(), readDecisionCache(), writeDecisionCache(), DecisionRequest (+13 more)
+
 ## Knowledge Gaps
 - **9 isolated node(s):** `@commitlint/cli`, `@commitlint/config-conventional`, `@types/node`, `husky`, `lint-staged` (+4 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 195 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 197 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `@clack/prompts` connect `install.ts` to `package.json`?**
-  _High betweenness centrality (0.084) - this node is a cross-community bridge._
+  _High betweenness centrality (0.085) - this node is a cross-community bridge._
 - **What connects `@commitlint/cli`, `@commitlint/config-conventional`, `@types/node` to the rest of the system?**
   _9 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.09523809523809523 - nodes in this community are weakly interconnected._
 - **Why does `Modelo de decisión (kev o laya)` connect `decide.ts` to `harness-stack`?**
-  _High betweenness centrality (0.067) - this node is a cross-community bridge._
+  _High betweenness centrality (0.069) - this node is a cross-community bridge._
 - **Should `install.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.10460992907801418 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10730804810360776 - nodes in this community are weakly interconnected._
 - **Why does `alvaress` connect `harness-stack` to `decide.ts`?**
-  _High betweenness centrality (0.065) - this node is a cross-community bridge._
+  _High betweenness centrality (0.068) - this node is a cross-community bridge._
 - **Should `loader.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.07568027210884354 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05909090909090909 - nodes in this community are weakly interconnected._
