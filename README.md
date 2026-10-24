@@ -35,18 +35,20 @@ cambio. Si Ollama no está disponible, el agente sigue funcionando con heurísti
 
 ## Requisitos
 
-Solo hay dos dependencias que debes instalar tú; el resto lo resuelve
-`alvaress install`:
+Solo necesitas instalar **Node.js 20 o superior** y **pnpm** (gestor por
+defecto; npm solo si el proyecto lo exige). Todo lo demás lo resuelve
+`alvaress install`, incluidas las herramientas de Python:
 
-- **Node.js 20 o superior** y **pnpm** (gestor por defecto; npm solo si el
-  proyecto lo exige).
-- **pipx** (con Python 3.10+) para que el instalador pueda instalar Aider y
-  Graphify. Si no está, el instalador se detiene y te dice cómo instalarlo.
+- **pipx**: si falta, el instalador lo instala con el gestor de tu sistema
+  (`brew`, `apt-get`, `dnf`, `pacman`, `zypper`, `apk`) o con
+  `python3 -m pip install --user pipx`. Solo si no encuentra ninguna vía te
+  pide instalarlo a mano.
 
 El instalador se encarga de lo demás:
 
-- **Aider**: instala `aider-chat` con `pipx` si falta.
-- **Graphify**: instala el paquete `graphifyy` con `pipx` si falta.
+- **Aider**: instala `aider-chat` con `pipx` si falta (y pipx si tampoco está).
+- **Graphify**: instala el paquete `graphifyy` con `pipx` si falta (y pipx si
+  tampoco está).
 - **Ollama**: lo instala si falta (brew, winget o el script oficial de Linux),
   lo arranca si está apagado y descarga el modelo elegido (`kev` o `laya`).
   `kev` necesita Ollama 0.40.4 o superior; `laya`, 0.40.0 o superior.

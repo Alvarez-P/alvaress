@@ -36,6 +36,12 @@ import {
   packageManagerInstallArgs,
   resolvePackageManager
 } from '../utils/package-manager.js';
+import {
+  ensurePipxPath,
+  installPipx,
+  pipxInstallHint,
+  pipxInstallPlan
+} from '../utils/pipx.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
 const COMPONENT_VALUES = ['agent', 'decision', 'obsidian', 'graphify', 'aider', 'validation'] as const;
@@ -90,6 +96,7 @@ export interface InstallRuntime {
   waitForOllama: typeof waitForOllama;
   ensureOllamaRunning: typeof ensureOllamaRunning;
   pullOllamaModel: typeof pullOllamaModel;
+  installPipx: typeof installPipx;
 }
 
 const DEFAULT_RUNTIME: InstallRuntime = {
@@ -107,7 +114,8 @@ const DEFAULT_RUNTIME: InstallRuntime = {
   installOllama,
   waitForOllama,
   ensureOllamaRunning,
-  pullOllamaModel
+  pullOllamaModel,
+  installPipx
 };
 
 export interface InstallOptions {
@@ -155,11 +163,11 @@ export async function runInstall(
   }
 
   if (selected.includes('graphify')) {
-    await installGraphify(runtime);
+    await installGraphify(runtime, yes);
   }
 
   if (selected.includes('aider')) {
-    await installAider(runtime);
+    await installAider(runtime, yes);
   }
 
   if (selected.includes('validation')) {
@@ -309,27 +317,70 @@ async function configureObsidian(currentVault: string, yes: boolean): Promise<st
   return vaultPath;
 }
 
-async function installGraphify(runtime: InstallRuntime): Promise<void> {
+async function ensurePipx(runtime: InstallRuntime, yes: boolean): Promise<boolean> {
+  if (runtime.commandExists('pipx')) {
+    return true;
+  }
+
+  const plan = pipxInstallPlan(process.platform, runtime.commandExists);
+  if (plan === undefined) {
+    p.log.warn(`pipx no está disponible y hace falta para Aider y Graphify. ${pipxInstallHint()}`);
+    return false;
+  }
+
+  const shouldInstall = yes
+    ? true
+    : unwrap(
+        await p.confirm({
+          message: 'pipx no está instalado y hace falta para Aider y Graphify. ¿Instalarlo ahora?',
+          initialValue: true
+        })
+      );
+  if (!shouldInstall) {
+    p.log.warn(`Sin pipx no se pueden instalar Aider ni Graphify. ${pipxInstallHint()}`);
+    return false;
+  }
+
+  const spinner = p.spinner();
+  spinner.start('Instalando pipx');
+  const result = await runtime.installPipx();
+  if (result.code === 0) {
+    ensurePipxPath();
+    if (runtime.commandExists('pipx')) {
+      spinner.stop('pipx instalado.');
+      return true;
+    }
+  }
+
+  spinner.stop('No se pudo instalar pipx automáticamente.');
+  p.log.warn(result.error ?? result.stderr.trim() ?? 'Instalación cancelada.');
+  p.log.info(pipxInstallHint());
+  return false;
+}
+
+async function installGraphify(runtime: InstallRuntime, yes: boolean): Promise<void> {
   const spinner = p.spinner();
   spinner.start('Comprobando Graphify');
   if (runtime.commandExists('graphify')) {
     spinner.stop('Graphify ya está instalado.');
     return;
   }
-  if (!runtime.commandExists('pipx')) {
-    spinner.error('pipx no está disponible.');
-    throw new Error('Instala pipx antes de continuar: https://pipx.pypa.io');
+  spinner.stop('Graphify no está instalado.');
+  if (!(await ensurePipx(runtime, yes))) {
+    return;
   }
-  spinner.message('Instalando graphify con pipx');
+  const installSpinner = p.spinner();
+  installSpinner.start('Instalando graphify con pipx');
   const result = await runtime.runCommand('pipx', ['install', 'graphifyy']);
   if (result.code !== 0) {
-    spinner.error('No se pudo instalar Graphify.');
-    throw new Error(`pipx install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
+    installSpinner.error('No se pudo instalar Graphify.');
+    p.log.warn(`pipx install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
+    return;
   }
-  spinner.stop('Graphify instalado correctamente.');
+  installSpinner.stop('Graphify instalado correctamente.');
 }
 
-async function installAider(runtime: InstallRuntime): Promise<void> {
+async function installAider(runtime: InstallRuntime, yes: boolean): Promise<void> {
   const spinner = p.spinner();
   spinner.start('Comprobando Aider');
   const version = await runtime.runCommand('aider', ['--version']);
@@ -337,17 +388,19 @@ async function installAider(runtime: InstallRuntime): Promise<void> {
     spinner.stop(`Aider ya está instalado: ${version.stdout.trim() || 'versión desconocida'}`);
     return;
   }
-  if (!runtime.commandExists('pipx')) {
-    spinner.error('pipx no está disponible.');
-    throw new Error('Instala pipx antes de continuar: https://pipx.pypa.io');
+  spinner.stop('Aider no está instalado.');
+  if (!(await ensurePipx(runtime, yes))) {
+    return;
   }
-  spinner.message('Instalando aider-chat con pipx');
+  const installSpinner = p.spinner();
+  installSpinner.start('Instalando aider-chat con pipx');
   const result = await runtime.runCommand('pipx', ['install', 'aider-chat']);
   if (result.code !== 0) {
-    spinner.error('No se pudo instalar Aider.');
-    throw new Error(`pipx install aider-chat falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
+    installSpinner.error('No se pudo instalar Aider.');
+    p.log.warn(`pipx install aider-chat falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
+    return;
   }
-  spinner.stop('Aider instalado correctamente.');
+  installSpinner.stop('Aider instalado correctamente.');
 }
 
 async function installValidationDependencies(

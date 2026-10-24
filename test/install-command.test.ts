@@ -24,6 +24,8 @@ test('install --yes instala componentes y descarga el modelo sin preguntar', asy
     const calls: string[] = [];
     const pulled: string[] = [];
     let saved: HarnessConfig | undefined;
+    let pipxInstalled = false;
+    let pipxCalls = 0;
 
     const config = mergeConfig(
       {
@@ -34,7 +36,15 @@ test('install --yes instala componentes y descarga el modelo sin preguntar', asy
     );
 
     const runtime: Partial<InstallRuntime> = {
-      commandExists: (command) => command === 'pipx' || command === 'pnpm',
+      commandExists: (command) => {
+        if (command === 'pipx') {
+          return pipxInstalled;
+        }
+        if (command === 'graphify') {
+          return false;
+        }
+        return true;
+      },
       runCommand: async (command, args = []) => {
         calls.push([command, ...args].join(' '));
         if (command === 'aider' && args[0] === '--version') {
@@ -82,11 +92,17 @@ test('install --yes instala componentes y descarga el modelo sin preguntar', asy
       pullOllamaModel: async (model) => {
         pulled.push(model);
         return result(0);
+      },
+      installPipx: async () => {
+        pipxCalls += 1;
+        pipxInstalled = true;
+        return result(0);
       }
     };
 
     await runInstall(root, { yes: true, runtime });
 
+    assert.equal(pipxCalls, 1);
     assert.ok(calls.includes('pipx install graphifyy'));
     assert.ok(calls.includes('pipx install aider-chat'));
     assert.ok(calls.some((call) => call.startsWith('pnpm add ')));
