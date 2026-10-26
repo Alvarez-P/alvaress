@@ -173,7 +173,7 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 - Ejecuciones: \`.harness/runs/\` (reportes) y \`.laya/last_run.log\` (log del run)
 - Backups: \`.harness/backups/\`
 - Lock de ejecución: \`.harness/lock\` (evita dos runs simultáneos)
-- Motor de decisión: \`Laya\` local (ONNX); bundle en \`~/.cache/alvaress/laya-onnx\`
+- Motor de decisión: \`Laya\` local (ONNX); bundle int8 en \`~/.cache/alvaress/laya-onnx-int8\`
 - HALT del último run: \`.laya/HALT.json\`
 - Validador local: Vite-Plus (\`vp check\` y \`vp test\`)
 - Aider (opcional): se activa con \`aider.enabled\`; si no, se usan subagentes

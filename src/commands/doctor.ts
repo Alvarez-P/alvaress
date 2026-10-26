@@ -3,7 +3,8 @@ import { statSync } from 'node:fs';
 import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
 import {
-  LAYA_MODEL_CACHE_ROOT,
+  LAYA_FP32_MODEL_CACHE_ROOT,
+  LAYA_INT8_MODEL_CACHE_ROOT,
   LAYA_ONNX_RUNTIME_PACKAGE,
   LAYA_TOKENIZER_PACKAGE,
   VITE_PLUS_PACKAGE
@@ -91,10 +92,11 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
 
   const layaEnabled = config?.laya?.enabled ?? true;
   const configuredDir = config?.laya?.modelDir;
-  const modelDir =
-    configuredDir !== undefined && configuredDir.trim().length > 0
-      ? path.resolve(root, configuredDir.trim())
-      : path.join(LAYA_MODEL_CACHE_ROOT, BUNDLE_REVISION);
+  const hasConfiguredDir = configuredDir !== undefined && configuredDir.trim().length > 0;
+  const modelDir = hasConfiguredDir
+    ? path.resolve(root, configuredDir.trim())
+    : path.join(LAYA_INT8_MODEL_CACHE_ROOT, BUNDLE_REVISION);
+  const legacyDir = path.join(LAYA_FP32_MODEL_CACHE_ROOT, BUNDLE_REVISION);
 
   if (!layaEnabled) {
     checks.push(check('laya', 'warn', 'Laya está deshabilitado; se usarán heurísticas locales.'));
@@ -122,15 +124,20 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
     );
   } else {
     const missing = missingBundleFiles(modelDir);
-    checks.push(
-      missing.length > 0
-        ? check(
-            'laya',
-            'warn',
-            `Modelo de Laya incompleto en ${modelDir} (faltan ${missing.join(', ')}); ejecuta "alvaress install".`
-          )
-        : check('laya', 'ok', `Laya listo en ${modelDir}.`)
-    );
+    const legacyMissing = hasConfiguredDir ? undefined : missingBundleFiles(legacyDir);
+    if (missing.length === 0) {
+      checks.push(check('laya', 'ok', `Laya listo en ${modelDir}.`));
+    } else if (legacyMissing !== undefined && legacyMissing.length === 0) {
+      checks.push(check('laya', 'ok', `Laya listo en ${legacyDir} (bundle heredado).`));
+    } else {
+      checks.push(
+        check(
+          'laya',
+          'warn',
+          `Modelo de Laya incompleto en ${modelDir} (faltan ${missing.join(', ')}); ejecuta "alvaress install".`
+        )
+      );
+    }
   }
 
   const vitePlusAvailable = deps.vitePlusAvailable ?? hasCommand('vp');

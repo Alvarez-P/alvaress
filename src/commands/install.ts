@@ -10,7 +10,7 @@ import {
   DEFAULT_OBSIDIAN_VAULT,
   DEFAULT_PACKAGE_MANAGER,
   HARNESS_DIR,
-  LAYA_MODEL_CACHE_ROOT,
+  LAYA_INT8_MODEL_CACHE_ROOT,
   LAYA_ONNX_RUNTIME_PACKAGE,
   LAYA_TOKENIZER_PACKAGE,
   VITE_PLUS_PACKAGE
@@ -543,7 +543,7 @@ async function downloadLayaBundle(
   if (!yes) {
     const proceed = unwrap(
       await p.confirm({
-        message: `¿Descargar el modelo de Laya (${formatBytes(BUNDLE_BYTES)}) en ${dir}?`,
+        message: `¿Descargar el modelo de Laya int8 (${formatBytes(BUNDLE_BYTES)}) en ${dir}?`,
         initialValue: true
       })
     );
@@ -559,7 +559,7 @@ async function downloadLayaBundle(
   );
 
   const spinner = p.spinner();
-  spinner.start(`Descargando el modelo de Laya (${formatBytes(BUNDLE_BYTES)})`);
+  spinner.start(`Descargando el modelo de Laya int8 (${formatBytes(BUNDLE_BYTES)})`);
   let lastFile = '';
   let lastPercent = -1;
 
@@ -580,6 +580,15 @@ async function downloadLayaBundle(
   } catch (error) {
     spinner.stop('No se pudo descargar el modelo de Laya.');
     p.log.warn(errorMessage(error));
+    return false;
+  }
+
+  const finalCheck = await verifyBundle(dir, { deep: true });
+  if (!finalCheck.ok) {
+    spinner.stop('El modelo de Laya quedó incompleto.');
+    p.log.warn(
+      `Archivos con problemas: ${[...finalCheck.missing, ...finalCheck.corrupt].join(', ')}.`
+    );
     return false;
   }
 
@@ -644,7 +653,7 @@ async function configureLaya(
   }
 
   if (depsReady) {
-    await downloadLayaBundle(path.join(LAYA_MODEL_CACHE_ROOT, BUNDLE_REVISION), yes, runtime);
+    await downloadLayaBundle(path.join(LAYA_INT8_MODEL_CACHE_ROOT, BUNDLE_REVISION), yes, runtime);
   }
 
   return { ...base, laya: { ...current, enabled: true, modelDir: undefined } };

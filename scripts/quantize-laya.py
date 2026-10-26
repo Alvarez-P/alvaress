@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Cuantiza el bundle ONNX de Laya a int8 con bloques de 32 pesos.
 
-El script es reproducible y no depende del repositorio de nadie: parte de un
-bundle fp32 (los mismos archivos que descarga `alvaress install`) y escribe un
-bundle int8 con la misma estructura, listo para usarse con `laya.modelDir`.
+El script es reproducible y no depende del repositorio de nadie: parte del
+bundle fp32 de referencia y escribe un bundle int8 con la misma estructura,
+listo para usarse con `laya.modelDir` o para publicarse como release asset.
 
 Qué cuantiza:
 

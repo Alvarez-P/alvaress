@@ -1,6 +1,10 @@
 import path from 'node:path';
 import type { LayaConfig } from '../config/loader.js';
-import { DEFAULT_LAYA_TIMEOUT_MS, LAYA_MODEL_CACHE_ROOT } from '../constants.js';
+import {
+  DEFAULT_LAYA_TIMEOUT_MS,
+  LAYA_FP32_MODEL_CACHE_ROOT,
+  LAYA_INT8_MODEL_CACHE_ROOT
+} from '../constants.js';
 import type {
   DecisionEngine,
   FailureInput,
@@ -68,21 +72,39 @@ function expandHome(target: string): string {
  * Resuelve el directorio del bundle: `laya.modelDir` si está configurado, o la
  * caché global compartida. No descarga nada: si falta el modelo, el run cae a
  * heurísticas y el instalador es quien se encarga de bajarlo.
+ *
+ * La caché int8 es la preferida. Si no está y queda un bundle fp32 de una
+ * instalación anterior, se reutiliza para no obligar a descargar el modelo otra
+ * vez.
  */
 export async function resolveLayaModelDir(config: LayaConfig, root: string): Promise<string> {
-  const dir =
-    config.modelDir !== undefined && config.modelDir.trim().length > 0
-      ? path.resolve(root, expandHome(config.modelDir.trim()))
-      : path.join(LAYA_MODEL_CACHE_ROOT, BUNDLE_REVISION);
-
-  const check = await verifyBundle(dir);
-  if (!check.ok) {
-    const problems = [...check.missing, ...check.corrupt];
-    throw new Error(
-      `El modelo de Laya no está completo en ${dir} (${problems.join(', ')}). Ejecuta "alvaress install".`
-    );
+  const configured = config.modelDir?.trim() ?? '';
+  if (configured.length > 0) {
+    const dir = path.resolve(root, expandHome(configured));
+    const check = await verifyBundle(dir);
+    if (!check.ok) {
+      const problems = [...check.missing, ...check.corrupt];
+      throw new Error(
+        `El modelo de Laya no está completo en ${dir} (${problems.join(', ')}). Ejecuta "alvaress install".`
+      );
+    }
+    return dir;
   }
-  return dir;
+
+  const int8Dir = path.join(LAYA_INT8_MODEL_CACHE_ROOT, BUNDLE_REVISION);
+  const legacyDir = path.join(LAYA_FP32_MODEL_CACHE_ROOT, BUNDLE_REVISION);
+  const int8Check = await verifyBundle(int8Dir);
+  if (int8Check.ok) {
+    return int8Dir;
+  }
+  if ((await verifyBundle(legacyDir)).ok) {
+    return legacyDir;
+  }
+
+  const problems = [...int8Check.missing, ...int8Check.corrupt];
+  throw new Error(
+    `El modelo de Laya no está completo en ${int8Dir} (${problems.join(', ')}). Ejecuta "alvaress install".`
+  );
 }
 
 export async function loadLayaAgent(config: LayaConfig, root: string): Promise<LayaAgentLike> {

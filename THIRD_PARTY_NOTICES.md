@@ -20,13 +20,14 @@ El código fue portado de JavaScript a TypeScript y adaptado a la interfaz de
   modelo;
 - el modelo se carga desde una caché global compartida entre proyectos.
 
-El bundle de pesos `receptron/laya-onnx` se descarga por separado y no se
-distribuye con este paquete. Laya es un proyecto de
+El bundle de pesos `receptron/laya-onnx` no se distribuye con este paquete.
+Laya es un proyecto de
 [ConvAI Innovations](https://github.com/convaiinnovations/laya).
 
 El artefacto int8 que genera `scripts/quantize-laya.py` es una obra derivada de
-esos mismos pesos: tampoco se incluye en el paquete npm y, si se publica como
-release asset, debe conservar este aviso y la licencia MIT de Receptron.
+esos mismos pesos: tampoco se incluye en el paquete npm. El instalador lo
+descarga del release `laya-int8-v1` de alvaress; al distribuirlo hay que
+conservar este aviso y la licencia MIT de Receptron.
 
 ### Licencia MIT de `@receptron/laya`
 

@@ -42,8 +42,14 @@ export const LAYA_HALT_FILENAME = 'HALT.json';
 export const DEFAULT_MAX_FIX_ATTEMPTS = 2;
 export const LAYA_ONNX_RUNTIME_PACKAGE = 'onnxruntime-node';
 export const LAYA_TOKENIZER_PACKAGE = '@huggingface/tokenizers';
-/** Caché global del bundle: un solo modelo compartido entre proyectos. */
-export const LAYA_MODEL_CACHE_ROOT = path.join(
+/** Caché global del artefacto int8: un solo modelo compartido entre proyectos. */
+export const LAYA_INT8_MODEL_CACHE_ROOT = path.join(
+  process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'),
+  'alvaress',
+  'laya-onnx-int8'
+);
+/** Caché histórica del bundle fp32; se acepta si ya existe para no re-descargar. */
+export const LAYA_FP32_MODEL_CACHE_ROOT = path.join(
   process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'),
   'alvaress',
   'laya-onnx'

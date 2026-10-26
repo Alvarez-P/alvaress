@@ -116,9 +116,9 @@ Solo necesitas instalar Node.js 20 o superior y pnpm; el resto lo resuelve
 instalarlo a mano.
 
 **Sobre Laya:** alvaress trae el motor vendorizado (`src/decision/vendor/laya`)
-y el instalador baja el runtime de ONNX y el bundle de pesos (~1.7 GB). El bundle
+y el instalador baja el runtime de ONNX y el artefacto int8 (~488 MB). El bundle
 se verifica con SHA-256 y queda en una caché global compartida
-(`~/.cache/alvaress/laya-onnx/<revision>`), así que varios proyectos usan el
+(`~/.cache/alvaress/laya-onnx-int8/<revision>`), así que varios proyectos usan el
 mismo modelo. Después todo corre en local. Si aún no está instalado, alvaress
 arranca con heurísticas y te avisa en `doctor`.
 
@@ -343,28 +343,30 @@ Configuración:
 
 `modelDir` es opcional: si lo defines, apunta a un directorio con
 `laya.onnx`, `laya.onnx.data`, `laya_config.json` y `tokenizer/`. Si lo dejas
-vacío, alvaress usa la caché global y espera el bundle fijado por revisión que
-instala `alvaress install`. Si falta, el run sigue con heurísticas.
-`threads` controla los hilos intra-op de ONNX Runtime en CPU.
+vacío, alvaress usa la caché global y descarga el artefacto int8 fijado por
+revisión que instala `alvaress install`. Si falta, el run sigue con heurísticas.
+Un bundle fp32 de una instalación anterior se sigue aceptando sin volver a
+descargar nada. `threads` controla los hilos intra-op de ONNX Runtime en CPU.
 
 ### Artefacto int8
 
-El bundle fp32 pesa 1.69 GB. `scripts/quantize-laya.py` genera un bundle int8 de
-488 MB (3.5× menos) con `MatMulNBits` de 8 bits en bloques de 32 y
+El instalador descarga por defecto el artefacto int8 de 488 MB (3.5× menos que
+los 1.69 GB del bundle fp32). Usa `MatMulNBits` de 8 bits en bloques de 32 y
 `GatherBlockQuantized` para la tabla de embeddings. Conserva las decisiones del
 modelo fp32 y carga en ~0.3 s en vez de ~2.6 s; la inferencia suelta es ~20 %
 más lenta, pero la carga inicial compensa en un run de hasta tres llamadas.
 
 ```bash
+# Regenerarlo desde el bundle fp32 de referencia.
 ~/.cache/alvaress/quant-venv/bin/python scripts/quantize-laya.py \
   --source ~/.cache/alvaress/laya-onnx/<revision> \
   --output ~/.cache/alvaress/laya-onnx-int8/<revision>
 ```
 
-El directorio incluye `laya_int8.json` con tamaños y SHA-256. `verifyBundle` lo
-detecta y valida contra él, así que basta con apuntar `laya.modelDir` ahí. El
-artefacto aún no se publica como release asset. Detalles, mediciones y
-limitaciones en [`docs/laya-int8.md`](docs/laya-int8.md).
+El directorio incluye `laya_int8.json` con tamaños y SHA-256; el instalador
+también lo escribe al terminar la descarga. `verifyBundle` lo detecta y valida
+contra él. Detalles, mediciones, hashes y publicación en
+[`docs/laya-int8.md`](docs/laya-int8.md).
 
 ### Privacidad
 

@@ -150,7 +150,7 @@ en `src/decision/vendor/laya` (port MIT de `@receptron/laya`) y se carga desde
 una caché global compartida:
 
 ```text
-~/.cache/alvaress/laya-onnx/<revision>/
+~/.cache/alvaress/laya-onnx-int8/<revision>/
 ├── laya.onnx
 ├── laya.onnx.data
 ├── laya_config.json

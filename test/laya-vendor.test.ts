@@ -4,12 +4,16 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  BUNDLE_BYTES,
   BUNDLE_FILES,
   BUNDLE_MANIFEST,
+  buildBundleManifest,
   buildSequence,
+  bundleUrlFor,
   checkChoiceLabels,
   clampTemperature,
   confidenceFromProbs,
+  ensureBundle,
   pyJsonDumps,
   renderOptions,
   serializeState,
@@ -150,6 +154,68 @@ test('buildSequence encoge las opciones cuando no caben en head_max_len', () => 
   assert.equal(built.markers.length, 20);
   const head = built.ids.slice(0, built.ids.indexOf(ids.sep, 1));
   assert.ok(head.length <= 192);
+});
+
+test('bundleUrlFor publica los assets planos en el release de alvaress', () => {
+  const tokenizer = BUNDLE_FILES.find((file) => file.path === 'tokenizer/tokenizer.json');
+  assert.ok(tokenizer !== undefined);
+  assert.equal(
+    bundleUrlFor(tokenizer),
+    'https://github.com/Alvarez-P/alvaress/releases/download/laya-int8-v1/tokenizer.json'
+  );
+
+  const manifest = JSON.parse(buildBundleManifest(BUNDLE_FILES)) as {
+    kind: string;
+    total_bytes: number;
+    files: Record<string, { sha256: string }>;
+  };
+  assert.equal(manifest.kind, 'laya-onnx-int8-block32');
+  assert.equal(manifest.total_bytes, BUNDLE_BYTES);
+  assert.equal(manifest.files['laya.onnx.data']?.sha256, BUNDLE_FILES[1]?.sha256);
+});
+
+test('ensureBundle descarga, verifica y escribe el manifiesto', async () => {
+  const temp = makeTempDir('laya-ensure-');
+  try {
+    const contents = new Map([
+      ['laya_config.json', 'config'],
+      ['tokenizer/tokenizer.json', 'tokens']
+    ]);
+    const files = [...contents].map(([filePath, content]) => ({
+      path: filePath,
+      asset: path.basename(filePath),
+      bytes: Buffer.byteLength(content),
+      sha256: createHash('sha256').update(content).digest('hex')
+    }));
+
+    const requested: string[] = [];
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = String(input);
+      requested.push(url);
+      const asset = decodeURIComponent(new URL(url).pathname.split('/').at(-1) ?? '');
+      const content = contents.get(asset) ?? contents.get(`tokenizer/${asset}`);
+      return new Response(content ?? '', { status: content === undefined ? 404 : 200 });
+    }) as typeof fetch;
+
+    await ensureBundle({ dir: temp.path, files, fetchImpl });
+
+    assert.equal(fs.readFileSync(path.join(temp.path, 'laya_config.json'), 'utf8'), 'config');
+    assert.deepEqual(requested, [
+      'https://github.com/Alvarez-P/alvaress/releases/download/laya-int8-v1/laya_config.json',
+      'https://github.com/Alvarez-P/alvaress/releases/download/laya-int8-v1/tokenizer.json'
+    ]);
+
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(temp.path, BUNDLE_MANIFEST), 'utf8')
+    ) as { files: Record<string, unknown>; total_bytes: number };
+    assert.deepEqual(Object.keys(manifest.files).toSorted(), [
+      'laya_config.json',
+      'tokenizer/tokenizer.json'
+    ]);
+    assert.equal(manifest.total_bytes, 12);
+  } finally {
+    temp.cleanup();
+  }
 });
 
 test('verifyBundle detecta archivos faltantes y corruptos por tamaño', async () => {

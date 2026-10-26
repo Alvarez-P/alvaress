@@ -4,9 +4,10 @@
 con pesos de 8 bits y bloques de 32. El artefacto pesa **488 MB** frente a los
 **1.69 GB** del original (3.5× menos) y mantiene las decisiones del modelo.
 
-Este documento describe cómo se genera, cómo se verifica y cómo se usa. La
-publicación como release asset todavía no se ha hecho: falta confirmación
-explícita.
+Este documento describe cómo se genera, cómo se verifica y cómo se usa. El
+instalador está configurado para descargarlo por defecto desde el release
+`laya-int8-v1` de alvaress. La publicación de ese release todavía no se ha
+hecho: falta confirmación explícita.
 
 ## Qué cuantiza
 
@@ -122,7 +123,19 @@ el uso de disco y de memoria.
 
 ## Uso
 
-Apunta `laya.modelDir` al directorio del artefacto:
+`alvaress install` descarga el artefacto por defecto en
+`~/.cache/alvaress/laya-onnx-int8/<revision>`. No hace falta configurar nada:
+
+```json
+{
+  "laya": {
+    "enabled": true,
+    "threads": 4
+  }
+}
+```
+
+Si prefieres un directorio propio, apunta `laya.modelDir` al bundle:
 
 ```json
 {
@@ -135,15 +148,26 @@ Apunta `laya.modelDir` al directorio del artefacto:
 ```
 
 `alvaress doctor` comprobará el manifiesto y los tamaños; si falta algo, cae a
-heurísticas. El bundle fp32 de la caché global sigue siendo el valor por
-defecto hasta que se publique el asset int8 y se actualice el instalador.
+heurísticas. El run también acepta un bundle fp32 de una instalación anterior,
+así que actualizar no obliga a descargar el modelo otra vez.
 
 ## Publicación pendiente
 
-El siguiente paso es subir el artefacto como release asset de `alvaress` y
-cambiar `BUNDLE_FILES`/`ensureBundle` para descargarlo con los hashes del
-manifiesto. No se ha hecho todavía: requiere autenticación de GitHub y
-confirmación explícita.
+El instalador apunta al release `laya-int8-v1` del repositorio
+`Alvarez-P/alvaress`. Los assets deben llamarse así (GitHub no admite `/` en el
+nombre de un asset, por eso los del tokenizador van planos):
+
+| Asset remoto | Ruta en el bundle |
+| --- | --- |
+| `laya.onnx` | `laya.onnx` |
+| `laya.onnx.data` | `laya.onnx.data` |
+| `laya_config.json` | `laya_config.json` |
+| `tokenizer.json` | `tokenizer/tokenizer.json` |
+| `tokenizer_config.json` | `tokenizer/tokenizer_config.json` |
+
+El manifiesto `laya_int8.json` lo escribe el instalador con los hashes fijados
+en `BUNDLE_FILES`; no hace falta publicarlo. Subir el release requiere
+autenticación de GitHub y confirmación explícita.
 
 El artefacto es una obra derivada de los pesos de Laya
 ([`receptron/laya-onnx`](https://huggingface.co/receptron/laya-onnx), MIT). Al
