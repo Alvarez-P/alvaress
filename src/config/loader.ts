@@ -1,17 +1,16 @@
 import path from 'node:path';
 import {
   DEFAULT_AIDER_TIMEOUT_MS,
-  DEFAULT_DECISION_BASE,
-  DEFAULT_DECISION_CACHE_TTL_MS,
-  DEFAULT_DECISION_MAX_CALLS,
-  DEFAULT_DECISION_MODEL,
-  DEFAULT_DECISION_TIMEOUT_MS,
   DEFAULT_IMPLEMENTER_MODEL,
+  DEFAULT_LAYA_MODEL,
+  DEFAULT_LAYA_SUBFOLDER,
+  DEFAULT_LAYA_TIMEOUT_MS,
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_PACKAGE_MANAGER,
   DEFAULT_SCOPE,
+  DEFAULT_VITE_PLUS_CHECK,
+  DEFAULT_VITE_PLUS_TEST,
   GLOBAL_CONFIG_PATH,
-  isDecisionModel,
   LOCAL_CONFIG_FILENAME
 } from '../constants.js';
 import { ConfigError } from '../utils/errors.js';
@@ -28,14 +27,19 @@ export interface ModelProviderConfig {
   env?: Record<string, string>;
 }
 
-export interface DecisionConfig {
+export interface LayaConfig {
+  enabled: boolean;
   model: string;
-  apiBase: string;
-  apiKey?: string;
+  subfolder?: string;
+  device?: 'cpu' | 'cuda';
   timeoutMs: number;
-  cache: boolean;
-  cacheTtlMs: number;
-  maxCalls: number;
+  fallbackToHeuristic: boolean;
+}
+
+export interface VitePlusConfig {
+  checkCommand: string;
+  testCommand: string;
+  fallbackToPackageManager: boolean;
 }
 
 export interface HarnessConfig {
@@ -45,12 +49,14 @@ export interface HarnessConfig {
   graphify?: {
     autoUpdate?: boolean;
   };
+  laya?: LayaConfig;
+  vitePlus?: VitePlusConfig;
   aider?: {
+    enabled?: boolean;
     timeoutMs?: number;
     extraArgs?: string[];
     inheritEnv?: boolean;
   };
-  decision: DecisionConfig;
   models: {
     aiderImplementer: ModelProviderConfig;
   };
@@ -68,19 +74,24 @@ export interface HarnessConfigFile {
   graphify?: {
     autoUpdate?: boolean;
   };
+  laya?: {
+    enabled?: boolean;
+    model?: string;
+    subfolder?: string;
+    device?: 'cpu' | 'cuda';
+    timeoutMs?: number;
+    fallbackToHeuristic?: boolean;
+  };
+  vitePlus?: {
+    checkCommand?: string;
+    testCommand?: string;
+    fallbackToPackageManager?: boolean;
+  };
   aider?: {
+    enabled?: boolean;
     timeoutMs?: number;
     extraArgs?: string[];
     inheritEnv?: boolean;
-  };
-  decision?: {
-    model?: string;
-    apiBase?: string;
-    apiKey?: string;
-    timeoutMs?: number;
-    cache?: boolean;
-    cacheTtlMs?: number;
-    maxCalls?: number;
   };
   models?: {
     aiderImplementer?: Partial<ModelProviderConfig>;
@@ -183,31 +194,45 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
     assertBoolean(value.graphify.autoUpdate, 'graphify.autoUpdate', source);
   }
 
+  if (value.laya !== undefined) {
+    if (!isRecord(value.laya)) {
+      throw new ConfigError(`El campo "laya" debe ser un objeto en ${source}.`);
+    }
+    assertBoolean(value.laya.enabled, 'laya.enabled', source);
+    assertString(value.laya.model, 'laya.model', source);
+    assertString(value.laya.subfolder, 'laya.subfolder', source);
+    if (
+      value.laya.device !== undefined &&
+      value.laya.device !== 'cpu' &&
+      value.laya.device !== 'cuda'
+    ) {
+      throw new ConfigError(`El campo "laya.device" solo admite "cpu" o "cuda" en ${source}.`);
+    }
+    assertPositiveInteger(value.laya.timeoutMs, 'laya.timeoutMs', source, 1000);
+    assertBoolean(value.laya.fallbackToHeuristic, 'laya.fallbackToHeuristic', source);
+  }
+
+  if (value.vitePlus !== undefined) {
+    if (!isRecord(value.vitePlus)) {
+      throw new ConfigError(`El campo "vitePlus" debe ser un objeto en ${source}.`);
+    }
+    assertString(value.vitePlus.checkCommand, 'vitePlus.checkCommand', source);
+    assertString(value.vitePlus.testCommand, 'vitePlus.testCommand', source);
+    assertBoolean(
+      value.vitePlus.fallbackToPackageManager,
+      'vitePlus.fallbackToPackageManager',
+      source
+    );
+  }
+
   if (value.aider !== undefined) {
     if (!isRecord(value.aider)) {
       throw new ConfigError(`El campo "aider" debe ser un objeto en ${source}.`);
     }
+    assertBoolean(value.aider.enabled, 'aider.enabled', source);
     assertPositiveInteger(value.aider.timeoutMs, 'aider.timeoutMs', source, 1000);
     assertStringList(value.aider.extraArgs, 'aider.extraArgs', source);
     assertBoolean(value.aider.inheritEnv, 'aider.inheritEnv', source);
-  }
-
-  if (value.decision !== undefined) {
-    if (!isRecord(value.decision)) {
-      throw new ConfigError(`El campo "decision" debe ser un objeto en ${source}.`);
-    }
-    assertString(value.decision.model, 'decision.model', source);
-    assertString(value.decision.apiBase, 'decision.apiBase', source);
-    assertString(value.decision.apiKey, 'decision.apiKey', source);
-    assertPositiveInteger(value.decision.timeoutMs, 'decision.timeoutMs', source, 1000);
-    assertBoolean(value.decision.cache, 'decision.cache', source);
-    assertPositiveInteger(value.decision.cacheTtlMs, 'decision.cacheTtlMs', source, 0);
-    assertPositiveInteger(value.decision.maxCalls, 'decision.maxCalls', source, 1);
-    if (typeof value.decision.model === 'string' && !isDecisionModel(value.decision.model)) {
-      throw new ConfigError(
-        `El campo "decision.model" solo admite "kev" o "laya" (opcionalmente con etiqueta) en ${source}.`
-      );
-    }
   }
 
   if (value.models !== undefined) {
@@ -269,34 +294,48 @@ function interpolateCommands(commands: string[] | undefined): string[] | undefin
 }
 
 export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: HarnessConfigFile): HarnessConfig {
-  const globalDecision = globalConfig.decision;
-  const localDecision = localConfig.decision;
   const globalImplementer = globalConfig.models?.aiderImplementer;
   const localImplementer = localConfig.models?.aiderImplementer;
+  const packageManager =
+    localConfig.packageManager ?? globalConfig.packageManager ?? DEFAULT_PACKAGE_MANAGER;
+  const vitePlus = {
+    checkCommand:
+      localConfig.vitePlus?.checkCommand ||
+      globalConfig.vitePlus?.checkCommand ||
+      DEFAULT_VITE_PLUS_CHECK,
+    testCommand:
+      localConfig.vitePlus?.testCommand ||
+      globalConfig.vitePlus?.testCommand ||
+      DEFAULT_VITE_PLUS_TEST,
+    fallbackToPackageManager:
+      localConfig.vitePlus?.fallbackToPackageManager ??
+      globalConfig.vitePlus?.fallbackToPackageManager ??
+      true
+  };
 
   return {
     obsidianVaultPath: interpolateEnv(localConfig.obsidianVaultPath || globalConfig.obsidianVaultPath) ?? '',
-    packageManager: localConfig.packageManager ?? globalConfig.packageManager ?? DEFAULT_PACKAGE_MANAGER,
+    packageManager,
     scope: localConfig.scope ?? globalConfig.scope ?? DEFAULT_SCOPE,
     graphify: {
       autoUpdate: localConfig.graphify?.autoUpdate ?? globalConfig.graphify?.autoUpdate ?? false
     },
+    laya: {
+      enabled: localConfig.laya?.enabled ?? globalConfig.laya?.enabled ?? true,
+      model: localConfig.laya?.model || globalConfig.laya?.model || DEFAULT_LAYA_MODEL,
+      subfolder: localConfig.laya?.subfolder || globalConfig.laya?.subfolder || DEFAULT_LAYA_SUBFOLDER,
+      device: localConfig.laya?.device ?? globalConfig.laya?.device ?? 'cpu',
+      timeoutMs:
+        localConfig.laya?.timeoutMs ?? globalConfig.laya?.timeoutMs ?? DEFAULT_LAYA_TIMEOUT_MS,
+      fallbackToHeuristic:
+        localConfig.laya?.fallbackToHeuristic ?? globalConfig.laya?.fallbackToHeuristic ?? true
+    },
+    vitePlus,
     aider: {
+      enabled: localConfig.aider?.enabled ?? globalConfig.aider?.enabled ?? false,
       timeoutMs: localConfig.aider?.timeoutMs ?? globalConfig.aider?.timeoutMs ?? DEFAULT_AIDER_TIMEOUT_MS,
       extraArgs: localConfig.aider?.extraArgs ?? globalConfig.aider?.extraArgs ?? [],
       inheritEnv: localConfig.aider?.inheritEnv ?? globalConfig.aider?.inheritEnv ?? true
-    },
-    decision: {
-      model: localDecision?.model || globalDecision?.model || DEFAULT_DECISION_MODEL,
-      apiBase:
-        interpolateEnv(localDecision?.apiBase || globalDecision?.apiBase) || DEFAULT_DECISION_BASE,
-      apiKey: interpolateEnv(localDecision?.apiKey || globalDecision?.apiKey) ?? '',
-      timeoutMs:
-        localDecision?.timeoutMs ?? globalDecision?.timeoutMs ?? DEFAULT_DECISION_TIMEOUT_MS,
-      cache: localDecision?.cache ?? globalDecision?.cache ?? true,
-      cacheTtlMs:
-        localDecision?.cacheTtlMs ?? globalDecision?.cacheTtlMs ?? DEFAULT_DECISION_CACHE_TTL_MS,
-      maxCalls: localDecision?.maxCalls ?? globalDecision?.maxCalls ?? DEFAULT_DECISION_MAX_CALLS
     },
     models: {
       aiderImplementer: {
@@ -314,9 +353,7 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
         localConfig.validation?.maxAttempts || globalConfig.validation?.maxAttempts || DEFAULT_MAX_ATTEMPTS,
       commands:
         interpolateCommands(localConfig.validation?.commands || globalConfig.validation?.commands) ??
-        defaultValidationCommands(
-          localConfig.packageManager ?? globalConfig.packageManager ?? DEFAULT_PACKAGE_MANAGER
-        ),
+        defaultValidationCommands(packageManager, vitePlus),
       requireCommands:
         localConfig.validation?.requireCommands ?? globalConfig.validation?.requireCommands ?? true
     }
@@ -336,19 +373,24 @@ export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
     graphify: {
       autoUpdate: config.graphify?.autoUpdate ?? false
     },
+    laya: {
+      enabled: config.laya?.enabled ?? true,
+      model: config.laya?.model ?? DEFAULT_LAYA_MODEL,
+      subfolder: config.laya?.subfolder ?? DEFAULT_LAYA_SUBFOLDER,
+      device: config.laya?.device ?? 'cpu',
+      timeoutMs: config.laya?.timeoutMs ?? DEFAULT_LAYA_TIMEOUT_MS,
+      fallbackToHeuristic: config.laya?.fallbackToHeuristic ?? true
+    },
+    vitePlus: {
+      checkCommand: config.vitePlus?.checkCommand ?? DEFAULT_VITE_PLUS_CHECK,
+      testCommand: config.vitePlus?.testCommand ?? DEFAULT_VITE_PLUS_TEST,
+      fallbackToPackageManager: config.vitePlus?.fallbackToPackageManager ?? true
+    },
     aider: {
+      enabled: config.aider?.enabled ?? false,
       timeoutMs: config.aider?.timeoutMs ?? DEFAULT_AIDER_TIMEOUT_MS,
       extraArgs: config.aider?.extraArgs ?? [],
       inheritEnv: config.aider?.inheritEnv ?? true
-    },
-    decision: {
-      model: config.decision.model,
-      apiBase: config.decision.apiBase,
-      apiKey: config.decision.apiKey ?? '',
-      timeoutMs: config.decision.timeoutMs,
-      cache: config.decision.cache,
-      cacheTtlMs: config.decision.cacheTtlMs,
-      maxCalls: config.decision.maxCalls
     },
     models: {
       aiderImplementer: {
@@ -384,11 +426,9 @@ export function maskConfig(config: HarnessConfig): HarnessConfig {
     packageManager: config.packageManager,
     scope: config.scope,
     graphify: config.graphify,
+    laya: config.laya,
+    vitePlus: config.vitePlus,
     aider: config.aider,
-    decision: {
-      ...config.decision,
-      apiKey: maskValue(config.decision.apiKey ?? '')
-    },
     models: {
       aiderImplementer: {
         ...config.models.aiderImplementer,

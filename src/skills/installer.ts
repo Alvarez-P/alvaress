@@ -13,21 +13,21 @@ export interface SkillDefinition {
 export const SKILLS: SkillDefinition[] = [
   {
     name: 'read-spec-first',
-    description: 'Obliga al agente a leer la especificación de SDD antes de programar.',
+    description: 'Obliga al agente a leer la nota ODD o la especificación SDD antes de programar.',
     scope: 'project',
-    body: 'Antes de modificar o proponer cualquier cambio en el código, estás obligado a leer el archivo `.harness/tasks/TASK_ID.md` o el archivo general `openspec.yaml`. No improvises. Lista los criterios de aceptación en tu memoria interna antes de escribir código.'
+    body: 'Antes de modificar o proponer cualquier cambio, lee la fuente del modo: en ODD, la nota de Obsidian y el alcance acordado; en SDD, `openspec.yaml` y `.harness/tasks/TASK_ID.md`. No improvises. Lista los criterios de aceptación en tu memoria interna antes de escribir código.'
   },
   {
     name: 'consult-graphify-ast',
     description: 'Minimiza el uso de tokens prohibiendo la lectura a ciegas de archivos enteros.',
     scope: 'project',
-    body: 'Para entender la arquitectura o buscar definiciones de clases, métodos y decoradores, está estrictamente prohibido usar `cat` o abrir archivos de forma masiva. Debes ejecutar `graphify query <término>` o leer `GRAPH_REPORT.md`. Solo abrirás un archivo de código si vas a editarlo directamente.'
+    body: 'Para entender la arquitectura o buscar definiciones de clases, métodos y decoradores, está prohibido usar `cat` o abrir archivos de forma masiva. Ejecuta `graphify query <término>`, `graphify explain <concepto>` o `graphify path <A> <B>`, y usa `graphify-out/wiki/index.md` si existe. Solo abre un archivo de código si vas a editarlo o si el grafo ya localizó el rango exacto.'
   },
   {
     name: 'self-healing-verify',
-    description: 'Enseña al agente a auto-corregir errores usando el linter y compilador local.',
+    description: 'Enseña al agente a auto-corregir errores usando Vite-Plus en local.',
     scope: 'project',
-    body: 'Al finalizar cualquier edición, debes ejecutar en la terminal `pnpm exec oxlint --deny=correctness` y `pnpm exec tsc --noEmit` (o el gestor indicado en `packageManager`). Si el código de salida (exit code) es diferente de 0, lee el log de error, corrige el archivo inmediatamente y vuelve a validar. No reportes la tarea como lista si los comandos fallan.'
+    body: 'Al finalizar cualquier edición, ejecuta la validación local con Vite-Plus: `vp check` y `vp test`. Si el CLI global no está disponible, usa `pnpm exec vp check` y `pnpm exec vp test` (o el gestor indicado en `packageManager`). Si el exit code es distinto de 0, lee el error real, corrige la causa y vuelve a validar una vez. No reportes la tarea como lista si los comandos fallan ni silencies errores con `--no-verify`, `any` o `@ts-ignore`.'
   },
   {
     name: 'universal-design-patterns',
@@ -37,25 +37,184 @@ export const SKILLS: SkillDefinition[] = [
   },
   {
     name: 'obsidian-sdd',
-    description: 'Define cuándo y cómo usar la bóveda Obsidian en el flujo SDD, para el orquestador y los subagentes.',
+    description: 'Define cuándo y cómo usar la bóveda Obsidian en el flujo híbrido SDD/ODD.',
     scope: 'project',
-    body: `Obsidian es la capa de lectura humana del SDD. La fuente de verdad sigue siendo \`openspec.yaml\` y \`.harness/tasks/\`; la bóveda los refleja con enlaces. No dupliques contenido.
+    body: `Obsidian es la capa de lectura humana del arnés. En SDD la fuente de verdad sigue siendo \`openspec.yaml\` y \`.harness/tasks/\`; en ODD la nota de la tarea es la fuente. La bóveda refleja el estado y no duplica contenido.
 
-## Puntos de uso en el flujo SDD
+## Puntos de uso en el flujo híbrido
 
-- **Fase 1 · Entender:** el orquestador ejecuta \`alvaress obsidian status\` y lee la nota del proyecto para recuperar contexto, decisiones y riesgos. Los subagentes de exploración pueden leer la nota y los enlaces, nunca escribir.
-- **Fase 2 · Decidir:** el orquestador usa la nota para resumir el estado que enviará al modelo de decisión (kev o laya). No incluyas secretos. Los subagentes no consultan el modelo de decisión.
-- **Fase 3 · Ejecutar:** el orquestador y los subagentes escriben en \`.harness/tasks/\` y \`openspec.yaml\`. La bóveda es de solo lectura para los subagentes y no se edita directamente.
-- **Fase 4 · Validar:** la bóveda no sustituye la validación. Los subagentes de verificación ejecutan los comandos locales y no escriben en la bóveda.
-- **Fase 5 · Cerrar:** solo el orquestador actualiza la nota con \`alvaress obsidian note --summary ... --validation ... --risk ... --next ...\`.
+- **Fase 1 · Entender:** el orquestador ejecuta \`alvaress obsidian status\` y lee la nota de la tarea (ODD) o del proyecto (SDD) para recuperar contexto, decisiones y riesgos. Los subagentes de exploración pueden leer la nota y los enlaces, nunca escribir.
+- **Fase 2 · Decidir:** el orquestador usa la nota para resumir el estado que enviará a laya-ts. No incluyas secretos. Los subagentes no consultan laya-ts.
+- **Fase 3 · Ejecutar:** en SDD se escribe en \`.harness/tasks/\` y \`openspec.yaml\`; en ODD se implementa el alcance de la nota. La bóveda es de solo lectura para los subagentes y no se edita directamente.
+- **Fase 4 · Validar:** la bóveda no sustituye la validación. El verificador ejecuta Vite-Plus y no escribe en la bóveda.
+- **Fase 5 · Cerrar:** solo el orquestador actualiza la nota con \`alvaress obsidian note --summary ... --validation ... --risk ... --next ...\` y, en ODD, marca el checklist como \`[x]\` cuando la validación pasó.
 
 ## Reglas
 
 - Si no hay bóveda configurada, continúa sin ella; no la crees desde el agente.
 - No edites \`<bóveda>/Harness/\` a mano. Usa \`alvaress obsidian note\`.
-- No crees una nota por tarea: usa la nota del proyecto y los enlaces \`[[Tasks/...]]\`.
-- No envíes al modelo de decisión contenido de la bóveda con secretos, tokens o datos personales.
+- En SDD no crees una nota por tarea: usa la nota del proyecto y los enlaces \`[[Tasks/...]]\`. En ODD actualiza la nota de la tarea sin duplicar el proyecto.
+- No envíes a laya-ts contenido de la bóveda con secretos, tokens o datos personales.
 - Al delegar en un subagente, pásale la ruta de la bóveda y la instrucción de solo lectura.`
+  },
+  {
+    name: 'continuous-learning',
+    description: 'Guarda solo aprendizajes globales que marcan diferencia y los reutiliza en proyectos futuros.',
+    scope: 'project',
+    body: `Los aprendizajes viven fuera del proyecto, en \`~/.alvaress/memory/\`. Sirven para no volver a resolver dos veces el mismo problema y para proponer mejoras al propio agente.
+
+## Antes de trabajar
+
+1. Ejecuta \`alvaress learn search "<tema>"\` con las palabras clave de la tarea.
+2. Lee \`~/.alvaress/memory/PLAYBOOK.md\` si necesitas el panorama completo.
+3. Si un aprendizaje aplica, úsalo y regístralo con \`alvaress learn use <id>\`.
+
+## Después de cerrar
+
+La mayoría de las tareas no producen aprendizajes nuevos. **Guardar cero es un resultado normal y correcto.** No hay cuota ni obligación de guardar algo en cada ciclo.
+
+Guarda como máximo 3 por tarea, y solo si el aprendizaje cumple al menos uno de estos criterios:
+
+- evitó un error que ya se repitió o que costaría depurar de nuevo;
+- ahorra varios pasos o más de diez minutos en un proyecto futuro;
+- cambió una decisión de arquitectura, validación o alcance;
+- es una convención estable del usuario o del equipo;
+- corrige una instrucción del agente, una skill o el CLI.
+
+No guardes:
+
+- lo obvio, lo que ya dice \`openspec.yaml\`, el README o la documentación;
+- el resumen de la tarea, el diff o "seguí los pasos";
+- detalles de un solo proyecto que no se repetirán;
+- halagos, notas de ánimo o ideas sin evidencia.
+
+Si dudas, no guardes. Antes de escribir, pregúntate: ¿otro proyecto se beneficiaría? ¿Lo buscaría dentro de tres meses?
+
+Tipos:
+
+- \`step\`: una secuencia de pasos que ahorra tiempo.
+- \`solution\`: una solución concreta a un problema recurrente.
+- \`pitfall\`: un error que conviene evitar y cómo detectarlo.
+- \`preference\`: una convención del usuario o del equipo.
+- \`improvement\`: un cambio propuesto al prompt, a una skill o al CLI.
+
+\`\`\`sh
+alvaress learn add solution "Validar migraciones en seco" \\
+  --body "Ejecutar el SQL en una transacción y revertir antes de aplicar." \\
+  --tag db --tag migrations --source TASK-01
+\`\`\`
+
+## Calidad
+
+- El detalle es obligatorio y debe explicar qué hacer y por qué funciona.
+- Escribe en español, con verbos de acción y sin relleno.
+- No guardes secretos, tokens, rutas personales ni código propietario; el CLI rechaza entradas sospechosas.
+- No dupliques: si el título coincide, \`add\` actualiza la entrada existente sin inflar el contador de usos.
+- Los \`improvement\` son propuestas: no edites el agente ni las skills sin aprobación del usuario.`
+  },
+  {
+    name: 'bounded-scope',
+    description: 'Mantiene al subagente dentro de los archivos asignados y le enseña a detenerse.',
+    scope: 'project',
+    body: `Trabajas con un alcance cerrado. El orquestador te dio una lista de archivos permitidos; esa lista es el contrato.
+
+## Contrato
+
+- Modifica solo los archivos listados. Puedes crear un archivo nuevo solo si el orquestador lo autorizó por nombre.
+- No hagas refactors, renombres, formateos masivos ni "mejoras de paso".
+- No cambies dependencias, configuración de build, CI ni scripts sin autorización explícita.
+- No toques tests para que pasen: corrige el código o reporta el fallo.
+- Si el cambio requiere un archivo, una dependencia o una migración fuera del alcance, detente.
+
+## Cuándo detenerte
+
+Devuelve \`scope: blocked\` y la ruta exacta cuando:
+
+- la causa del fallo está en un archivo no asignado;
+- hace falta una dependencia nueva;
+- el cambio exige una migración de datos o de esquema;
+- el error es de arquitectura y no se arregla con un parche local;
+- el mismo error ya se repitió en dos intentos.
+
+No inventes el archivo que falta ni lo edites "solo un poquito".
+
+## Eficiencia
+
+- Lee solo el rango de líneas que necesitas.
+- Reutiliza el contexto que ya te pasó el orquestador; no reexplores el proyecto.
+- Devuelve un resumen corto, no el diff completo ni logs enteros.`
+  },
+  {
+    name: 'vite-plus-verify',
+    description: 'Ejecuta Vite-Plus como validador local y devuelve el error exacto sin ruido.',
+    scope: 'project',
+    body: `Vite-Plus es el validador local del arnés. No cuesta tokens y no se sustituye por una opinión del modelo.
+
+## Comandos
+
+1. \`vp check\`: formato, lint y tipos.
+2. \`vp test\`: pruebas con Vitest.
+3. Si el CLI global no existe, usa \`pnpm exec vp check\` y \`pnpm exec vp test\`.
+4. Respeta el \`packageManager\` del proyecto si no es pnpm.
+
+Nunca uses modo watch, \`--update\`, \`-u\` ni \`--no-verify\`. No ejecutes auto-fixes que reescriban archivos fuera del alcance.
+
+## Lectura del fallo
+
+- Empieza por la primera línea de error real, no por el resumen final.
+- Identifica \`archivo:línea\`, la regla o el test que falla y el primer mensaje accionable.
+- Distingue un fallo de tipos, uno de lint y uno de test; no los mezcles.
+- Si el log es enorme, quédate con las primeras líneas relevantes y el último error de causa.
+- No vuelques el log completo: el orquestador puede abrirlo con \`alvaress -i\`.
+
+## Contrato de respuesta
+
+Por cada comando:
+
+- \`verdict:\` \`OK\` o \`FALLO\`.
+- \`command:\` comando exacto.
+- \`exit:\` código de salida.
+- \`error:\` \`ruta:línea: mensaje\`.
+- \`cause:\` causa raíz más probable en una frase.
+
+Si no puedes determinar la causa, dilo; no adivines.`
+  },
+  {
+    name: 'failure-triage',
+    description: 'Clasifica un fallo de validación como trivial o nuclear antes de repararlo.',
+    scope: 'project',
+    body: `Antes de tocar código, clasifica el fallo. Reparar un síntoma puede romper más de lo que arregla.
+
+## Trivial (reparar)
+
+- Error de tipos, import faltante o firma desactualizada por el cambio intencional.
+- Fallo de lint o formato en un archivo del alcance.
+- Test que falla porque el comportamiento cambió y el test debe reflejar el nuevo contrato, siempre que el orquestador lo autorice.
+- Error localizado en un archivo asignado y con causa evidente.
+
+## Nuclear (HALT)
+
+- El fallo es de arquitectura, límites entre módulos o diseño de datos.
+- Hace falta una migración, un cambio de esquema o una dependencia nueva.
+- El alcance no alcanza o el error está en un archivo no asignado.
+- El mismo error ya se repitió en dos intentos.
+- Falla una herramienta requerida (laya-ts, Vite-Plus, Graphify, Obsidian).
+- No hay una causa clara y el siguiente intento sería a ciegas.
+
+## Límites
+
+- Máximo 2 intentos de reparación por run. Un intento = un cambio + una validación.
+- No borres tests, no relajes aserciones, no uses \`any\`, \`@ts-ignore\`, \`eslint-disable\` ni \`--no-verify\`.
+- No cambies la configuración de validación para que pase.
+- No reintentes el mismo parche con otra forma.
+
+## Contrato de respuesta
+
+- \`verdict:\` \`fixed\`, \`needs-orchestrator\` o \`nuclear\`.
+- \`cause:\` causa raíz en una frase.
+- \`files:\` archivos modificados y por qué.
+- \`validation:\` comando, exit code y resultado.
+- \`risk:\` qué podría quedar roto o \`ninguno\`.`
   }
 ];
 

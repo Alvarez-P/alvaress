@@ -7,10 +7,7 @@ import { installAgent, renderSubagent, SUBAGENTS } from '../src/agent/installer.
 import { runArchiveCommand } from '../src/commands/archive.js';
 import { runDoctor, runDoctorCommand } from '../src/commands/doctor.js';
 import { runObsidianCommand } from '../src/commands/obsidian.js';
-import { runDecideCommand } from '../src/commands/decide.js';
 import { mergeConfig } from '../src/config/loader.js';
-import { readDecisionCache, writeDecisionCache } from '../src/decision/cache.js';
-import type { DecisionRequest, DecisionResponse } from '../src/decision/client.js';
 import { loadManifest, saveManifest, scaffoldManifest } from '../src/openspec/manifest.js';
 import { applyTasks } from '../src/orchestrator/apply.js';
 import { backupManifest, listManifestBackups, restoreManifestBackup } from '../src/orchestrator/backup.js';
@@ -147,9 +144,18 @@ test('redactSecrets elimina claves y tokens habituales', () => {
   assert.match(redacted, /REDACTED/);
 });
 
-test('pnpm es el gestor y los comandos de validación por defecto', () => {
+test('pnpm es el gestor y Vite-Plus manda en la validación por defecto', () => {
   const config = mergeConfig({}, {});
   assert.equal(resolvePackageManager(config), 'pnpm');
+  assert.deepEqual(config.validation.commands, ['pnpm exec vp check', 'pnpm exec vp test']);
+  assert.deepEqual(defaultValidationCommands('pnpm', { checkCommand: 'vp check', testCommand: 'vp test' }), [
+    'pnpm exec vp check',
+    'pnpm exec vp test'
+  ]);
+  assert.deepEqual(defaultValidationCommands('npm', { checkCommand: 'vp check', testCommand: 'vp test' }), [
+    'npx vp check',
+    'npx vp test'
+  ]);
   assert.deepEqual(defaultValidationCommands('pnpm'), [
     'pnpm exec oxlint --deny=correctness --deny=suspicious',
     'pnpm exec tsc --noEmit'
@@ -173,6 +179,11 @@ test('installAgent instala los subagentes con modo subagent', () => {
       assert.ok(fs.existsSync(file));
       const content = fs.readFileSync(file, 'utf-8');
       assert.match(content, /mode: subagent/);
+      assert.match(content, /steps: \d+/);
+      assert.match(content, /## Skills obligatorias/);
+    }
+    for (const name of ['alvaress-explorer', 'alvaress-verifier']) {
+      const content = fs.readFileSync(path.join(directory, `${name}.md`), 'utf-8');
       assert.match(content, /solo lectura/i);
     }
     const explorer = fs.readFileSync(path.join(directory, 'alvaress-explorer.md'), 'utf-8');
@@ -237,19 +248,23 @@ test('doctor detecta configuración, gestor y grafo', () => {
       ),
       commandExists: () => true,
       graphStatus: { exists: true, path: path.join(root, 'graphify-out', 'graph.json'), stale: false },
-      ollamaStatus: { installed: true, running: true, version: '0.40.4', models: ['kev:latest'] }
+      layaAvailable: true,
+      vitePlusAvailable: true
     });
     const byName = new Map(checks.map((entry) => [entry.name, entry]));
     assert.equal(byName.get('node')?.status, 'ok');
     assert.equal(byName.get('package-manager')?.status, 'ok');
     assert.equal(byName.get('graphify-graph')?.status, 'ok');
+    assert.equal(byName.get('laya-ts')?.status, 'ok');
+    assert.equal(byName.get('vite-plus')?.status, 'ok');
     assert.equal(byName.get('manifest')?.status, 'ok');
     assert.equal(checks.some((entry) => entry.status === 'error'), false);
 
     const lines: string[] = [];
     const code = runDoctorCommand(['--json'], root, {
       config: mergeConfig({ obsidianVaultPath: '' }, {}),
-      ollamaStatus: { installed: true, running: true, version: '0.40.4', models: ['kev:latest'] },
+      layaAvailable: true,
+      vitePlusAvailable: true,
       stdout: (line) => lines.push(line)
     });
     assert.equal(code, 0);
@@ -259,85 +274,27 @@ test('doctor detecta configuración, gestor y grafo', () => {
   }
 });
 
-test('la caché de decisión reutiliza respuestas y respeta el TTL', () => {
-  const root = makeTempDir('alvaress-decision-cache-').path;
-  const request: DecisionRequest = {
-    state: 'estado',
-    questions: { q: { type: 'noul', instructions: '¿Sí?' } }
-  };
-  const response: DecisionResponse = {
-    model: 'kev',
-    answers: { q: { type: 'noul', noul: 0.9 } }
-  };
-  try {
-    assert.equal(readDecisionCache(root, request, 60_000), undefined);
-    writeDecisionCache(root, request, response);
-    assert.deepEqual(readDecisionCache(root, request, 60_000), response);
-    assert.equal(readDecisionCache(root, { ...request, state: 'otro' }, 60_000), undefined);
-  } finally {
-    cleanup(root);
-  }
-});
-
-test('decide resuelve las tres preguntas en una sola llamada y cachea', async () => {
-  const root = makeTempDir('alvaress-decide-').path;
-  const config = mergeConfig(
-    {
-      obsidianVaultPath: '',
-      decision: { model: 'kev', apiBase: 'http://127.0.0.1:11434' },
-      models: {
-        aiderImplementer: { modelName: 'implementer' }
-      }
-    },
-    {}
+test('doctor avisa cuando laya-ts o Vite-Plus faltan sin romper el diagnóstico', () => {
+  const root = projectWithManifest(
+    manifestWithTasks('      - id: "TASK-01"\n        description: "Tarea"\n        status: "Pending"')
   );
-  let payload: DecisionResponse = {
-    model: 'kev',
-    answers: {
-      clarity: { type: 'noul', noul: 0.9 },
-      path: { type: 'choice', choice: 'apply', confidence: 0.8, probabilities: { apply: 0.8 } },
-      complexity: { type: 'score', score: 1, confidence: 0.7, legend: { '1': 'media' }, probabilities: {} }
-    }
-  };
-  let calls = 0;
-  const fetchImpl = async (): Promise<Response> => {
-    calls += 1;
-    return new Response(JSON.stringify(payload), { status: 200 });
-  };
-
   try {
-    const lines: string[] = [];
-    const code = await runDecideCommand(['--state', 'cambio'], root, {
-      config,
-      fetchImpl,
-      stdout: (line) => lines.push(line)
+    const checks = runDoctor(root, {
+      config: mergeConfig(
+        { obsidianVaultPath: '', validation: { maxAttempts: 1, commands: ['true'] } },
+        {}
+      ),
+      commandExists: () => true,
+      graphStatus: { exists: true, path: path.join(root, 'graphify-out', 'graph.json'), stale: false },
+      layaAvailable: false,
+      vitePlusAvailable: false
     });
-    assert.equal(code, 0);
-    assert.equal(calls, 1);
-    const result = JSON.parse(lines.join('\n')) as { path: { choice: string }; cached: boolean };
-    assert.equal(result.path.choice, 'apply');
-    assert.equal(result.cached, false);
-
-    const cachedLines: string[] = [];
-    await runDecideCommand(['--state', 'cambio'], root, {
-      config,
-      fetchImpl,
-      stdout: (line) => cachedLines.push(line)
-    });
-    assert.equal(calls, 1);
-    assert.equal((JSON.parse(cachedLines.join('\n')) as { cached: boolean }).cached, true);
-
-    payload = {
-      ...payload,
-      answers: { ...payload.answers, clarity: { type: 'noul', noul: 0.2 } }
-    };
-    const gated = await runDecideCommand(['--state', 'cambio', '--no-cache', '--gate'], root, {
-      config,
-      fetchImpl,
-      stdout: () => undefined
-    });
-    assert.equal(gated, 1);
-    assert.equal(calls, 2);
+    const byName = new Map(checks.map((entry) => [entry.name, entry]));
+    assert.equal(byName.get('laya-ts')?.status, 'warn');
+    assert.match(byName.get('laya-ts')?.detail ?? '', /heurísticas locales/);
+    assert.equal(byName.get('vite-plus')?.status, 'warn');
+    assert.match(byName.get('vite-plus')?.detail ?? '', /fallback/);
+    assert.equal(checks.some((entry) => entry.status === 'error'), false);
   } finally {
     cleanup(root);
   }

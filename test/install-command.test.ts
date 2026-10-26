@@ -13,7 +13,7 @@ function result(code = 0): CommandResult {
   return { code, stdout: '', stderr: '' };
 }
 
-test('install --yes instala componentes y descarga el modelo sin preguntar', async () => {
+test('install --yes instala los componentes requeridos sin Ollama', async () => {
   const temp = makeTempDir('alvaress-install-yes-');
   try {
     const root = path.join(temp.path, 'project');
@@ -22,7 +22,6 @@ test('install --yes instala componentes y descarga el modelo sin preguntar', asy
     const vault = path.join(temp.path, 'vault');
 
     const calls: string[] = [];
-    const pulled: string[] = [];
     let saved: HarnessConfig | undefined;
     let pipxInstalled = false;
     let pipxCalls = 0;
@@ -30,7 +29,7 @@ test('install --yes instala componentes y descarga el modelo sin preguntar', asy
     const config = mergeConfig(
       {
         obsidianVaultPath: vault,
-        decision: { model: 'laya', apiBase: 'http://127.0.0.1:11434' }
+        laya: { model: 'convaiinnovations/laya' }
       },
       {}
     );
@@ -40,16 +39,14 @@ test('install --yes instala componentes y descarga el modelo sin preguntar', asy
         if (command === 'pipx') {
           return pipxInstalled;
         }
-        if (command === 'graphify') {
+        if (command === 'graphify' || command === 'vp') {
           return false;
         }
         return true;
       },
+      moduleAvailable: () => false,
       runCommand: async (command, args = []) => {
         calls.push([command, ...args].join(' '));
-        if (command === 'aider' && args[0] === '--version') {
-          return result(1);
-        }
         return result(0);
       },
       loadConfig: () => config,
@@ -75,24 +72,6 @@ test('install --yes instala componentes y descarga el modelo sin preguntar', asy
         links: []
       }),
       installAgent: () => ({ name: 'alvaress', files: [], subagents: [] }),
-      detectOllama: async () => ({ installed: false, running: false, models: [] }),
-      installOllama: async () => result(0),
-      waitForOllama: async () => ({
-        installed: true,
-        running: true,
-        version: '0.40.4',
-        models: []
-      }),
-      ensureOllamaRunning: async () => ({
-        installed: true,
-        running: true,
-        version: '0.40.4',
-        models: []
-      }),
-      pullOllamaModel: async (model) => {
-        pulled.push(model);
-        return result(0);
-      },
       installPipx: async () => {
         pipxCalls += 1;
         pipxInstalled = true;
@@ -104,13 +83,81 @@ test('install --yes instala componentes y descarga el modelo sin preguntar', asy
 
     assert.equal(pipxCalls, 1);
     assert.ok(calls.includes('pipx install graphifyy'));
-    assert.ok(calls.includes('pipx install aider-chat'));
-    assert.ok(calls.some((call) => call.startsWith('pnpm add ')));
-    assert.deepEqual(pulled, ['laya']);
-    assert.equal(saved?.decision.model, 'laya');
+    assert.ok(calls.includes('pnpm add -D vite-plus'));
+    assert.ok(calls.includes('pnpm add -D oxlint typescript @types/node'));
+    assert.equal(calls.some((call) => call.includes('aider')), false);
+    assert.equal(calls.some((call) => call.includes('ollama')), false);
+    assert.equal(saved?.laya?.enabled, true);
+    assert.equal(saved?.laya?.model, 'convaiinnovations/laya');
     assert.equal(saved?.obsidianVaultPath, vault);
     assert.ok(fs.existsSync(path.join(root, 'openspec.yaml')));
     assert.equal(fs.existsSync(path.join(root, '.alvaressrc.json')), false);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('install --yes instala Aider cuando ya está habilitado en la configuración', async () => {
+  const temp = makeTempDir('alvaress-install-aider-');
+  try {
+    const root = path.join(temp.path, 'project');
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'demo' }));
+    const vault = path.join(temp.path, 'vault');
+    const calls: string[] = [];
+
+    const config = mergeConfig(
+      {
+        obsidianVaultPath: vault,
+        aider: { enabled: true }
+      },
+      {}
+    );
+
+    let pipxInstalled = false;
+    const runtime: Partial<InstallRuntime> = {
+      commandExists: (command) =>
+        command === 'pipx'
+          ? pipxInstalled
+          : command !== 'graphify' && command !== 'vp',
+      moduleAvailable: () => true,
+      runCommand: async (command, args = []) => {
+        calls.push([command, ...args].join(' '));
+        if (command === 'aider' && args[0] === '--version') {
+          return result(1);
+        }
+        return result(0);
+      },
+      loadConfig: () => config,
+      getConfigPaths: () => ({
+        global: path.join(temp.path, 'global.json'),
+        local: path.join(root, '.alvaressrc.json')
+      }),
+      saveGlobalConfig: () => undefined,
+      detectObsidian: () => ({ installed: true, method: 'binary' }),
+      installObsidian: async () => ({ installed: true, message: 'ok' }),
+      connectObsidianVault: () => ({
+        vaultPath: vault,
+        harnessDir: path.join(vault, 'Harness'),
+        tasksLink: path.join(vault, 'Harness', 'Tasks'),
+        tasksLinkResult: 'created',
+        notePath: path.join(vault, 'Harness', 'demo.md')
+      }),
+      installSkills: () => ({
+        skillsDir: path.join(root, '.harness', 'skills'),
+        files: [],
+        links: []
+      }),
+      installAgent: () => ({ name: 'alvaress', files: [], subagents: [] }),
+      installPipx: async () => {
+        pipxInstalled = true;
+        return result(0);
+      }
+    };
+
+    await runInstall(root, { yes: true, runtime });
+
+    assert.ok(calls.includes('pipx install aider-chat'));
   } finally {
     temp.cleanup();
   }

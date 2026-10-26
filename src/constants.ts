@@ -22,18 +22,7 @@ export const OPENCODE_PROJECT_DIR = '.opencode';
 export const OPENCODE_AGENTS_DIRNAME = 'agents';
 
 export const DEFAULT_OBSIDIAN_VAULT = path.join(os.homedir(), 'Obsidian');
-export const DECISION_MODELS = ['kev', 'laya'] as const;
-export type DecisionModelName = (typeof DECISION_MODELS)[number];
-export const DEFAULT_DECISION_MODEL: DecisionModelName = 'kev';
-export const DEFAULT_DECISION_BASE = 'http://127.0.0.1:11434';
-export const DEFAULT_DECISION_TIMEOUT_MS = 60000;
-export const DEFAULT_DECISION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-export const DEFAULT_DECISION_MAX_CALLS = 3;
 export const DEFAULT_IMPLEMENTER_MODEL = 'deepseek/deepseek-chat';
-
-export function isDecisionModel(value: string): boolean {
-  return /^(kev|laya)(:[a-z0-9._-]+)?$/i.test(value.trim());
-}
 export const DEFAULT_VALIDATION_COMMANDS = ['pnpm exec oxlint --deny=correctness --deny=suspicious', 'pnpm exec tsc --noEmit'];
 export const DEFAULT_MAX_ATTEMPTS = 3;
 export const DEFAULT_PACKAGE_MANAGER = 'pnpm';
@@ -45,8 +34,32 @@ export const HARNESS_LOCK_FILENAME = 'lock';
 export const HARNESS_RUNS_DIR = path.join(HARNESS_DIR, 'runs');
 export const HARNESS_BACKUPS_DIR = path.join(HARNESS_DIR, 'backups');
 export const HARNESS_CACHE_DIR = path.join(HARNESS_DIR, 'cache');
+
+export const LAYA_DIR = '.laya';
+export const LAYA_LOG_FILENAME = 'last_run.log';
+export const LAYA_LOG_PATH = path.join(LAYA_DIR, LAYA_LOG_FILENAME);
+export const LAYA_HALT_FILENAME = 'HALT.json';
+export const LAYA_CACHE_DIR = path.join(LAYA_DIR, 'cache');
+export const DEFAULT_MAX_FIX_ATTEMPTS = 2;
+export const LAYA_TS_PACKAGE = 'laya-ts';
+export const LAYA_TS_REPO = 'https://github.com/NandhaKishorM/laya.git';
+export const LAYA_TS_SUBDIR = 'laya-ts';
+export const LAYA_FALLBACK_PACKAGE = '@receptron/laya';
+export const DEFAULT_LAYA_MODEL = 'convaiinnovations/laya';
+export const DEFAULT_LAYA_SUBFOLDER = 'multilingual';
+export const DEFAULT_LAYA_TIMEOUT_MS = 30_000;
+
+export const VITE_PLUS_PACKAGE = 'vite-plus';
+export const DEFAULT_VITE_PLUS_CHECK = 'vp check';
+export const DEFAULT_VITE_PLUS_TEST = 'vp test';
+
 export const GRAPHIFY_DIR = 'graphify-out';
 export const GRAPHIFY_GRAPH_FILENAME = 'graph.json';
+
+export const MEMORY_DIR_ENV = 'ALVARESS_MEMORY_DIR';
+export const GLOBAL_MEMORY_DIR = path.join(os.homedir(), '.alvaress', 'memory');
+export const GLOBAL_MEMORY_FILENAME = 'learnings.json';
+export const GLOBAL_PLAYBOOK_FILENAME = 'PLAYBOOK.md';
 
 export function getGlobalOpencodeAgentsDir(): string {
   return path.join(os.homedir(), '.config', 'opencode', OPENCODE_AGENTS_DIRNAME);

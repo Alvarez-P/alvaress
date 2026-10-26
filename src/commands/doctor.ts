@@ -1,15 +1,8 @@
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
-import { DEFAULT_DECISION_MODEL } from '../constants.js';
-import {
-  detectOllamaSync,
-  hasOllamaModel,
-  ollamaInstallHint,
-  ollamaStartHint,
-  ollamaVersionWarning
-} from '../decision/ollama.js';
-import type { OllamaStatus } from '../decision/ollama.js';
+import { LAYA_TS_PACKAGE, VITE_PLUS_PACKAGE } from '../constants.js';
 import { detectObsidian } from '../obsidian/installer.js';
 import { getManifestPath, getTasksDir, loadManifest, taskFilePath } from '../openspec/manifest.js';
 import { getGraphStatus } from '../graphify/status.js';
@@ -30,7 +23,17 @@ export interface DoctorDeps {
   config?: HarnessConfig;
   commandExists?: (command: string) => boolean;
   graphStatus?: ReturnType<typeof getGraphStatus>;
-  ollamaStatus?: OllamaStatus;
+  layaAvailable?: boolean;
+  vitePlusAvailable?: boolean;
+}
+
+function moduleAvailable(specifier: string): boolean {
+  try {
+    createRequire(import.meta.url).resolve(specifier);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function check(
@@ -73,44 +76,42 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
       : check('git', 'warn', 'git no está instalado; el control de alcance del diff se desactiva.')
   );
 
+  const layaEnabled = config?.laya?.enabled ?? true;
+  const layaAvailable = deps.layaAvailable ?? moduleAvailable(LAYA_TS_PACKAGE);
+  checks.push(
+    !layaEnabled
+      ? check('laya-ts', 'warn', 'laya-ts está deshabilitado; se usarán heurísticas locales.')
+      : layaAvailable
+        ? check('laya-ts', 'ok', `laya-ts disponible (${config?.laya?.model ?? 'modelo por defecto'}).`)
+        : check(
+            'laya-ts',
+            'warn',
+            `laya-ts no está instalado; se usarán heurísticas locales hasta ejecutar "alvaress install".`
+          )
+  );
+
+  const vitePlusAvailable = deps.vitePlusAvailable ?? hasCommand('vp');
+  checks.push(
+    vitePlusAvailable
+      ? check('vite-plus', 'ok', 'Vite-Plus (vp) disponible.')
+      : check(
+          'vite-plus',
+          'warn',
+          `Vite-Plus no está instalado; se usará el fallback de ${config?.packageManager ?? 'pnpm'}. Instala ${VITE_PLUS_PACKAGE}.`
+        )
+  );
+
   for (const tool of ['aider', 'graphify']) {
+    const optional = tool === 'aider' && config?.aider?.enabled !== true;
     checks.push(
       hasCommand(tool)
         ? check(tool, 'ok', `${tool} disponible.`)
-        : check(tool, 'warn', `${tool} no está instalado; el flujo continuará con menos automatización.`)
-    );
-  }
-
-  const decisionModel = config?.decision.model ?? DEFAULT_DECISION_MODEL;
-  const ollama = deps.ollamaStatus ?? detectOllamaSync();
-  if (!ollama.installed) {
-    checks.push(
-      check(
-        'ollama',
-        'warn',
-        `Ollama no está instalado; se usarán heurísticas locales. ${ollamaInstallHint()}`
-      )
-    );
-  } else if (!ollama.running) {
-    checks.push(
-      check('ollama', 'warn', `Ollama está instalado pero no responde. ${ollamaStartHint()}`)
-    );
-  } else {
-    const versionWarning = ollamaVersionWarning(ollama.version, decisionModel);
-    checks.push(
-      check(
-        'ollama',
-        versionWarning === undefined ? 'ok' : 'warn',
-        versionWarning ?? `Ollama ${ollama.version ?? ''} disponible.`.trim()
-      )
-    );
-    checks.push(
-      hasOllamaModel(ollama.models, decisionModel)
-        ? check('decision-model', 'ok', `Modelo ${decisionModel} disponible.`)
         : check(
-            'decision-model',
+            tool,
             'warn',
-            `Falta el modelo ${decisionModel}; ejecuta "ollama pull ${decisionModel}".`
+            optional
+              ? 'Aider no está instalado; el modo sin Aider usará subagentes especializados.'
+              : `${tool} no está instalado; el flujo continuará con menos automatización.`
           )
     );
   }
@@ -232,7 +233,8 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
 
 export interface DoctorCommandDeps {
   config?: HarnessConfig;
-  ollamaStatus?: OllamaStatus;
+  layaAvailable?: boolean;
+  vitePlusAvailable?: boolean;
   stdout?: (line: string) => void;
 }
 
@@ -245,7 +247,8 @@ export function runDoctorCommand(
   const json = args.includes('--json');
   const checks = runDoctor(root, {
     config: deps.config,
-    ollamaStatus: deps.ollamaStatus
+    layaAvailable: deps.layaAvailable,
+    vitePlusAvailable: deps.vitePlusAvailable
   });
 
   if (json) {

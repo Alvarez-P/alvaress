@@ -37,9 +37,30 @@ export function packageManagerDlx(manager: PackageManager, binary: string, args:
   return [command, binary, ...args].join(' ');
 }
 
-export function defaultValidationCommands(manager: PackageManager): string[] {
+export function defaultValidationCommands(
+  manager: PackageManager,
+  vitePlus?: { checkCommand: string; testCommand: string }
+): string[] {
+  if (vitePlus !== undefined) {
+    return [
+      localCommand(manager, vitePlus.checkCommand),
+      localCommand(manager, vitePlus.testCommand)
+    ];
+  }
   return [
     packageManagerExec(manager, 'oxlint', ['--deny=correctness', '--deny=suspicious']),
     packageManagerExec(manager, 'tsc', ['--noEmit'])
   ];
+}
+
+function localCommand(manager: PackageManager, command: string): string {
+  const parts = command.trim().split(/\s+/).filter((part) => part.length > 0);
+  const [binary, ...args] = parts;
+  if (binary === undefined) {
+    return command;
+  }
+  if (binary === 'pnpm' || binary === 'npm' || binary === 'npx') {
+    return command;
+  }
+  return packageManagerExec(manager, binary, args);
 }

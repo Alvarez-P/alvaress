@@ -1,29 +1,18 @@
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import * as p from '@clack/prompts';
 import { installAgent } from '../agent/installer.js';
 import { loadConfig, getConfigPaths, saveGlobalConfig } from '../config/loader.js';
 import type { HarnessConfig, HarnessConfigFile, PackageManager } from '../config/loader.js';
 import {
   COMMAND_SEPARATOR,
-  DECISION_MODELS,
-  DEFAULT_DECISION_BASE,
-  DEFAULT_DECISION_MODEL,
+  DEFAULT_LAYA_MODEL,
   DEFAULT_OBSIDIAN_VAULT,
   DEFAULT_PACKAGE_MANAGER,
-  HARNESS_DIR
+  HARNESS_DIR,
+  LAYA_TS_PACKAGE,
+  VITE_PLUS_PACKAGE
 } from '../constants.js';
-import type { DecisionModelName } from '../constants.js';
-import {
-  detectOllama,
-  ensureOllamaRunning,
-  hasOllamaModel,
-  installOllama,
-  ollamaInstallHint,
-  ollamaStartHint,
-  ollamaVersionWarning,
-  pullOllamaModel,
-  waitForOllama
-} from '../decision/ollama.js';
 import { detectObsidian, installObsidian } from '../obsidian/installer.js';
 import { connectObsidianVault } from '../obsidian/vault.js';
 import { ensureHarnessDirs, getManifestPath, inferProjectName, scaffoldManifest } from '../openspec/manifest.js';
@@ -44,8 +33,17 @@ import {
 } from '../utils/pipx.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
-const COMPONENT_VALUES = ['agent', 'decision', 'obsidian', 'graphify', 'aider', 'validation'] as const;
+const COMPONENT_VALUES = ['agent', 'laya', 'obsidian', 'graphify', 'vite-plus', 'aider', 'validation'] as const;
 type Component = (typeof COMPONENT_VALUES)[number];
+
+const REQUIRED_COMPONENTS: Component[] = [
+  'agent',
+  'laya',
+  'obsidian',
+  'graphify',
+  'vite-plus',
+  'validation'
+];
 
 const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
   {
@@ -54,13 +52,13 @@ const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
     hint: 'instala el orquestador global y en el proyecto'
   },
   {
-    value: 'decision',
-    label: '🧠 Modelo de decisión (kev o laya vía Ollama)',
-    hint: 'instala Ollama si falta, elige el modelo y descárgalo'
+    value: 'laya',
+    label: '🧠 laya-ts (motor de decisión local)',
+    hint: 'routing ODD/SDD, riesgo y triaje de fallos en local'
   },
   {
     value: 'obsidian',
-    label: '🧠 Obsidian (Aplicación, Bóveda y Estructura)',
+    label: '🗂️ Obsidian (Aplicación, Bóveda y Estructura)',
     hint: 'detecta o instala Obsidian y conecta la bóveda'
   },
   {
@@ -69,20 +67,35 @@ const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
     hint: 'instala graphify con pipx si falta'
   },
   {
+    value: 'vite-plus',
+    label: '⚡ Vite-Plus (vp check / vp test)',
+    hint: 'instala vite-plus en el proyecto'
+  },
+  {
     value: 'aider',
-    label: '🤖 Aider-Chat (Agente de código local)',
-    hint: 'instala aider-chat con pipx si falta'
+    label: '🤖 Aider-Chat (opcional)',
+    hint: 'si no se instala, el trabajo lo hacen los subagentes'
   },
   {
     value: 'validation',
-    label: '⚡ Oxlint & TSC (Validación local)',
+    label: '🧪 Oxlint & TSC (fallback de validación)',
     hint: 'pnpm add -D oxlint typescript @types/node'
   }
 ];
 
+function moduleAvailable(specifier: string): boolean {
+  try {
+    createRequire(import.meta.url).resolve(specifier);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface InstallRuntime {
   commandExists: typeof commandExists;
   runCommand: typeof runCommand;
+  moduleAvailable: (specifier: string) => boolean;
   loadConfig: typeof loadConfig;
   getConfigPaths: typeof getConfigPaths;
   saveGlobalConfig: typeof saveGlobalConfig;
@@ -91,17 +104,13 @@ export interface InstallRuntime {
   connectObsidianVault: typeof connectObsidianVault;
   installSkills: typeof installSkills;
   installAgent: typeof installAgent;
-  detectOllama: typeof detectOllama;
-  installOllama: typeof installOllama;
-  waitForOllama: typeof waitForOllama;
-  ensureOllamaRunning: typeof ensureOllamaRunning;
-  pullOllamaModel: typeof pullOllamaModel;
   installPipx: typeof installPipx;
 }
 
 const DEFAULT_RUNTIME: InstallRuntime = {
   commandExists,
   runCommand,
+  moduleAvailable,
   loadConfig,
   getConfigPaths,
   saveGlobalConfig,
@@ -110,11 +119,6 @@ const DEFAULT_RUNTIME: InstallRuntime = {
   connectObsidianVault,
   installSkills,
   installAgent,
-  detectOllama,
-  installOllama,
-  waitForOllama,
-  ensureOllamaRunning,
-  pullOllamaModel,
   installPipx
 };
 
@@ -137,12 +141,12 @@ export async function runInstall(
   const paths = runtime.getConfigPaths(root);
 
   const selected: Component[] = yes
-    ? [...COMPONENT_VALUES]
+    ? [...REQUIRED_COMPONENTS]
     : unwrap(
         await p.multiselect<Component>({
           message: 'Selecciona los componentes a instalar',
           options: COMPONENTS,
-          initialValues: [...COMPONENT_VALUES],
+          initialValues: [...REQUIRED_COMPONENTS],
           required: false
         })
       );
@@ -166,25 +170,29 @@ export async function runInstall(
     await installGraphify(runtime, yes);
   }
 
-  if (selected.includes('aider')) {
+  if (selected.includes('aider') || config.aider?.enabled === true) {
     await installAider(runtime, yes);
+  }
+
+  if (selected.includes('vite-plus')) {
+    await installVitePlus(root, config, runtime);
   }
 
   if (selected.includes('validation')) {
     await installValidationDependencies(root, config, runtime);
   }
 
-  let decisionChanged = false;
-  if (selected.includes('decision')) {
-    config = await configureDecision(config, yes, runtime);
-    decisionChanged = true;
+  let layaChanged = false;
+  if (selected.includes('laya')) {
+    config = await configureLaya(config, yes, runtime);
+    layaChanged = true;
   }
 
   if (!pathExists(paths.global)) {
     config = yes ? config : await promptFullConfig(config);
     runtime.saveGlobalConfig(config);
     p.log.success(`Configuración global creada en ${paths.global}`);
-  } else if (decisionChanged || obsidianChanged) {
+  } else if (layaChanged || obsidianChanged) {
     runtime.saveGlobalConfig(config);
     p.log.success('Configuración global actualizada.');
   } else {
@@ -254,9 +262,9 @@ export async function runInstall(
   const hasImplementerKey =
     (implementer.apiKey ?? '').length > 0 ||
     Object.values(implementer.env ?? {}).some((value) => value.length > 0);
-  if (yes && !hasImplementerKey) {
+  if (config.aider?.enabled === true && yes && !hasImplementerKey) {
     p.log.warn(
-      'No hay API key del implementador. Añádela en ~/.alvaressconfig.json o define DEEPSEEK_API_KEY para que Aider pueda trabajar.'
+      'Aider está habilitado pero no hay API key del implementador. Añádela en ~/.alvaressconfig.json o define DEEPSEEK_API_KEY.'
     );
   }
 
@@ -265,7 +273,7 @@ export async function runInstall(
       `Proyecto: ${inferProjectName(root)}`,
       `Directorio: ${path.join(root, HARNESS_DIR)}`,
       `Tareas: ${path.join(root, HARNESS_DIR, 'tasks')}`,
-      'Siguiente paso: define tareas en openspec.yaml y ejecuta "alvaress apply".'
+      'Siguiente paso: ejecuta "alvaress run \\"tu petición\\"" o define tareas en openspec.yaml y usa "alvaress apply".'
     ].join('\n'),
     'alvaress listo'
   );
@@ -436,118 +444,97 @@ async function installValidationDependencies(
   spinner.stop('Dependencias de validación instaladas.');
 }
 
-async function configureDecision(
+async function installVitePlus(
+  root: string,
+  config: HarnessConfig,
+  runtime: InstallRuntime
+): Promise<void> {
+  const spinner = p.spinner();
+  spinner.start('Comprobando Vite-Plus');
+  if (runtime.commandExists('vp') || runtime.moduleAvailable(VITE_PLUS_PACKAGE)) {
+    spinner.stop('Vite-Plus ya está disponible.');
+    return;
+  }
+  if (!pathExists(path.join(root, 'package.json'))) {
+    spinner.stop('No hay package.json; se omite Vite-Plus.');
+    p.log.warn(`Vite-Plus es requerido. Instálalo con "pnpm add -D ${VITE_PLUS_PACKAGE}".`);
+    return;
+  }
+
+  const manager = resolvePackageManager(config);
+  spinner.message(`Instalando ${VITE_PLUS_PACKAGE} con ${manager}`);
+  const result = await runtime.runCommand(
+    manager,
+    packageManagerInstallArgs(manager, [VITE_PLUS_PACKAGE]),
+    { cwd: root }
+  );
+  if (result.code !== 0) {
+    spinner.stop('No se pudo instalar Vite-Plus automáticamente.');
+    p.log.warn(
+      result.stderr.trim() ||
+        result.stdout.trim() ||
+        `Ejecuta "${manager} add -D ${VITE_PLUS_PACKAGE}" manualmente.`
+    );
+    return;
+  }
+  spinner.stop('Vite-Plus instalado.');
+}
+
+async function configureLaya(
   base: HarnessConfig,
   yes: boolean,
   runtime: InstallRuntime
 ): Promise<HarnessConfig> {
-  const model = yes ? normalizeDecisionModel(base.decision.model) : await askDecisionModel(base.decision.model);
-  const apiBase = base.decision.apiBase || DEFAULT_DECISION_BASE;
-  let status = await runtime.detectOllama(apiBase);
+  const current = base.laya ?? {
+    enabled: true,
+    model: DEFAULT_LAYA_MODEL,
+    subfolder: 'multilingual',
+    device: 'cpu' as const,
+    timeoutMs: 30_000,
+    fallbackToHeuristic: true
+  };
+  const enabled = yes
+    ? true
+    : unwrap(
+        await p.confirm({
+          message: '¿Activar laya-ts como motor de decisión?',
+          initialValue: current.enabled
+        })
+      );
 
-  if (!status.installed) {
-    const shouldInstall = yes
-      ? true
-      : unwrap(
-          await p.confirm({
-            message: 'Ollama no está instalado. ¿Instalarlo ahora?',
-            initialValue: true
-          })
-        );
-    if (shouldInstall) {
-      const spinner = p.spinner();
-      spinner.start('Instalando Ollama');
-      const result = await runtime.installOllama();
-      if (result.code === 0) {
-        spinner.stop('Ollama instalado.');
-        status = await runtime.waitForOllama(apiBase);
-      } else {
-        spinner.stop('No se pudo instalar Ollama automáticamente.');
-        p.log.warn(result.error ?? result.stderr.trim() ?? 'Instalación cancelada.');
-        p.log.info(ollamaInstallHint());
-      }
-    } else {
-      p.log.info(ollamaInstallHint());
-    }
+  if (!enabled) {
+    p.log.warn('laya-ts desactivado; alvaress usará heurísticas locales.');
+    return { ...base, laya: { ...current, enabled: false } };
   }
 
-  if (status.installed && !status.running) {
-    p.log.info('Arrancando Ollama...');
-    status = await runtime.ensureOllamaRunning(apiBase);
-    if (!status.running) {
-      p.log.warn(`Ollama no responde en ${apiBase}. ${ollamaStartHint()}`);
-    }
-  }
+  const model = yes
+    ? current.model
+    : unwrap(
+        await p.text({
+          message: 'Modelo o ruta local de laya-ts',
+          placeholder: current.model,
+          defaultValue: current.model,
+          validate: validateWithDefault(current.model, 'El modelo es obligatorio.')
+        })
+      ).trim();
 
-  if (!status.running) {
-    p.log.warn(`Ollama no está disponible; el agente usará heurísticas locales.`);
+  const resolvedModel = model.length > 0 ? model : current.model;
+  if (runtime.moduleAvailable(LAYA_TS_PACKAGE)) {
+    p.log.success('laya-ts está instalado.');
   } else {
-    const versionWarning = ollamaVersionWarning(status.version, model);
-    if (versionWarning !== undefined) {
-      p.log.warn(versionWarning);
-    } else {
-      p.log.success(`Ollama disponible${status.version ? ` (${status.version})` : ''}.`);
-    }
-
-    if (hasOllamaModel(status.models, model)) {
-      p.log.success(`Modelo ${model} ya instalado.`);
-    } else {
-      const pull = yes
-        ? true
-        : unwrap(
-            await p.confirm({
-              message: `¿Descargar ${model} con "ollama pull ${model}"?`,
-              initialValue: true
-            })
-          );
-      if (pull) {
-        const spinner = p.spinner();
-        spinner.start(`Descargando ${model}`);
-        const result = await runtime.pullOllamaModel(model);
-        if (result.code === 0) {
-          spinner.stop(`Modelo ${model} descargado.`);
-        } else {
-          spinner.stop(`No se pudo descargar ${model}.`);
-          p.log.warn(
-            result.stderr.trim() || result.error || `Ejecuta "ollama pull ${model}" manualmente.`
-          );
-        }
-      } else {
-        p.log.warn(`Recuerda descargarlo: ollama pull ${model}`);
-      }
-    }
+    p.log.warn(
+      `laya-ts no está instalado. Instálalo con "pnpm add -D github:NandhaKishorM/laya#path:/laya-ts" o desde ${LAYA_TS_PACKAGE}.`
+    );
   }
 
-  return { ...base, decision: { ...base.decision, model, apiBase } };
-}
-
-function normalizeDecisionModel(value: string): DecisionModelName {
-  return (DECISION_MODELS as readonly string[]).includes(value)
-    ? (value as DecisionModelName)
-    : DEFAULT_DECISION_MODEL;
-}
-
-async function askDecisionModel(defaultValue: string): Promise<DecisionModelName> {
-  const initial = normalizeDecisionModel(defaultValue);
-
-  return unwrap(
-    await p.select<DecisionModelName>({
-      message: 'Modelo de decisión local (Ollama)',
-      options: [
-        {
-          value: 'kev',
-          label: 'kev',
-          hint: 'Qwen3.5 calibrado; equilibrio entre precisión y velocidad'
-        },
-        {
-          value: 'laya',
-          label: 'laya',
-          hint: 'ModernBERT encoder; muy rápido en CPU'
-        }
-      ],
-      initialValue: initial
-    })
-  );
+  return {
+    ...base,
+    laya: {
+      ...current,
+      enabled: true,
+      model: resolvedModel
+    }
+  };
 }
 
 async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
@@ -593,7 +580,7 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
 
 async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigFile> {
   const vaultPath = await askRequired('Ruta de la bóveda Obsidian (local)', base.obsidianVaultPath);
-  const decisionModel = await askDecisionModel(base.decision.model);
+  const layaModel = await askRequired('Modelo o ruta local de laya-ts', base.laya?.model ?? DEFAULT_LAYA_MODEL);
   const implementerModel = await askRequired(
     'Modelo del implementador (local)',
     base.models.aiderImplementer.modelName
@@ -605,7 +592,7 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
   return {
     obsidianVaultPath: path.resolve(expandHome(vaultPath)),
     packageManager,
-    decision: { model: decisionModel },
+    laya: { model: layaModel },
     models: {
       aiderImplementer: { modelName: implementerModel }
     },

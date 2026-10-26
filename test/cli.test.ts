@@ -127,7 +127,7 @@ test('agent show imprime el prompt y agent install escribe las dos ubicaciones',
     assert.equal(show.status, 0);
     assert.match(show.stdout, /^---/);
     assert.match(show.stdout, /mode: primary/);
-    assert.match(show.stdout, /alvaress decide choose/);
+    assert.match(show.stdout, /alvaress run "<petición>"/);
 
     const install = runCli(['agent', 'install'], { cwd: root, home });
     assert.equal(install.status, 0);
@@ -145,7 +145,6 @@ test('config paths y config show respetan HOME y enmascaran secretos', () => {
   fs.mkdirSync(home);
   fs.mkdirSync(root);
   writeJson(path.join(home, '.alvaressconfig.json'), baseConfig({
-    decision: { model: 'laya', apiKey: 'decision-secret' },
     models: {
       aiderImplementer: { modelName: 'global-implementer', apiKey: 'implementer-secret', env: {} }
     }
@@ -213,7 +212,7 @@ test('agent install escribe también los subagentes', () => {
   try {
     const result = runCli(['agent', 'install'], { cwd: root, home });
     assert.equal(result.status, 0);
-    for (const name of ['alvaress-explorer', 'alvaress-implementer', 'alvaress-verifier']) {
+    for (const name of ['alvaress-explorer', 'alvaress-implementer', 'alvaress-verifier', 'alvaress-fixer']) {
       assert.ok(fs.existsSync(path.join(home, '.config', 'opencode', 'agents', `${name}.md`)));
       assert.ok(fs.existsSync(path.join(root, '.opencode', 'agents', `${name}.md`)));
     }
