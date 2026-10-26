@@ -4,10 +4,11 @@
   <img src="assets/alvaress-logo.svg" alt="alvaress: SDD harness para OpenCode" width="420">
 </p>
 
-**Tu copiloto SDD para [OpenCode](https://opencode.ai):** decide en local con
-[kev o laya](https://ollama.com/search?c=decision), ejecuta con
-[Aider](https://aider.chat) cuando conviene y valida cada cambio antes de dar
-una tarea por terminada.
+**Tu arnés híbrido SDD + ODD para [OpenCode](https://opencode.ai):** decide en
+local con [laya-ts](https://github.com/NandhaKishorM/laya/tree/main/laya-ts),
+ejecuta con [Aider](https://aider.chat) cuando lo habilitas o con subagentes
+especializados cuando no, y valida cada cambio con
+[Vite-Plus](https://vite.plus) antes de dar una tarea por terminada.
 
 `alvaress` no reemplaza a tu agente: le da un entorno de trabajo ordenado.
 Instala un agente de OpenCode llamado **`alvaress`**, sus skills y la
@@ -16,7 +17,7 @@ configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission
 
 > **En corto:** instalas alvaress → ejecutas `alvaress install` → `alvaress init`
 > → abres OpenCode → eliges el agente `alvaress` → le pides la siguiente tarea.
-> Él lee la spec, decide, ejecuta, valida y registra el resultado.
+> Él lee la nota ODD o la spec SDD, decide, ejecuta, valida y registra el resultado.
 
 ## Contenido
 
@@ -28,10 +29,12 @@ configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission
 - [Instalación](#instalación)
 - [Inicio rápido](#inicio-rápido)
 - [El agente `alvaress`](#el-agente-alvaress)
+- [Aprendizaje continuo](#aprendizaje-continuo)
 - [Comandos](#comandos)
-- [Modelo de decisión (kev o laya)](#modelo-de-decisión-kev-o-laya)
+- [Modelo de decisión (laya-ts)](#modelo-de-decisión-laya-ts)
 - [Configuración](#configuración)
 - [Manifiesto `openspec.yaml`](#manifiesto-openspecyaml)
+- [Cómo funciona `run`](#cómo-funciona-run)
 - [Cómo funciona `apply`](#cómo-funciona-apply)
 - [Skills](#skills)
 - [Obsidian](#obsidian)
@@ -44,19 +47,21 @@ configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission
 
 ## ¿Qué es alvaress?
 
-Un orquestador **Spec-Driven Development (SDD)**. Su trabajo es que el agente
-no improvise: que lea la especificación, decida con criterios explícitos,
-ejecute cambios acotados y compruebe que todo sigue funcionando.
+Un arnés **híbrido**: usa **ODD** (Obsidian-Driven Development) para tareas
+pequeñas y **SDD** (Spec-Driven Development) cuando el cambio es grande o
+multi-contexto. Su trabajo es que el agente no improvise: que lea la nota o la
+especificación, decida con criterios explícitos, ejecute cambios acotados y
+compruebe que todo sigue funcionando.
 
 La idea es la de Gentle AI: no sustituir a tu agente, sino darle reglas,
 herramientas y un registro de lo que va pasando.
 
 Te puede servir si:
 
-- quieres que el agente siga una spec y no una corazonada;
+- quieres que el agente siga una nota o una spec y no una corazonada;
 - prefieres decisiones locales y privadas, sin mandar tu contexto a un servicio
   remoto;
-- quieres validación real (lint, tipos, tests) antes de cerrar una tarea;
+- quieres validación real (`vp check`, `vp test`) antes de cerrar una tarea;
 - quieres un historial de ejecución y una nota de proyecto en Obsidian.
 
 ## El nombre
@@ -64,10 +69,6 @@ Te puede servir si:
 <p align="center">
   <img src="assets/alvaress-intro.gif" alt="Alvarez + Harness = Alvaress" width="640">
 </p>
-
-`alvaress` nace de **Alvarez** + **Harness**: tu apellido y el entorno de
-trabajo. La animación muestra cómo la `z` de *Alvarez* se va y las `ss` de
-*Harness* se quedan para formar **Alvaress**.
 
 ## El flujo en una imagen
 
@@ -79,39 +80,43 @@ el único que escribe en la bóveda.
 
 ## Cómo funciona, en 5 pasos
 
-1. **Entender.** Lee `openspec.yaml`, la tarea asignada, el grafo de Graphify y
-   la nota del proyecto en Obsidian. No empieza a programar a ciegas.
-2. **Decidir.** Consulta a `kev` o `laya` (máximo 3 llamadas por solicitud) si
-   la petición está clara, qué camino conviene y qué complejidad tiene. Si
-   Ollama no está disponible, sigue con heurísticas locales.
-3. **Ejecutar.** Usa Aider para tareas SDD y cambios multiarchivo; para cambios
-   triviales edita directamente. El alcance está acotado por la tarea.
-4. **Validar.** Ejecuta los comandos de validación del proyecto o de la tarea.
-   Si fallan, lanza un bucle de reparación con Aider hasta agotar
-   `validation.maxAttempts`.
-5. **Cerrar.** Actualiza el estado en `openspec.yaml`, escribe el reporte de
-   ejecución y registra el cierre en Obsidian con `alvaress obsidian note`.
+1. **Entender.** Lee la nota ODD o `openspec.yaml`, la tarea asignada, el grafo
+   de Graphify y la nota del proyecto en Obsidian. No empieza a programar a
+   ciegas.
+2. **Decidir.** `laya-ts` elige entre ODD y SDD, estima la complejidad y marca
+   los riesgos. Si el modelo no está disponible, usa heurísticas locales.
+3. **Ejecutar.** Usa Aider si está habilitado; si no, reparte el trabajo entre
+   los subagentes `alvaress-explorer`, `alvaress-implementer`,
+   `alvaress-verifier` y `alvaress-fixer`. El alcance está acotado por la nota o
+   la tarea.
+4. **Validar.** Ejecuta `vp check` y `vp test`. Si fallan, entra en `Fixing`
+   con un máximo de dos reintentos; si el fallo es nuclear, para en `Halted`.
+5. **Cerrar.** Actualiza el estado, escribe `.laya/last_run.log`, muestra el
+   reporte `READY` y registra el cierre en Obsidian.
 
 ## Requisitos
 
-Solo necesitas instalar dos cosas; el resto lo resuelve `alvaress install`.
+Solo necesitas instalar Node.js 20 o superior y pnpm; el resto lo resuelve
+`alvaress install`.
 
 | Tú instalas | El instalador resuelve |
 | --- | --- |
-| **Node.js 20 o superior** | Aider (`aider-chat`) |
-| **pnpm** (gestor por defecto) | Graphify (`graphifyy`) |
-| Git (recomendado) | pipx, si falta |
-| | Ollama y el modelo `kev` o `laya` |
+| **Node.js 20 o superior** | [laya-ts](https://github.com/NandhaKishorM/laya/tree/main/laya-ts) |
+| **pnpm** (gestor por defecto) | Vite-Plus (`vite-plus`) |
+| Git (recomendado) | Graphify (`graphifyy`) |
 | | Obsidian, si se puede instalar |
-| | `oxlint`, TypeScript y `@types/node` en el proyecto |
+| | pipx, si falta |
+| | Aider (`aider-chat`), solo si lo habilitas |
+| | `oxlint`, TypeScript y `@types/node` como fallback |
 
 **Sobre pipx:** si falta, el instalador lo instala con el gestor de tu sistema
 (`brew`, `apt-get`, `dnf`, `pacman`, `zypper`, `apk`) o con
 `python3 -m pip install --user pipx`. Solo si no encuentra ninguna vía te pide
 instalarlo a mano.
 
-**Sobre Ollama:** `kev` necesita Ollama 0.40.4 o superior; `laya`, 0.40.0 o
-superior. El instalador lo arranca si está apagado y descarga el modelo elegido.
+**Sobre laya-ts:** es un runtime ESM con pesos ONNX. La primera carga descarga
+el checkpoint y lo deja en caché; después todo corre en local. Si aún no está
+instalado, alvaress arranca con heurísticas y te avisa en `doctor`.
 
 ## Instalación
 
@@ -133,17 +138,18 @@ Para CI o para dejar el equipo listo sin preguntas:
 alvaress install --yes
 ```
 
-`--yes` selecciona todos los componentes, usa la configuración existente o los
-valores por defecto y no pregunta nada. Instala lo que falte (Aider, Graphify,
-Ollama y el modelo de decisión), crea `openspec.yaml` si el proyecto es un
-repositorio y no crea `.alvaressrc.json`. Si no hay API key del implementador,
-avisa al terminar para que la añadas antes de usar Aider.
+`--yes` selecciona los componentes requeridos, usa la configuración existente o
+los valores por defecto y no pregunta nada. Instala lo que falte (laya-ts,
+Vite-Plus, Graphify y las dependencias de validación), crea `openspec.yaml` si
+el proyecto es un repositorio y no crea `.alvaressrc.json`. Aider solo se
+instala si ya está habilitado en la configuración. Si falta la API key del
+implementador y Aider está habilitado, avisa al terminar.
 
 ## Inicio rápido
 
 ```bash
 # 1. Instalador: agente, skills, componentes y configuración.
-#    Elige kev o laya cuando te pregunte por el modelo de decisión.
+#    Confirma el modelo de laya-ts cuando te pregunte.
 alvaress install
 
 # 2. Prepara el proyecto: manifiesto, tareas, skills y agente local.
@@ -174,28 +180,33 @@ El instalador escribe el agente en dos sitios:
 Es un agente `primary`, seleccionable con **Tab** en OpenCode o con
 `opencode run --agent alvaress`. No cambia tu agente por defecto.
 
-Además instala tres subagentes `subagent` en la misma carpeta:
+Además instala cuatro subagentes `subagent` en la misma carpeta:
 
-| Subagente | Para qué sirve |
-| --- | --- |
-| `alvaress-explorer` | Solo lectura: localiza código y contexto. |
-| `alvaress-implementer` | Implementa una tarea SDD dentro de un alcance cerrado. |
-| `alvaress-verifier` | Ejecuta la validación y devuelve el error exacto sin editar. |
+| Subagente | Para qué sirve | Límite |
+| --- | --- | --- |
+| `alvaress-explorer` | Solo lectura: localiza código y contexto y propone un alcance cerrado. | No edita ni escribe en la bóveda. |
+| `alvaress-implementer` | Implementa una micro-tarea ODD o una tarea SDD dentro del alcance. | Sin git, sin cierre, sin dependencias nuevas. |
+| `alvaress-verifier` | Ejecuta Vite-Plus y devuelve el error exacto. | No edita archivos. |
+| `alvaress-fixer` | Repara un fallo trivial, máximo dos intentos. | No toca tests ni git; HALT si es nuclear. |
 
-Los tres tienen la bóveda Obsidian como solo lectura y no pueden hacer
-`git push`, `git reset --hard` ni `rm -rf`. El orquestador es el único que
-ejecuta `alvaress apply`, `alvaress obsidian note` y `alvaress archive`.
+Cada subagente declara sus skills obligatorias, un límite de pasos y permisos
+propios. Los cuatro tienen la bóveda Obsidian como solo lectura, no pueden lanzar
+otros subagentes ni consultar la web, y no pueden hacer `git push`,
+`git reset`, `git commit` ni `rm -rf`. El orquestador es el único que ejecuta
+`alvaress apply`, `alvaress verify`, `alvaress obsidian note`, `alvaress archive`
+y `alvaress learn add`.
 
 Su prompt incluye:
 
-- el flujo SDD obligatorio: entender → decidir → ejecutar → validar → cerrar;
-- el uso del modelo de decisión en los puntos clave (máximo 3 llamadas por
-  solicitud);
-- la política de ejecución: Aider para tareas SDD y cambios multiarchivo;
-  edición directa para cambios triviales;
-- la prohibición de enviar secretos o código completo al modelo de decisión;
+- el flujo híbrido SDD/ODD: entender → decidir → ejecutar → validar → cerrar;
+- el uso de laya-ts en los puntos clave (máximo 3 llamadas por solicitud);
+- la política de ejecución: Aider si está activo o subagentes especializados si
+  no lo está; edición directa para cambios triviales;
+- la prohibición de enviar secretos o código completo a laya-ts;
 - reglas de eficiencia de tokens: Graphify antes de `grep`/`read`, lecturas
   localizadas y resúmenes en lugar de logs completos;
+- aprendizaje continuo: consulta el playbook global al empezar y solo guarda lo
+  que realmente marque diferencia al cerrar;
 - una personalidad amigable, con modismos mexicanos ligeros y ocasionales, y
   respuestas cortas por defecto: estado, cambios principales y validación. El
   detalle solo se explica si lo pides.
@@ -209,167 +220,127 @@ alvaress agent install --no-global
 alvaress agent install --no-project
 ```
 
+## Aprendizaje continuo
+
+El agente aprende entre proyectos sin mandar nada a la nube. Los aprendizajes se
+guardan en `~/.alvaress/memory/`:
+
+- `learnings.json`: la fuente de verdad, con tipo, título, detalle, tags,
+  proyecto, origen y contador de usos.
+- `PLAYBOOK.md`: un resumen legible que el agente consulta al empezar.
+
+Antes de trabajar, el agente busca con `alvaress learn search "<tema>"` y marca
+como reutilizado lo que aplicó. Al cerrar, guarda como máximo tres aprendizajes,
+y solo si cumplen al menos un criterio de valor:
+
+- evitaron un error que ya se repitió;
+- ahorran varios pasos o más de diez minutos;
+- cambiaron una decisión de arquitectura, validación o alcance;
+- son una convención estable del usuario o del equipo;
+- corrigen una instrucción del agente, una skill o el CLI.
+
+**Cero aprendizajes es un cierre válido.** No hay cuota ni obligación de guardar
+algo en cada ciclo. El CLI también filtra el ruido: exige un título concreto y un
+detalle de al menos 20 caracteres, rechaza entradas que parecen contener secretos
+y actualiza la entrada existente en vez de duplicarla.
+
+| Tipo | Para qué sirve |
+| --- | --- |
+| `step` | Una secuencia de pasos que ahorra tiempo. |
+| `solution` | Una solución concreta a un problema recurrente. |
+| `pitfall` | Un error que conviene evitar y cómo detectarlo. |
+| `preference` | Una convención del usuario o del equipo. |
+| `improvement` | Una mejora propuesta al prompt, a una skill o al CLI. |
+
+```bash
+alvaress learn search "migraciones"
+alvaress learn add solution "Validar migraciones en seco" \
+  --body "Ejecutar el SQL en una transacción y revertir antes de aplicar." \
+  --tag db --tag migrations --source TASK-01
+alvaress learn list --kind pitfall
+alvaress learn use L-1a2b3c4d
+alvaress learn playbook
+alvaress learn prune --keep 100 --dry-run
+```
+
+Los `improvement` son propuestas: el agente los menciona al usuario y no edita su
+propio prompt ni sus skills sin aprobación. El store es local; puedes cambiarlo
+con `ALVARESS_MEMORY_DIR`.
+
 ## Comandos
 
 | Comando | Descripción |
 | --- | --- |
-| `alvaress install [--yes]` | Instala agente, Obsidian, Graphify, Aider, Ollama, modelo de decisión y dependencias de validación. Detecta o instala lo que falte, crea la bóveda y genera la configuración global y, si procede, la local y `openspec.yaml`. `--yes` no pregunta nada. |
+| `alvaress run "<petición>" [--task TASK_ID] [--files a.ts,b.ts] [--mode odd\|sdd] [--dry-run] [--no-commit] [--no-learn]` | Ejecuta el arnés híbrido de principio a fin: explora, decide con laya-ts, trabaja con Aider o subagentes, valida con Vite-Plus, cierra Obsidian y hace commit de los archivos del run. `--dry-run` solo muestra el plan. |
+| `alvaress -i` / `--inspect-last-run` | Muestra el log completo del último run (`.laya/last_run.log`). |
+| `alvaress install [--yes]` | Instala agente, laya-ts, Obsidian, Graphify, Vite-Plus y dependencias de validación. Aider es opcional. Detecta o instala lo que falte, crea la bóveda y genera la configuración global y, si procede, la local y `openspec.yaml`. `--yes` no pregunta nada. |
 | `alvaress init [--no-link]` | Crea `.harness/tasks`, `.harness/skills`, `openspec.yaml` (si falta), las skills y el agente del proyecto. Si `obsidianVaultPath` está configurado, conecta la bóveda. Con `--no-link` no crea enlaces ni agente global. |
 | `alvaress apply [TASK...] [--dry-run] [--force] [--update-graph]` | Ejecuta las tareas pendientes (o los ids indicados) con Aider. `--dry-run` muestra los grupos sin invocar a Aider ni modificar el manifiesto. `--force` ignora un lock huérfano y `--update-graph` actualiza Graphify al terminar. |
-| `alvaress verify <TASK_ID>` | Ejecuta la validación de la tarea o del proyecto y, si falla, pide a Aider una reparación automática. |
+| `alvaress verify <TASK_ID>` | Ejecuta la validación de la tarea o del proyecto y, si falla, pide una reparación automática. |
 | `alvaress archive <SPEC_ID>` | Archiva una spec con todas sus tareas en `Done`; antes crea un backup del manifiesto. |
-| `alvaress doctor [--json]` | Diagnóstico previo: Node, configuración, gestor de paquetes, git, Aider, Graphify, Ollama, modelo de decisión, Obsidian, manifiesto, comandos de validación, frescura del grafo y locks. |
+| `alvaress doctor [--json]` | Diagnóstico previo: Node, configuración, gestor de paquetes, git, laya-ts, Vite-Plus, Aider, Graphify, Obsidian, manifiesto, comandos de validación, frescura del grafo y locks. |
 | `alvaress report [latest\|list\|show <id>]` | Muestra los reportes de ejecución guardados en `.harness/runs/`. |
 | `alvaress restore [--list\|latest\|<id>]` | Lista o restaura `openspec.yaml` desde `.harness/backups/`. |
 | `alvaress skills [--no-link]` | Reinstala las skills del proyecto y sus enlaces globales. |
+| `alvaress learn [add\|list\|search\|show\|use\|prune\|playbook]` | Guarda, busca y reutiliza aprendizajes globales en `~/.alvaress/memory/`. `add` aplica un filtro de calidad y no duplica entradas. |
 | `alvaress agent [install\|show]` | Instala el agente `alvaress` y sus subagentes en OpenCode, o imprime el prompt del orquestador. |
 | `alvaress obsidian [status\|sync\|note]` | Consulta la bóveda y la nota del proyecto (`status`), las crea o repara (`sync`), o registra el cierre de una tarea (`note`, también con `--from-run latest`). |
-| `alvaress decide [predict\|choose\|score\|ask]` | Consulta las decisiones tipadas del modelo local. Sin subcomando combina claridad, camino y complejidad en una sola llamada con caché. |
-| `alvaress model [status\|list\|kev\|laya]` | Inspecciona o cambia el modelo de decisión (`kev` o `laya`) y comprueba el estado de Ollama. |
 | `alvaress config [show\|paths]` | Muestra la configuración resuelta (con secretos enmascarados) o las rutas de configuración. |
 
-Códigos de salida: `0` éxito, `1` error o tarea fallida, `2` error del modelo
-de decisión u Ollama, `130` operación cancelada.
+Códigos de salida: `0` éxito, `1` error o tarea fallida, `130` operación cancelada.
 
-## Modelo de decisión (kev o laya)
+## Modelo de decisión (laya-ts)
 
-`alvaress` habla con el endpoint `/v1/systemone` de Ollama. No hay API key ni
-servicio remoto: el modelo corre en tu máquina.
+`laya-ts` es un runtime TypeScript local con pesos ONNX. No hay API key ni
+servicio remoto: el modelo corre en tu máquina y solo recibe un resumen del
+estado, nunca el código completo ni secretos.
 
-`kev` y `laya` no generan texto. Reciben un `state` y preguntas tipadas
-(`noul`, `choice`, `score`) y devuelven probabilidades calibradas. `alvaress`
-los usa para decidir si la solicitud está clara, qué camino tomar y qué
-complejidad tiene el cambio.
+`alvaress` lo usa en tres puntos:
 
-| Modelo | Base | Cuándo conviene |
-| --- | --- | --- |
-| `kev` | Qwen3.5 calibrado | Equilibrio entre precisión y velocidad. |
-| `laya` | ModernBERT | Muy rápido en CPU y con poca memoria. |
+- **Ruta:** decide entre ODD y SDD y estima la complejidad.
+- **Riesgo:** clasifica el riesgo residual del diff.
+- **Triaje:** decide si un fallo de validación es trivial, nuclear o necesita al
+  orquestador.
 
-`alvaress install` te pregunta cuál usar, instala Ollama si falta (con
-confirmación) y descarga el modelo. Si está instalado pero apagado, intenta
-arrancarlo con `ollama serve`. Para cambiarlo después:
+Si el modelo no está disponible, alvaress usa heurísticas deterministas y lo
+indica en `doctor`. El adaptador está en `src/decision/laya.ts`; las heurísticas,
+en `src/decision/heuristics.ts`.
 
 ```bash
-alvaress model               # estado actual
-alvaress model list          # modelos instalados en Ollama
-alvaress model kev           # cambia el modelo global
-alvaress model laya --local  # solo este proyecto
+alvaress doctor            # comprueba laya-ts y Vite-Plus
+alvaress install           # instala lo que falte
 ```
 
-La configuración vive en `~/.alvaressconfig.json`:
+Configuración:
 
 ```json
 {
-  "decision": {
-    "model": "kev",
-    "apiBase": "http://127.0.0.1:11434",
-    "timeoutMs": 60000,
-    "cache": true,
-    "cacheTtlMs": 86400000,
-    "maxCalls": 3
+  "laya": {
+    "enabled": true,
+    "model": "convaiinnovations/laya",
+    "subfolder": "multilingual",
+    "device": "cpu",
+    "timeoutMs": 30000,
+    "fallbackToHeuristic": true
+  },
+  "vitePlus": {
+    "checkCommand": "vp check",
+    "testCommand": "vp test",
+    "fallbackToPackageManager": true
   }
 }
 ```
 
-Variables de entorno: `ALVARESS_OLLAMA_BASE` (endpoint) y
-`ALVARESS_DECISION_MODEL` (modelo). La precedencia es: flag de CLI →
-configuración → entorno. Si usas un Ollama remoto con autenticación, define
-`decision.apiKey` o `ALVARESS_DECISION_API_KEY`.
-
-### `predict` (sí/no)
-
-```bash
-alvaress decide predict \
-  --state "Cambio en un solo archivo, función pura y con tests existentes" \
-  --question "¿Es seguro implementarlo directamente?" \
-  --threshold 0.7
-```
-
-Salida:
-
-```json
-{"type":"noul","probability":0.93,"threshold":0.7,"pass":true,"model":"kev"}
-```
-
-Si la probabilidad no alcanza el umbral, el comando devuelve exit code `1` y la
-respuesta se imprime igualmente. Así el agente puede usar el exit code como gate.
-
-### `choose` (elegir entre opciones)
-
-```bash
-alvaress decide choose \
-  --state "Tres tareas pendientes con archivos definidos" \
-  --question "¿Cuál es el siguiente paso más eficiente?" \
-  --option "spec=Actualizar la especificación" \
-  --option "apply=Ejecutar con Aider" \
-  --option "direct=Editar directamente" \
-  --min-confidence 0.55
-```
-
-Salida:
-
-```json
-{"type":"choice","choice":"apply","confidence":0.84,"probabilities":{"spec":0.1,"apply":0.84,"direct":0.06},"minConfidence":0.55,"pass":true,"model":"kev"}
-```
-
-### `score` (rúbrica ordenada)
-
-```bash
-alvaress decide score \
-  --state "Cambio en varios módulos y una migración de base de datos" \
-  --question "¿Qué complejidad tiene?" \
-  --level "trivial: un archivo" \
-  --level "media: varios archivos de un contexto" \
-  --level "alta: varios contextos o migraciones"
-```
-
-### `ask` (petición completa)
-
-```bash
-alvaress decide ask --request-file peticion.json
-```
-
-```json
-{
-  "state": { "tarea": "..." },
-  "questions": {
-    "clara": { "type": "noul", "instructions": "¿La tarea está bien definida?" },
-    "riesgo": { "type": "score", "instructions": "¿Qué riesgo tiene?", "criteria": ["bajo", "medio", "alto"] }
-  }
-}
-```
-
-### `model list` (modelos disponibles)
-
-```bash
-alvaress model list
-alvaress model list --json
-```
-
-### Decisión compuesta con caché
-
-Sin subcomando, una sola llamada resuelve claridad, camino y complejidad. Las
-respuestas se cachean en `.harness/cache/decision/` durante 24 h por defecto;
-usa `--no-cache` para forzar una llamada nueva.
-
-```bash
-alvaress decide --state "Tres tareas pendientes con archivos definidos" --gate
-```
-
-- `--gate` devuelve exit code `1` si la claridad o la confianza no superan los
-  umbrales.
-- `--threshold` (claridad) y `--min-confidence` (camino) ajustan los umbrales.
-- `--model kev|laya` sobrescribe el modelo configurado para esa llamada.
-- El `state` se redacta antes de enviarse: claves, tokens y contraseñas se
-  sustituyen por `[REDACTED_*]`. Usa `--no-redact` solo si controlas el estado.
+`model` acepta un identificador de Hugging Face o una ruta local al directorio
+con `encoder.onnx`, `head.onnx`, `tokenizer.json` y `rl_agent_config.json`. La
+primera carga descarga el checkpoint y lo cachea.
 
 ### Privacidad
 
-El `state` se envía a tu instancia de Ollama. No incluyas claves, tokens, datos
-personales ni código propietario completo. Usa un resumen de 1-3 frases. El
-prompt del agente `alvaress` ya lo exige y `alvaress` redacta secretos por
-defecto.
+El `state` que recibe laya-ts se redacta antes de enviarse al modelo: claves,
+tokens y contraseñas se sustituyen por `[REDACTED_*]`. No incluyas datos
+personales ni código propietario completo. Usa un resumen de 1-3 frases; el
+prompt del agente `alvaress` ya lo exige.
 
 ## Configuración
 
@@ -388,15 +359,20 @@ ninguno de los dos, se aplica el valor por defecto.
   "packageManager": "pnpm",
   "scope": "warn",
   "graphify": { "autoUpdate": false },
-  "aider": { "timeoutMs": 600000, "extraArgs": [], "inheritEnv": true },
-  "decision": {
-    "model": "kev",
-    "apiBase": "http://127.0.0.1:11434",
-    "timeoutMs": 60000,
-    "cache": true,
-    "cacheTtlMs": 86400000,
-    "maxCalls": 3
+  "laya": {
+    "enabled": true,
+    "model": "convaiinnovations/laya",
+    "subfolder": "multilingual",
+    "device": "cpu",
+    "timeoutMs": 30000,
+    "fallbackToHeuristic": true
   },
+  "vitePlus": {
+    "checkCommand": "vp check",
+    "testCommand": "vp test",
+    "fallbackToPackageManager": true
+  },
+  "aider": { "enabled": false, "timeoutMs": 600000, "extraArgs": [], "inheritEnv": true },
   "models": {
     "aiderImplementer": {
       "modelName": "deepseek/deepseek-chat",
@@ -408,8 +384,8 @@ ninguno de los dos, se aplica el valor por defecto.
   "validation": {
     "maxAttempts": 3,
     "commands": [
-      "pnpm exec oxlint --deny=correctness --deny=suspicious",
-      "pnpm exec tsc --noEmit"
+      "pnpm exec vp check",
+      "pnpm exec vp test"
     ]
   }
 }
@@ -419,16 +395,20 @@ Valores por defecto:
 
 | Campo | Valor |
 | --- | --- |
-| `decision.model` | `kev` |
-| `decision.apiBase` | `http://127.0.0.1:11434` |
-| `decision.timeoutMs` | `60000` (1 min) |
-| `decision.cacheTtlMs` | `86400000` (24 h) |
+| `laya.enabled` | `true` |
+| `laya.model` | `convaiinnovations/laya` |
+| `laya.subfolder` | `multilingual` |
+| `laya.timeoutMs` | `30000` (30 s) |
+| `laya.fallbackToHeuristic` | `true` |
+| `vitePlus.checkCommand` | `vp check` |
+| `vitePlus.testCommand` | `vp test` |
 | `models.aiderImplementer.modelName` | `deepseek/deepseek-chat` |
 | `packageManager` | `pnpm` |
 | `scope` | `warn` |
+| `aider.enabled` | `false` |
 | `aider.timeoutMs` | `600000` (10 min) |
 | `validation.maxAttempts` | `3` |
-| `validation.commands` | `pnpm exec oxlint --deny=correctness --deny=suspicious`, `pnpm exec tsc --noEmit` |
+| `validation.commands` | `pnpm exec vp check`, `pnpm exec vp test` |
 
 El implementador recibe `DEEPSEEK_API_KEY` y `OPENAI_API_KEY` con `apiKey`, y
 `OPENAI_API_BASE` con `apiBase`. Las variables de `env` se añaden al subproceso
@@ -479,6 +459,49 @@ Estados admitidos:
 Los ids de specs y tareas solo admiten letras, números, punto, guion y guion
 bajo. Los ids de tarea deben ser únicos en todo el manifiesto.
 
+## Cómo funciona `run`
+
+`alvaress run` es la vía principal del arnés. Una sola orden recorre la máquina de
+estados:
+
+```bash
+alvaress run "agrega un helper de fechas" --files src/fechas.ts
+```
+
+1. **Exploring.** Detecta ODD o SDD, lee la nota de Obsidian o `openspec.yaml` y
+   cierra el alcance (archivos, criterios y comandos de validación).
+2. **Working.** Delega en Aider si `aider.enabled` es `true`; si no, en
+   `alvaress-implementer`. El worker no hace commits ni escribe en la bóveda.
+3. **Checking.** Ejecuta `vp check` y `vp test` (o los comandos de la tarea) y
+   captura stdout/stderr en `.laya/last_run.log`.
+4. **Fixing.** Si la validación falla, intenta reparar hasta dos veces. Un fallo
+   nuclear, de alcance o de herramienta termina en `Halted`.
+5. **Ready.** Marca la tarea SDD como `Done`, actualiza el checklist ODD, registra
+   el cierre en Obsidian y hace un commit `chore(alvaress): ...` solo con los
+   archivos del run. Nunca hace push.
+
+El resultado se muestra en una sola pantalla:
+
+```text
+[alvaress] READY
+Cambios Realizados:
+  • src/fechas.ts -> Aider modificó el archivo
+Validación:
+  • vp check -> OK
+  • vp test -> OK
+Riesgos Detectados:
+  • Sin riesgos detectados.
+```
+
+Cada ejecución deja un reporte JSON en `.harness/runs/<runId>-run.json` con el
+estado, el modo, los cambios, los riesgos, la validación, el commit y el HALT (si
+lo hubo). `alvaress report list` los muestra junto a los de `apply`, y
+`alvaress report show <id>` abre uno concreto.
+
+Si el run se detiene, deja `.laya/HALT.json` con el código, el motivo y el log, y
+`alvaress -i` abre el detalle completo. `--dry-run` hace la exploración y muestra
+el plan sin invocar al worker, sin commit y sin escribir en Obsidian.
+
 ## Cómo funciona `apply`
 
 1. Adquiere el lock `.harness/lock` y crea un backup de `openspec.yaml`.
@@ -511,11 +534,21 @@ Skills incluidas:
 
 | Skill | Qué hace |
 | --- | --- |
-| `read-spec-first` | Obliga a leer la especificación antes de programar. |
+| `read-spec-first` | Obliga a leer la nota ODD o la especificación SDD antes de programar. |
 | `consult-graphify-ast` | Evita lecturas masivas de código y prioriza Graphify. |
-| `self-healing-verify` | Exige validar con oxlint y TypeScript tras cada edición. |
+| `self-healing-verify` | Exige validar con Vite-Plus (`vp check` y `vp test`) tras cada edición. |
 | `universal-design-patterns` | Fuerza patrones de diseño y prohíbe comentarios en el código generado. |
-| `obsidian-sdd` | Define en qué fases del flujo SDD usa Obsidian el orquestador y qué pueden hacer los subagentes (solo lectura). |
+| `obsidian-sdd` | Define en qué fases del flujo híbrido usa Obsidian el orquestador y qué pueden hacer los subagentes (solo lectura). |
+| `continuous-learning` | Consulta y guarda aprendizajes globales solo cuando marcan diferencia. |
+| `bounded-scope` | Mantiene al subagente en los archivos asignados y le enseña a detenerse. |
+| `vite-plus-verify` | Ejecuta `vp check`/`vp test` y devuelve el error exacto sin ruido. |
+| `failure-triage` | Clasifica un fallo como trivial o nuclear antes de repararlo. |
+
+Cada subagente carga solo las skills de su perfil: el explorador usa
+`consult-graphify-ast`, `obsidian-sdd` y `bounded-scope`; el implementador usa
+`read-spec-first`, `universal-design-patterns`, `bounded-scope` y
+`self-healing-verify`; el verificador usa `vite-plus-verify` y `bounded-scope`;
+el reparador usa `failure-triage`, `self-healing-verify` y `bounded-scope`.
 
 Claude Code consume las mismas skills y los mismos artefactos SDD; el agente
 `alvaress` es nativo de OpenCode.
@@ -549,22 +582,23 @@ Harness/
 └── <proyecto>.md
 ```
 
-La nota incluye enlaces a las tareas y al manifiesto. Obsidian es un espejo del
-estado SDD: el agente escribe siempre en `.harness/tasks/` y `openspec.yaml`, y
-la bóveda refleja los cambios mediante enlaces simbólicos. No hay que
+La nota incluye enlaces a las tareas y al manifiesto. En SDD, Obsidian es un
+espejo del estado: el agente escribe siempre en `.harness/tasks/` y
+`openspec.yaml`, y la bóveda refleja los cambios mediante enlaces simbólicos. En
+ODD, la nota de la tarea es la fuente y se actualiza al cerrar. No hay que
 sincronizar nada a mano ni duplicar contenido.
 
-### Uso en el flujo SDD
+### Uso en el flujo híbrido
 
 La skill `obsidian-sdd` define el uso por fase:
 
 | Fase | Orquestador | Subagentes |
 | --- | --- | --- |
-| 1 · Entender | Ejecuta `alvaress obsidian status` y lee la nota del proyecto para recuperar contexto, decisiones y riesgos. | Los de exploración pueden leer la nota y los enlaces. |
-| 2 · Decidir | Usa la nota para resumir el estado que envía al modelo de decisión. Sin secretos. | No consultan el modelo de decisión ni escriben en la bóveda. |
-| 3 · Ejecutar | Escribe en `.harness/tasks/` y `openspec.yaml`. | Escriben solo en el proyecto; la bóveda es de solo lectura. |
-| 4 · Validar | Ejecuta la validación local. | Ejecutan los comandos locales y no tocan la bóveda. |
-| 5 · Cerrar | Registra el cierre con `alvaress obsidian note`. | Devuelven el resultado al orquestador. |
+| 1 · Entender | Ejecuta `alvaress obsidian status` y lee la nota de la tarea (ODD) o del proyecto (SDD) para recuperar contexto, decisiones y riesgos. | Los de exploración pueden leer la nota y los enlaces. |
+| 2 · Decidir | Usa la nota para resumir el estado que envía a laya-ts. Sin secretos. | No consultan laya-ts ni escriben en la bóveda. |
+| 3 · Ejecutar | En SDD escribe en `.harness/tasks/` y `openspec.yaml`; en ODD implementa el alcance de la nota. | Escriben solo en el proyecto; la bóveda es de solo lectura. |
+| 4 · Validar | Ejecuta Vite-Plus (`vp check` y `vp test`). | El verificador ejecuta los comandos y no toca la bóveda. |
+| 5 · Cerrar | Registra el cierre con `alvaress obsidian note` y marca `[x]` en ODD. | Devuelven el resultado al orquestador. |
 
 Reglas clave:
 
@@ -572,8 +606,8 @@ Reglas clave:
   nunca editando `<bóveda>/Harness/` a mano.
 - Los subagentes reciben la instrucción explícita de no escribir en la bóveda.
 - Si no hay bóveda configurada, el flujo continúa sin ella.
-- No se crea una nota por tarea: se usa la nota del proyecto y los enlaces
-  `[[Tasks/...]]`.
+- En SDD no se crea una nota por tarea: se usa la nota del proyecto y los enlaces
+  `[[Tasks/...]]`. En ODD se actualiza la nota de la tarea sin duplicar el proyecto.
 
 ### Comandos de Obsidian
 
@@ -613,9 +647,8 @@ alvaress obsidian note --from-run latest --task TASK-01
   `"off"` lo desactiva.
 - **Timeout de Aider** configurable (`aider.timeoutMs`, 10 min por defecto) con
   terminación `SIGTERM` y luego `SIGKILL`.
-- **Entorno saneado** para Aider: no hereda credenciales de Ollama, npm ni GitHub.
-- **Caché de decisión** por hash de la petición y TTL configurable
-  (`decision.cacheTtlMs`).
+- **Entorno saneado** para Aider: no hereda credenciales de npm ni GitHub.
+- **Timeout de laya-ts** configurable (`laya.timeoutMs`) con fallback heurístico.
 - **Frescura de Graphify** comprobada por `doctor`; `apply --update-graph` o
   `graphify.autoUpdate: true` lo actualizan al terminar.
 - **Permisos estrictos** en el agente y los subagentes: shell con allowlist,
@@ -686,11 +719,10 @@ Pruebas incluidas:
 - argumentos, utilidades de FS, enlaces simbólicos y skills;
 - verificación y bucle self-healing con Aider simulado;
 - `apply` con grupos paralelos/secuenciales, fallos y dry-run;
-- cliente de decisión y comandos `decide`/`predict`/`choose`/`score`/`ask` con
-  `fetch` simulado;
-- selección de modelo (`model status|list|kev|laya`) y detección de Ollama;
-- caché de decisión, redacción de secretos, lock, backups, reportes y alcance
-  del diff;
+- motor de decisión `laya-ts` con agente simulado y fallback heurístico;
+- adaptador de `laya-ts`, timeout, triaje de fallos y riesgos;
+- caché de decisión, redacción de secretos, lock, backups, reportes y
+  alcance del diff;
 - `doctor`, `report`, `restore`, `archive` y subagentes;
 - detección e instalación de Obsidian, bóveda, nota y comandos `obsidian`;
 - instalación del agente global, de proyecto y de subagentes;
@@ -703,9 +735,11 @@ Pruebas incluidas:
 src/
 ├── cli.ts
 ├── agent/           prompt, subagentes e instalación
-├── commands/        install, init, agent, decide, model, obsidian, skills, config, doctor, report, restore, archive
+├── commands/        install, init, agent, obsidian, skills, config, doctor, report, restore, archive
+├── core/            contratos, máquina de estados y HALT
 ├── config/          loader con precedencia global/local
-├── decision/        cliente de Ollama System One, detección y caché
+├── decision/        adaptador de laya-ts y heurísticas locales
+├── ui/              paleta TrueColor, loader de estados y reporte final
 ├── graphify/        estado y actualización del grafo
 ├── openspec/        manifiesto y tipos
 ├── orchestrator/    agrupación, Aider, verificación, apply, backups, reportes y alcance

@@ -1,8 +1,17 @@
 # SYSTEM PROMPT: GENERADOR DEL INSTALADOR Y ARNÉS DE AGENTES (ESTILO GENTLE AI)
 
+> **Nota histórica.** Este documento es el prompt original con el que se generó el
+> proyecto. La arquitectura vigente es un arnés híbrido **SDD + ODD** que usa
+> `laya-ts` como motor de decisión local, [Vite-Plus](https://vite.plus) para
+> validar y **Aider opcional** (subagentes de OpenCode cuando está desactivado).
+> Los ejemplos de configuración y las referencias a Ollama o al orquestador `jev`
+> que aparecen más abajo son legado y no describen el comportamiento actual.
+> Consulta el [README](../README.md) y [docs/subagents.md](./subagents.md) para la
+> referencia viva.
+
 Actúa como un Ingeniero de Software Principal experto en Herramientas de CLI Core y Automatización de Agentes de IA. Tu objetivo es generar el código fuente completo en TypeScript (compatible con Node.js/Bun) para una herramienta CLI open-source llamada `alvaress`.
 
-Esta herramienta automatiza el ciclo de Spec-Driven Development (SDD) bajo el estándar OpenSpec, integrando Obsidian como frontend, Graphify y Aider como optimizadores de contexto, y Ollama local o APIs externas como tomadores de decisiones lógicas y de codificación.
+Esta herramienta automatiza el ciclo de desarrollo híbrido **SDD + ODD** bajo el estándar OpenSpec, integrando Obsidian como frontend, Graphify como mapa de código, `laya-ts` como motor de decisión local, Vite-Plus como compuerta de validación y Aider (opcional) o subagentes especializados como ejecutores.
 
 ---
 
