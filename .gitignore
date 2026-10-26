@@ -5,3 +5,5 @@ dist/
 npm-debug.log*
 graphify-out/cache/
 package-lock.json
+__pycache__/
+*.pyc

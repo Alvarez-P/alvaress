@@ -32,6 +32,7 @@ configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission
 - [Aprendizaje continuo](#aprendizaje-continuo)
 - [Comandos](#comandos)
 - [Modelo de decisión (Laya)](#modelo-de-decisión-laya)
+- [Artefacto int8](#artefacto-int8)
 - [Configuración](#configuración)
 - [Manifiesto `openspec.yaml`](#manifiesto-openspecyaml)
 - [Cómo funciona `run`](#cómo-funciona-run)
@@ -345,6 +346,25 @@ Configuración:
 vacío, alvaress usa la caché global y espera el bundle fijado por revisión que
 instala `alvaress install`. Si falta, el run sigue con heurísticas.
 `threads` controla los hilos intra-op de ONNX Runtime en CPU.
+
+### Artefacto int8
+
+El bundle fp32 pesa 1.69 GB. `scripts/quantize-laya.py` genera un bundle int8 de
+488 MB (3.5× menos) con `MatMulNBits` de 8 bits en bloques de 32 y
+`GatherBlockQuantized` para la tabla de embeddings. Conserva las decisiones del
+modelo fp32 y carga en ~0.3 s en vez de ~2.6 s; la inferencia suelta es ~20 %
+más lenta, pero la carga inicial compensa en un run de hasta tres llamadas.
+
+```bash
+~/.cache/alvaress/quant-venv/bin/python scripts/quantize-laya.py \
+  --source ~/.cache/alvaress/laya-onnx/<revision> \
+  --output ~/.cache/alvaress/laya-onnx-int8/<revision>
+```
+
+El directorio incluye `laya_int8.json` con tamaños y SHA-256. `verifyBundle` lo
+detecta y valida contra él, así que basta con apuntar `laya.modelDir` ahí. El
+artefacto aún no se publica como release asset. Detalles, mediciones y
+limitaciones en [`docs/laya-int8.md`](docs/laya-int8.md).
 
 ### Privacidad
 

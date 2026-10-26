@@ -5,10 +5,15 @@
  * solo compara el tamaño del archivo. Aquí cada archivo se verifica con SHA-256
  * al descargarlo, y `verifyBundle(dir, { deep: true })` permite auditar el
  * bundle completo cuando haga falta.
+ *
+ * Si el directorio contiene un `laya_int8.json` válido (lo escribe
+ * `scripts/quantize-laya.py`), la verificación usa ese manifiesto en vez del
+ * bundle fp32 fijado aquí. Así `laya.modelDir` puede apuntar a un artefacto
+ * cuantizado sin cambiar el código.
  */
 
 import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream, readFileSync } from 'node:fs';
 import { mkdir, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -58,6 +63,94 @@ export const BUNDLE_REVISION = 'd42786bdff8a7550316339c5fbf8f46caa83ea1b';
 
 /** Bytes totales del bundle, para avisar en el instalador. */
 export const BUNDLE_BYTES = BUNDLE_FILES.reduce((total, file) => total + file.bytes, 0);
+
+/**
+ * Manifiesto que escribe `scripts/quantize-laya.py` junto al bundle int8.
+ *
+ * Cuando existe, `verifyBundle` valida contra él en vez de contra el bundle fp32
+ * fijado aquí: así `laya.modelDir` puede apuntar a un artefacto cuantizado sin
+ * tocar el código. El manifiesto es local y no se descarga.
+ */
+export const BUNDLE_MANIFEST = 'laya_int8.json';
+
+const REQUIRED_PATHS = new Set(BUNDLE_FILES.map((file) => file.path));
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+function isSafeRelativePath(filePath: string): boolean {
+  if (filePath.length === 0 || path.isAbsolute(filePath)) {
+    return false;
+  }
+  const normalized = path.normalize(filePath);
+  return normalized !== '..' && !normalized.startsWith(`..${path.sep}`);
+}
+
+function manifestFile(entry: unknown): { bytes: number; sha256: string } | undefined {
+  if (entry === null || typeof entry !== 'object') {
+    return undefined;
+  }
+  const record = entry as Record<string, unknown>;
+  const bytes = record['bytes'];
+  const sha256 = record['sha256'];
+  if (typeof bytes !== 'number' || !Number.isSafeInteger(bytes) || bytes < 0) {
+    return undefined;
+  }
+  if (typeof sha256 !== 'string' || !SHA256_PATTERN.test(sha256)) {
+    return undefined;
+  }
+  return { bytes, sha256 };
+}
+
+/**
+ * Lee el manifiesto int8 de un directorio, si existe y es válido.
+ *
+ * Se ignora cualquier manifiesto que no describa todos los archivos del bundle
+ * (o que intente salir del directorio): en ese caso se valida contra el bundle
+ * fp32 de referencia, que es el comportamiento histórico.
+ */
+export function readBundleManifest(dir: string): readonly BundleFile[] | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(path.join(dir, BUNDLE_MANIFEST), 'utf8');
+  } catch {
+    return undefined;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (parsed === null || typeof parsed !== 'object') {
+    return undefined;
+  }
+
+  const files = (parsed as Record<string, unknown>)['files'];
+  if (files === null || typeof files !== 'object') {
+    return undefined;
+  }
+
+  const bundle: BundleFile[] = [];
+  for (const [filePath, entry] of Object.entries(files as Record<string, unknown>)) {
+    const info = manifestFile(entry);
+    if (info === undefined || !isSafeRelativePath(filePath)) {
+      return undefined;
+    }
+    bundle.push({ path: filePath, ...info });
+  }
+
+  for (const required of REQUIRED_PATHS) {
+    if (!bundle.some((file) => file.path === required)) {
+      return undefined;
+    }
+  }
+  return bundle;
+}
+
+/** Archivos contra los que validar `dir`: el manifiesto int8 o el bundle fp32. */
+export function bundleFilesFor(dir: string): readonly BundleFile[] {
+  return readBundleManifest(dir) ?? BUNDLE_FILES;
+}
 
 export type BundleProgress = (event: {
   file: string;
@@ -115,8 +208,9 @@ export async function verifyBundle(
 ): Promise<VerifyBundleResult> {
   const missing: string[] = [];
   const corrupt: string[] = [];
+  const files = bundleFilesFor(dir);
 
-  for (const file of BUNDLE_FILES) {
+  for (const file of files) {
     const filePath = path.join(dir, file.path);
     const size = await fileSize(filePath);
     if (size === null) {

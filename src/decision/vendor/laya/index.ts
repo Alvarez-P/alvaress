@@ -2,9 +2,12 @@ export { LayaModel } from './model.js';
 export {
   BUNDLE_BYTES,
   BUNDLE_FILES,
+  BUNDLE_MANIFEST,
   BUNDLE_REPO,
   BUNDLE_REVISION,
+  bundleFilesFor,
   ensureBundle,
+  readBundleManifest,
   verifyBundle
 } from './bundle.js';
 export type { BundleFile, BundleProgress, EnsureBundleOptions, VerifyBundleResult } from './bundle.js';

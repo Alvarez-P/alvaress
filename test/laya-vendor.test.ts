@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
   BUNDLE_FILES,
+  BUNDLE_MANIFEST,
   buildSequence,
   checkChoiceLabels,
   clampTemperature,
@@ -18,7 +20,7 @@ import {
   verifyBundle
 } from '../src/decision/vendor/laya/index.js';
 import type { LayaBundleConfig, Question, SpecialIds } from '../src/decision/vendor/laya/index.js';
-import { makeTempDir, writeFile } from './helpers.js';
+import { makeTempDir, writeFile, writeJson } from './helpers.js';
 
 const ids: SpecialIds = { cls: 1, sep: 2, mask: 3, pad: 0, maskTok: '[MASK]' };
 
@@ -186,6 +188,63 @@ test('verifyBundle con deep detecta contenido corrupto del mismo tamaño', async
 
     const deep = await verifyBundle(temp.path, { deep: true });
     assert.equal(deep.corrupt.includes('laya_config.json'), true);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('verifyBundle valida contra el manifiesto int8 cuando existe', async () => {
+  const temp = makeTempDir('laya-int8-');
+  try {
+    const files: Record<string, { bytes: number; sha256: string }> = {};
+    for (const file of BUNDLE_FILES) {
+      const content = `contenido de ${file.path}`;
+      writeFile(path.join(temp.path, file.path), content);
+      files[file.path] = {
+        bytes: Buffer.byteLength(content),
+        sha256: createHash('sha256').update(content).digest('hex')
+      };
+    }
+    writeJson(path.join(temp.path, BUNDLE_MANIFEST), {
+      format: 1,
+      kind: 'laya-onnx-int8-block32',
+      files
+    });
+
+    const deep = await verifyBundle(temp.path, { deep: true });
+    assert.equal(deep.ok, true);
+
+    // Mismo tamaño, contenido distinto: el chequeo barato pasa, el profundo no.
+    const target = path.join(temp.path, 'laya.onnx');
+    const original = fs.readFileSync(target, 'utf8');
+    fs.writeFileSync(target, 'x'.repeat(Buffer.byteLength(original)));
+    const shallow = await verifyBundle(temp.path);
+    assert.equal(shallow.ok, true);
+    const corrupted = await verifyBundle(temp.path, { deep: true });
+    assert.deepEqual(corrupted.corrupt, ['laya.onnx']);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('verifyBundle ignora un manifiesto incompleto o con rutas inseguras', async () => {
+  const temp = makeTempDir('laya-manifest-');
+  try {
+    writeJson(path.join(temp.path, BUNDLE_MANIFEST), {
+      files: { 'laya.onnx': { bytes: 1, sha256: 'a'.repeat(64) } }
+    });
+    const incomplete = await verifyBundle(temp.path);
+    assert.equal(incomplete.ok, false);
+    assert.ok(incomplete.missing.includes('laya.onnx.data'));
+
+    const files = Object.fromEntries(
+      BUNDLE_FILES.map((file) => [file.path, { bytes: file.bytes, sha256: file.sha256 }])
+    );
+    files['../fuera.txt'] = { bytes: 1, sha256: 'b'.repeat(64) };
+    writeJson(path.join(temp.path, BUNDLE_MANIFEST), { files });
+    const unsafe = await verifyBundle(temp.path);
+    assert.equal(unsafe.ok, false);
+    assert.ok(unsafe.missing.includes('laya.onnx'));
   } finally {
     temp.cleanup();
   }

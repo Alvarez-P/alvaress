@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792982715.263025,
-    "seen": 1792982725.7295296,
-    "ast_hash": "dc10dd7893b8f15c57962ff4235cc676",
+    "mtime": 1792984547.3295252,
+    "seen": 1792984595.684355,
+    "ast_hash": "af084e75af1833232f4c3190f982739b",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "src/commands/doctor.ts": {
-    "mtime": 1792982566.6860697,
-    "seen": 1792982725.7294333,
-    "ast_hash": "c9465385d70c8a29bd379adbf4d2b7ac",
+    "mtime": 1792984369.2735727,
+    "seen": 1792984595.684188,
+    "ast_hash": "234e437bcb9cee12207c277e385192ec",
     "semantic_hash": ""
   },
   "src/commands/report.ts": {
@@ -552,15 +552,15 @@
     "semantic_hash": ""
   },
   "src/decision/vendor/laya/bundle.ts": {
-    "mtime": 1792982132.3341885,
-    "seen": 1792982725.7294533,
-    "ast_hash": "6503253f0f6d4f9510cd9877bfeddc7d",
+    "mtime": 1792984553.2295237,
+    "seen": 1792984595.6842213,
+    "ast_hash": "2c9c9a7bb0e0411b748d1710d23f52fd",
     "semantic_hash": ""
   },
   "src/decision/vendor/laya/index.ts": {
-    "mtime": 1792982163.1421802,
-    "seen": 1792982725.7294545,
-    "ast_hash": "10b2acee2bb03b9ac09c9a62b7156d44",
+    "mtime": 1792984362.1455746,
+    "seen": 1792984595.6842227,
+    "ast_hash": "00b978f1f56c1b5c5cbb0d09ad854263",
     "semantic_hash": ""
   },
   "src/decision/vendor/laya/model.ts": {
@@ -588,9 +588,9 @@
     "semantic_hash": ""
   },
   "test/laya-vendor.test.ts": {
-    "mtime": 1792982762.066017,
-    "seen": 1792982779.369766,
-    "ast_hash": "67f948f543cde6a56f28c05e5fefb6b1",
+    "mtime": 1792984382.7815692,
+    "seen": 1792984595.6843204,
+    "ast_hash": "c898900263ec5b678bfb1f98534bda15",
     "semantic_hash": ""
   },
   "test/modules.test.ts": {
@@ -600,9 +600,21 @@
     "semantic_hash": ""
   },
   "THIRD_PARTY_NOTICES.md": {
-    "mtime": 1792982492.1740901,
-    "seen": 1792982725.7295306,
-    "ast_hash": "b9f0f311801afd51d69f89be4f7eb3e2",
+    "mtime": 1792984550.3655245,
+    "seen": 1792984595.6843572,
+    "ast_hash": "795b434b0e552c928da96b9ce1afd9bf",
+    "semantic_hash": ""
+  },
+  "scripts/quantize-laya.py": {
+    "mtime": 1792984525.641531,
+    "seen": 1792984595.6841688,
+    "ast_hash": "8a82cf1e842c16be5d72d708a966471a",
+    "semantic_hash": ""
+  },
+  "docs/laya-int8.md": {
+    "mtime": 1792984621.1375036,
+    "seen": 1792984635.8325865,
+    "ast_hash": "f803ccb7d4f154b82e332ac6a0da240d",
     "semantic_hash": ""
   }
 }

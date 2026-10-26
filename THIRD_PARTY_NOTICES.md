@@ -24,6 +24,10 @@ El bundle de pesos `receptron/laya-onnx` se descarga por separado y no se
 distribuye con este paquete. Laya es un proyecto de
 [ConvAI Innovations](https://github.com/convaiinnovations/laya).
 
+El artefacto int8 que genera `scripts/quantize-laya.py` es una obra derivada de
+esos mismos pesos: tampoco se incluye en el paquete npm y, si se publica como
+release asset, debe conservar este aviso y la licencia MIT de Receptron.
+
 ### Licencia MIT de `@receptron/laya`
 
 ```text

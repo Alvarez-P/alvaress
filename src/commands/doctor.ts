@@ -8,7 +8,7 @@ import {
   LAYA_TOKENIZER_PACKAGE,
   VITE_PLUS_PACKAGE
 } from '../constants.js';
-import { BUNDLE_FILES, BUNDLE_REVISION } from '../decision/vendor/laya/index.js';
+import { BUNDLE_REVISION, bundleFilesFor } from '../decision/vendor/laya/index.js';
 import { detectObsidian } from '../obsidian/installer.js';
 import { getManifestPath, getTasksDir, loadManifest, taskFilePath } from '../openspec/manifest.js';
 import { getGraphStatus } from '../graphify/status.js';
@@ -37,7 +37,7 @@ export interface DoctorDeps {
 /** Comprobación barata: presencia y tamaño de cada archivo del bundle. */
 function missingBundleFiles(dir: string): string[] {
   const problems: string[] = [];
-  for (const file of BUNDLE_FILES) {
+  for (const file of bundleFilesFor(dir)) {
     try {
       if (statSync(path.join(dir, file.path)).size !== file.bytes) {
         problems.push(file.path);
