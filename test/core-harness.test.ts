@@ -214,7 +214,7 @@ test('HarnessCore completa el happy path ODD y cierra recursos', async () => {
   assert.equal(fixture.closed.decisions, true);
 });
 
-test('HarnessCore respeta el modo SDD solicitado aunque laya-ts proponga ODD', async () => {
+test('HarnessCore respeta el modo SDD solicitado aunque Laya proponga ODD', async () => {
   const fixture = makeFixture();
   const result = await fixture.core.run({ request: 'rediseña el instalador', mode: 'sdd' });
 
@@ -254,7 +254,7 @@ test('HarnessCore se detiene tras agotar los dos reintentos de Fixing', async ()
   assert.equal(fixture.states.filter((state) => state === 'Fixing').length, 2);
 });
 
-test('HarnessCore corta en HALT nuclear cuando laya-ts lo detecta', async () => {
+test('HarnessCore corta en HALT nuclear cuando Laya lo detecta', async () => {
   const fixture = makeFixture({
     check: async () => failedValidation(),
     verdicts: [

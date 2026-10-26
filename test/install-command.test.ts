@@ -29,7 +29,7 @@ test('install --yes instala los componentes requeridos sin Ollama', async () => 
     const config = mergeConfig(
       {
         obsidianVaultPath: vault,
-        laya: { model: 'convaiinnovations/laya' }
+        laya: { modelDir: '/models/laya' }
       },
       {}
     );
@@ -45,6 +45,7 @@ test('install --yes instala los componentes requeridos sin Ollama', async () => 
         return true;
       },
       moduleAvailable: () => false,
+      ensureLayaBundle: async ({ dir }) => dir,
       runCommand: async (command, args = []) => {
         calls.push([command, ...args].join(' '));
         return result(0);
@@ -88,10 +89,64 @@ test('install --yes instala los componentes requeridos sin Ollama', async () => 
     assert.equal(calls.some((call) => call.includes('aider')), false);
     assert.equal(calls.some((call) => call.includes('ollama')), false);
     assert.equal(saved?.laya?.enabled, true);
-    assert.equal(saved?.laya?.model, 'convaiinnovations/laya');
+    assert.equal(saved?.laya?.modelDir, '/models/laya');
     assert.equal(saved?.obsidianVaultPath, vault);
     assert.ok(fs.existsSync(path.join(root, 'openspec.yaml')));
     assert.equal(fs.existsSync(path.join(root, '.alvaressrc.json')), false);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('install --yes instala el runtime de Laya cuando no hay modelDir', async () => {
+  const temp = makeTempDir('alvaress-install-laya-');
+  try {
+    const root = path.join(temp.path, 'project');
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'demo' }));
+    const vault = path.join(temp.path, 'vault');
+    const calls: string[] = [];
+    let saved: HarnessConfig | undefined;
+
+    const runtime: Partial<InstallRuntime> = {
+      commandExists: (command) => command !== 'pipx' && command !== 'graphify' && command !== 'vp',
+      moduleAvailable: () => false,
+      ensureLayaBundle: async ({ dir }) => dir,
+      runCommand: async (command, args = []) => {
+        calls.push([command, ...args].join(' '));
+        return result(0);
+      },
+      loadConfig: () =>
+        mergeConfig({ obsidianVaultPath: vault, validation: { maxAttempts: 1, commands: [] } }, {}),
+      getConfigPaths: () => ({
+        global: path.join(temp.path, 'global.json'),
+        local: path.join(root, '.alvaressrc.json')
+      }),
+      saveGlobalConfig: (value) => {
+        saved = value;
+      },
+      detectObsidian: () => ({ installed: true, method: 'binary' }),
+      installObsidian: async () => ({ installed: true, message: 'ok' }),
+      connectObsidianVault: () => ({
+        vaultPath: vault,
+        harnessDir: path.join(vault, 'Harness'),
+        tasksLink: path.join(vault, 'Harness', 'Tasks'),
+        tasksLinkResult: 'created',
+        notePath: path.join(vault, 'Harness', 'demo.md')
+      }),
+      installSkills: () => ({ skillsDir: path.join(root, '.harness', 'skills'), files: [], links: [] }),
+      installAgent: () => ({ name: 'alvaress', files: [], subagents: [] }),
+      installPipx: async () => result(0)
+    };
+
+    await runInstall(root, { yes: true, runtime });
+
+    assert.ok(
+      calls.includes('pnpm add -D onnxruntime-node @huggingface/tokenizers'),
+      calls.join('\n')
+    );
+    assert.equal(saved?.laya?.enabled, true);
+    assert.equal(saved?.laya?.modelDir, undefined);
   } finally {
     temp.cleanup();
   }
@@ -121,6 +176,7 @@ test('install --yes instala Aider cuando ya está habilitado en la configuració
           ? pipxInstalled
           : command !== 'graphify' && command !== 'vp',
       moduleAvailable: () => true,
+      ensureLayaBundle: async ({ dir }) => dir,
       runCommand: async (command, args = []) => {
         calls.push([command, ...args].join(' '));
         if (command === 'aider' && args[0] === '--version') {

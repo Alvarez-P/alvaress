@@ -189,7 +189,7 @@ export class HarnessCore {
         });
 
         if (verdict.nuclear) {
-          return await this.halt('nuclear', 'laya-ts detectó un fallo nuclear de arquitectura.', {
+          return await this.halt('nuclear', 'Laya detectó un fallo nuclear de arquitectura.', {
             runId,
             mode,
             changes,

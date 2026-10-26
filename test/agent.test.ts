@@ -23,12 +23,12 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /alvaress run --task TASK-01/);
   assert.match(rendered, /alvaress run "<petición>" --dry-run/);
   assert.match(rendered, /alvaress -i/);
-  assert.match(rendered, /laya-ts/);
+  assert.match(rendered, /Laya/);
   assert.match(rendered, /Vite-Plus/);
   assert.match(rendered, /alvaress verify <TASK_ID>/);
   assert.match(rendered, /\.laya\/HALT\.json/);
   assert.match(rendered, /graphify query/);
-  assert.match(rendered, /No envíes secretos a laya-ts/);
+  assert.match(rendered, /No envíes secretos a Laya/);
   assert.match(rendered, /Bóveda Obsidian/);
   assert.match(rendered, /Obsidian es un espejo/);
   assert.match(rendered, /Personalidad y estilo de respuesta/);

@@ -5,15 +5,15 @@ import type { FailureInput, RiskInput } from '../src/core/contracts.js';
 import { HeuristicDecisionEngine, estimateComplexity } from '../src/decision/heuristics.js';
 import {
   LayaDecisionEngine,
-  createDecisionEngine
+  createDecisionEngine,
+  resolveLayaModelDir
 } from '../src/decision/laya.js';
 import type { LayaAgentLike, LayaAnswer, LayaPrediction } from '../src/decision/laya.js';
+import { makeTempDir } from './helpers.js';
 
 function layaConfig(overrides: Partial<LayaConfig> = {}): LayaConfig {
   return {
     enabled: true,
-    model: 'convaiinnovations/laya',
-    subfolder: 'multilingual',
     device: 'cpu',
     timeoutMs: 1000,
     fallbackToHeuristic: true,
@@ -167,12 +167,12 @@ test('HeuristicDecisionEngine no inventa trivialidad ante errores desconocidos',
   assert.match(verdict.reason, /no es concluyente/);
 });
 
-test('LayaDecisionEngine interpreta las respuestas tipadas de laya-ts', async () => {
+test('LayaDecisionEngine interpreta las respuestas tipadas de Laya', async () => {
   const agent = fakeAgent({
-    mode: { type: 'choice', label: 'sdd', confidence: 0.91 },
-    complexity: { type: 'choice', label: 'large' },
-    needsGraph: { type: 'noul', answer: true },
-    needsSubagents: { type: 'noul', answer: true }
+    mode: { type: 'choice', choice: 'sdd', answer_confidence: 0.91 },
+    complexity: { type: 'choice', choice: 'large' },
+    needsGraph: { type: 'noul', noul: 0.93 },
+    needsSubagents: { type: 'noul', noul: 0.88 }
   });
   const engine = new LayaDecisionEngine(agent);
   const decision = await engine.route({ request: 'rediseña el instalador' });
@@ -187,7 +187,40 @@ test('LayaDecisionEngine interpreta las respuestas tipadas de laya-ts', async ()
   assert.ok(agent.calls[0]?.questions.mode !== undefined);
 });
 
-test('LayaDecisionEngine cae a heurísticas si laya-ts falla', async () => {
+test('LayaDecisionEngine lee noul por debajo de 0.5 como falso', async () => {
+  const decision = await new LayaDecisionEngine(
+    fakeAgent({
+      mode: { type: 'choice', choice: 'odd' },
+      complexity: { type: 'choice', choice: 'trivial' },
+      needsGraph: { type: 'noul', noul: 0.42 },
+      needsSubagents: { type: 'noul', noul: 0.5 }
+    })
+  ).route({ request: 'corrige un typo' });
+
+  assert.equal(decision.needsGraph, false);
+  assert.equal(decision.needsSubagents, true);
+});
+
+test('LayaDecisionEngine prefiere answer_confidence sobre confidence', async () => {
+  const decision = await new LayaDecisionEngine(
+    fakeAgent({
+      mode: { type: 'choice', choice: 'sdd', confidence: 0.2, answer_confidence: 0.84 }
+    })
+  ).route({ request: 'migra el instalador' });
+
+  assert.equal(decision.confidence, 0.84);
+});
+
+test('LayaDecisionEngine sigue aceptando el formato label de versiones previas', async () => {
+  const decision = await new LayaDecisionEngine(
+    fakeAgent({ mode: { type: 'choice', label: 'sdd', confidence: 0.7 } })
+  ).route({ request: 'rediseña el instalador' });
+
+  assert.equal(decision.mode, 'sdd');
+  assert.equal(decision.confidence, 0.7);
+});
+
+test('LayaDecisionEngine cae a heurísticas si Laya falla', async () => {
   const agent = fakeAgent(async () => {
     throw new Error('modelo no disponible');
   });
@@ -206,7 +239,7 @@ test('LayaDecisionEngine respeta el timeout y usa el fallback', async () => {
   assert.equal(decision.source, 'heuristic');
 });
 
-test('LayaDecisionEngine agrega el riesgo que detecta laya-ts', async () => {
+test('LayaDecisionEngine agrega el riesgo que detecta Laya', async () => {
   const agent = fakeAgent({
     severity: { type: 'choice', label: 'high', confidence: 0.88 }
   });
@@ -251,7 +284,19 @@ test('LayaDecisionEngine cierra el agente al terminar', async () => {
   assert.equal(agent.closed, true);
 });
 
-test('createDecisionEngine usa heurísticas cuando laya está deshabilitado', async () => {
+test('resolveLayaModelDir no descarga: exige un bundle completo', async () => {
+  const temp = makeTempDir('laya-model-');
+  try {
+    await assert.rejects(
+      resolveLayaModelDir(layaConfig({ modelDir: temp.path }), temp.path),
+      /no está completo.*alvaress install/
+    );
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('createDecisionEngine usa heurísticas cuando Laya está deshabilitado', async () => {
   const engine = await createDecisionEngine({
     config: layaConfig({ enabled: false })
   });
@@ -263,7 +308,7 @@ test('createDecisionEngine cae a heurísticas si el cargador falla', async () =>
   const engine = await createDecisionEngine({
     config: layaConfig(),
     loader: async () => {
-      throw new Error('laya-ts no está instalado');
+      throw new Error('Laya no está instalado');
     }
   });
 
@@ -275,10 +320,10 @@ test('createDecisionEngine propaga el error si el fallback está deshabilitado',
     createDecisionEngine({
       config: layaConfig({ fallbackToHeuristic: false }),
       loader: async () => {
-        throw new Error('laya-ts no está instalado');
+        throw new Error('Laya no está instalado');
       }
     }),
-    /No se pudo cargar laya-ts/
+    /No se pudo cargar Laya/
   );
 });
 

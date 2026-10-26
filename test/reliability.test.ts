@@ -255,7 +255,7 @@ test('doctor detecta configuración, gestor y grafo', () => {
     assert.equal(byName.get('node')?.status, 'ok');
     assert.equal(byName.get('package-manager')?.status, 'ok');
     assert.equal(byName.get('graphify-graph')?.status, 'ok');
-    assert.equal(byName.get('laya-ts')?.status, 'ok');
+    assert.equal(byName.get('laya')?.status, 'ok');
     assert.equal(byName.get('vite-plus')?.status, 'ok');
     assert.equal(byName.get('manifest')?.status, 'ok');
     assert.equal(checks.some((entry) => entry.status === 'error'), false);
@@ -274,7 +274,7 @@ test('doctor detecta configuración, gestor y grafo', () => {
   }
 });
 
-test('doctor avisa cuando laya-ts o Vite-Plus faltan sin romper el diagnóstico', () => {
+test('doctor avisa cuando Laya o Vite-Plus faltan sin romper el diagnóstico', () => {
   const root = projectWithManifest(
     manifestWithTasks('      - id: "TASK-01"\n        description: "Tarea"\n        status: "Pending"')
   );
@@ -290,8 +290,8 @@ test('doctor avisa cuando laya-ts o Vite-Plus faltan sin romper el diagnóstico'
       vitePlusAvailable: false
     });
     const byName = new Map(checks.map((entry) => [entry.name, entry]));
-    assert.equal(byName.get('laya-ts')?.status, 'warn');
-    assert.match(byName.get('laya-ts')?.detail ?? '', /heurísticas locales/);
+    assert.equal(byName.get('laya')?.status, 'warn');
+    assert.match(byName.get('laya')?.detail ?? '', /heurísticas locales/);
     assert.equal(byName.get('vite-plus')?.status, 'warn');
     assert.match(byName.get('vite-plus')?.detail ?? '', /fallback/);
     assert.equal(checks.some((entry) => entry.status === 'error'), false);

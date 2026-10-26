@@ -23,7 +23,7 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
         env: { DEEPSEEK_API_KEY: 'global-implementer-key' }
       }
     },
-    laya: { model: 'global-model', timeoutMs: 5000, enabled: true },
+    laya: { modelDir: 'global-model', timeoutMs: 5000, enabled: true },
     vitePlus: { checkCommand: 'global-check' },
     aider: { enabled: true, timeoutMs: 2000 },
     validation: { maxAttempts: 5, commands: ['global-command'] }
@@ -33,7 +33,7 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
     models: {
       aiderImplementer: { modelName: 'local-implementer' }
     },
-    laya: { model: 'local-model' },
+    laya: { modelDir: 'local-model' },
     vitePlus: { testCommand: 'local-test' },
     aider: { enabled: false },
     validation: { maxAttempts: 2, commands: ['local-command'] }
@@ -45,7 +45,7 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
   assert.equal(merged.models.aiderImplementer.modelName, 'local-implementer');
   assert.equal(merged.models.aiderImplementer.apiKey, 'global-implementer-key');
   assert.deepEqual(merged.models.aiderImplementer.env, { DEEPSEEK_API_KEY: 'global-implementer-key' });
-  assert.equal(merged.laya?.model, 'local-model');
+  assert.equal(merged.laya?.modelDir, 'local-model');
   assert.equal(merged.laya?.timeoutMs, 5000);
   assert.equal(merged.laya?.enabled, true);
   assert.equal(merged.vitePlus?.checkCommand, 'global-check');
@@ -70,8 +70,7 @@ test('mergeConfig usa valores por defecto sin configuración', () => {
   assert.equal(merged.scope, 'warn');
   assert.equal(merged.validation.requireCommands, true);
   assert.equal(merged.laya?.enabled, true);
-  assert.equal(merged.laya?.model, 'convaiinnovations/laya');
-  assert.equal(merged.laya?.subfolder, 'multilingual');
+  assert.equal(merged.laya?.modelDir, undefined);
   assert.equal(merged.laya?.fallbackToHeuristic, true);
   assert.equal(merged.vitePlus?.checkCommand, 'vp check');
   assert.equal(merged.vitePlus?.testCommand, 'vp test');
@@ -147,7 +146,7 @@ test('validateConfigFile acepta la estructura completa', () => {
   );
 
   assert.equal(value.obsidianVaultPath, '/vault');
-  assert.equal(value.laya?.model, 'convaiinnovations/laya');
+  assert.equal(value.laya?.modelDir, undefined);
   assert.equal(value.vitePlus?.checkCommand, 'vp check');
   assert.equal(value.validation?.maxAttempts, 3);
 });

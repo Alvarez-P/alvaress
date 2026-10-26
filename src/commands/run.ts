@@ -2,8 +2,6 @@ import path from 'node:path';
 import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
 import {
-  DEFAULT_LAYA_MODEL,
-  DEFAULT_LAYA_SUBFOLDER,
   LAYA_DIR,
   LAYA_HALT_FILENAME,
   OPENSPEC_FILENAME
@@ -85,7 +83,7 @@ Uso:
 Opciones:
   --task TASK_ID        Ejecuta una tarea concreta de openspec.yaml.
   --files a.ts,b.ts     Cierra el alcance a esos archivos.
-  --mode odd|sdd|auto   Fuerza el modo; por defecto decide laya-ts.
+  --mode odd|sdd|auto   Fuerza el modo; por defecto decide Laya.
   --dry-run             Explora y muestra el plan sin invocar al worker.
   --no-commit           No hace commit automático al terminar en Ready.
   --no-learn            No registra aprendizajes ni usos en este run.
@@ -438,10 +436,9 @@ export async function runHarnessCommand(
       (config.laya?.enabled === false
         ? new HeuristicDecisionEngine()
         : await createDecisionEngine({
+            root,
             config: config.laya ?? {
               enabled: false,
-              model: DEFAULT_LAYA_MODEL,
-              subfolder: DEFAULT_LAYA_SUBFOLDER,
               device: 'cpu',
               timeoutMs: 30_000,
               fallbackToHeuristic: true

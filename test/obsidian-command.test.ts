@@ -11,8 +11,7 @@ function configWith(vaultPath: string): HarnessConfig {
     obsidianVaultPath: vaultPath,
     laya: {
       enabled: true,
-      model: 'convaiinnovations/laya',
-      subfolder: 'multilingual',
+      modelDir: '/models/laya',
       device: 'cpu',
       timeoutMs: 30000,
       fallbackToHeuristic: true

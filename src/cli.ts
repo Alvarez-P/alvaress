@@ -195,7 +195,7 @@ export async function runCli(argv: string[]): Promise<void> {
       throw new Error('El comando "decide" se retiró con el motor Ollama. Usa el agente alvaress o "alvaress run".');
     }
     case 'model': {
-      throw new Error('El comando "model" se retiró. Configura laya-ts en ~/.alvaressconfig.json.');
+      throw new Error('El comando "model" se retiró. Configura Laya en ~/.alvaressconfig.json.');
     }
     case 'jev': {
       throw new Error('El comando "jev" se retiró. Usa "alvaress run".');

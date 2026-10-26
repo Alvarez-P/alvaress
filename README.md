@@ -5,7 +5,7 @@
 </p>
 
 **Tu arnés híbrido SDD + ODD para [OpenCode](https://opencode.ai):** decide en
-local con [laya-ts](https://github.com/NandhaKishorM/laya/tree/main/laya-ts),
+local con [Laya](https://github.com/convaiinnovations/laya) (ONNX vendorizado),
 ejecuta con [Aider](https://aider.chat) cuando lo habilitas o con subagentes
 especializados cuando no, y valida cada cambio con
 [Vite-Plus](https://vite.plus) antes de dar una tarea por terminada.
@@ -31,7 +31,7 @@ configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission
 - [El agente `alvaress`](#el-agente-alvaress)
 - [Aprendizaje continuo](#aprendizaje-continuo)
 - [Comandos](#comandos)
-- [Modelo de decisión (laya-ts)](#modelo-de-decisión-laya-ts)
+- [Modelo de decisión (Laya)](#modelo-de-decisión-laya)
 - [Configuración](#configuración)
 - [Manifiesto `openspec.yaml`](#manifiesto-openspecyaml)
 - [Cómo funciona `run`](#cómo-funciona-run)
@@ -83,7 +83,7 @@ el único que escribe en la bóveda.
 1. **Entender.** Lee la nota ODD o `openspec.yaml`, la tarea asignada, el grafo
    de Graphify y la nota del proyecto en Obsidian. No empieza a programar a
    ciegas.
-2. **Decidir.** `laya-ts` elige entre ODD y SDD, estima la complejidad y marca
+2. **Decidir.** `Laya` elige entre ODD y SDD, estima la complejidad y marca
    los riesgos. Si el modelo no está disponible, usa heurísticas locales.
 3. **Ejecutar.** Usa Aider si está habilitado; si no, reparte el trabajo entre
    los subagentes `alvaress-explorer`, `alvaress-implementer`,
@@ -101,7 +101,7 @@ Solo necesitas instalar Node.js 20 o superior y pnpm; el resto lo resuelve
 
 | Tú instalas | El instalador resuelve |
 | --- | --- |
-| **Node.js 20 o superior** | [laya-ts](https://github.com/NandhaKishorM/laya/tree/main/laya-ts) |
+| **Node.js 20 o superior** | Laya + `onnxruntime-node` |
 | **pnpm** (gestor por defecto) | Vite-Plus (`vite-plus`) |
 | Git (recomendado) | Graphify (`graphifyy`) |
 | | Obsidian, si se puede instalar |
@@ -114,9 +114,12 @@ Solo necesitas instalar Node.js 20 o superior y pnpm; el resto lo resuelve
 `python3 -m pip install --user pipx`. Solo si no encuentra ninguna vía te pide
 instalarlo a mano.
 
-**Sobre laya-ts:** es un runtime ESM con pesos ONNX. La primera carga descarga
-el checkpoint y lo deja en caché; después todo corre en local. Si aún no está
-instalado, alvaress arranca con heurísticas y te avisa en `doctor`.
+**Sobre Laya:** alvaress trae el motor vendorizado (`src/decision/vendor/laya`)
+y el instalador baja el runtime de ONNX y el bundle de pesos (~1.7 GB). El bundle
+se verifica con SHA-256 y queda en una caché global compartida
+(`~/.cache/alvaress/laya-onnx/<revision>`), así que varios proyectos usan el
+mismo modelo. Después todo corre en local. Si aún no está instalado, alvaress
+arranca con heurísticas y te avisa en `doctor`.
 
 ## Instalación
 
@@ -139,8 +142,9 @@ alvaress install --yes
 ```
 
 `--yes` selecciona los componentes requeridos, usa la configuración existente o
-los valores por defecto y no pregunta nada. Instala lo que falte (laya-ts,
-Vite-Plus, Graphify y las dependencias de validación), crea `openspec.yaml` si
+los valores por defecto y no pregunta nada. Instala lo que falte (runtime de
+Laya y su modelo, Vite-Plus, Graphify y las dependencias de validación), crea
+`openspec.yaml` si
 el proyecto es un repositorio y no crea `.alvaressrc.json`. Aider solo se
 instala si ya está habilitado en la configuración. Si falta la API key del
 implementador y Aider está habilitado, avisa al terminar.
@@ -149,7 +153,7 @@ implementador y Aider está habilitado, avisa al terminar.
 
 ```bash
 # 1. Instalador: agente, skills, componentes y configuración.
-#    Confirma el modelo de laya-ts cuando te pregunte.
+#    Confirma la descarga del modelo de Laya cuando te pregunte.
 alvaress install
 
 # 2. Prepara el proyecto: manifiesto, tareas, skills y agente local.
@@ -199,10 +203,10 @@ y `alvaress learn add`.
 Su prompt incluye:
 
 - el flujo híbrido SDD/ODD: entender → decidir → ejecutar → validar → cerrar;
-- el uso de laya-ts en los puntos clave (máximo 3 llamadas por solicitud);
+- el uso de Laya en los puntos clave (máximo 3 llamadas por solicitud);
 - la política de ejecución: Aider si está activo o subagentes especializados si
   no lo está; edición directa para cambios triviales;
-- la prohibición de enviar secretos o código completo a laya-ts;
+- la prohibición de enviar secretos o código completo a Laya;
 - reglas de eficiencia de tokens: Graphify antes de `grep`/`read`, lecturas
   localizadas y resúmenes en lugar de logs completos;
 - aprendizaje continuo: consulta el playbook global al empezar y solo guarda lo
@@ -271,14 +275,14 @@ con `ALVARESS_MEMORY_DIR`.
 
 | Comando | Descripción |
 | --- | --- |
-| `alvaress run "<petición>" [--task TASK_ID] [--files a.ts,b.ts] [--mode odd\|sdd] [--dry-run] [--no-commit] [--no-learn]` | Ejecuta el arnés híbrido de principio a fin: explora, decide con laya-ts, trabaja con Aider o subagentes, valida con Vite-Plus, cierra Obsidian y hace commit de los archivos del run. `--dry-run` solo muestra el plan. |
+| `alvaress run "<petición>" [--task TASK_ID] [--files a.ts,b.ts] [--mode odd\|sdd] [--dry-run] [--no-commit] [--no-learn]` | Ejecuta el arnés híbrido de principio a fin: explora, decide con Laya, trabaja con Aider o subagentes, valida con Vite-Plus, cierra Obsidian y hace commit de los archivos del run. `--dry-run` solo muestra el plan. |
 | `alvaress -i` / `--inspect-last-run` | Muestra el log completo del último run (`.laya/last_run.log`). |
-| `alvaress install [--yes]` | Instala agente, laya-ts, Obsidian, Graphify, Vite-Plus y dependencias de validación. Aider es opcional. Detecta o instala lo que falte, crea la bóveda y genera la configuración global y, si procede, la local y `openspec.yaml`. `--yes` no pregunta nada. |
+| `alvaress install [--yes]` | Instala agente, Laya, Obsidian, Graphify, Vite-Plus y dependencias de validación. Aider es opcional. Detecta o instala lo que falte, crea la bóveda y genera la configuración global y, si procede, la local y `openspec.yaml`. `--yes` no pregunta nada. |
 | `alvaress init [--no-link]` | Crea `.harness/tasks`, `.harness/skills`, `openspec.yaml` (si falta), las skills y el agente del proyecto. Si `obsidianVaultPath` está configurado, conecta la bóveda. Con `--no-link` no crea enlaces ni agente global. |
 | `alvaress apply [TASK...] [--dry-run] [--force] [--update-graph]` | Ejecuta las tareas pendientes (o los ids indicados) con Aider. `--dry-run` muestra los grupos sin invocar a Aider ni modificar el manifiesto. `--force` ignora un lock huérfano y `--update-graph` actualiza Graphify al terminar. |
 | `alvaress verify <TASK_ID>` | Ejecuta la validación de la tarea o del proyecto y, si falla, pide una reparación automática. |
 | `alvaress archive <SPEC_ID>` | Archiva una spec con todas sus tareas en `Done`; antes crea un backup del manifiesto. |
-| `alvaress doctor [--json]` | Diagnóstico previo: Node, configuración, gestor de paquetes, git, laya-ts, Vite-Plus, Aider, Graphify, Obsidian, manifiesto, comandos de validación, frescura del grafo y locks. |
+| `alvaress doctor [--json]` | Diagnóstico previo: Node, configuración, gestor de paquetes, git, Laya, Vite-Plus, Aider, Graphify, Obsidian, manifiesto, comandos de validación, frescura del grafo y locks. |
 | `alvaress report [latest\|list\|show <id>]` | Muestra los reportes de ejecución guardados en `.harness/runs/`. |
 | `alvaress restore [--list\|latest\|<id>]` | Lista o restaura `openspec.yaml` desde `.harness/backups/`. |
 | `alvaress skills [--no-link]` | Reinstala las skills del proyecto y sus enlaces globales. |
@@ -289,11 +293,17 @@ con `ALVARESS_MEMORY_DIR`.
 
 Códigos de salida: `0` éxito, `1` error o tarea fallida, `130` operación cancelada.
 
-## Modelo de decisión (laya-ts)
+## Modelo de decisión (Laya)
 
-`laya-ts` es un runtime TypeScript local con pesos ONNX. No hay API key ni
-servicio remoto: el modelo corre en tu máquina y solo recibe un resumen del
-estado, nunca el código completo ni secretos.
+`Laya` es el modelo de decisión de ConvAI Innovations, ejecutado en local con
+ONNX Runtime. No hay API key ni servicio remoto: el modelo corre en tu máquina y
+solo recibe un resumen del estado, nunca el código completo ni secretos.
+
+alvaress incluye un port TypeScript del motor de
+[`@receptron/laya`](https://github.com/receptron/laya) en
+`src/decision/vendor/laya`. El port mantiene el layout de secuencia y las
+temperaturas del checkpoint oficial, y añade verificación SHA-256 por archivo al
+descargar los pesos. Ver [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 `alvaress` lo usa en tres puntos:
 
@@ -307,7 +317,7 @@ indica en `doctor`. El adaptador está en `src/decision/laya.ts`; las heurístic
 en `src/decision/heuristics.ts`.
 
 ```bash
-alvaress doctor            # comprueba laya-ts y Vite-Plus
+alvaress doctor            # comprueba Laya y Vite-Plus
 alvaress install           # instala lo que falte
 ```
 
@@ -317,9 +327,8 @@ Configuración:
 {
   "laya": {
     "enabled": true,
-    "model": "convaiinnovations/laya",
-    "subfolder": "multilingual",
     "device": "cpu",
+    "threads": 4,
     "timeoutMs": 30000,
     "fallbackToHeuristic": true
   },
@@ -331,13 +340,15 @@ Configuración:
 }
 ```
 
-`model` acepta un identificador de Hugging Face o una ruta local al directorio
-con `encoder.onnx`, `head.onnx`, `tokenizer.json` y `rl_agent_config.json`. La
-primera carga descarga el checkpoint y lo cachea.
+`modelDir` es opcional: si lo defines, apunta a un directorio con
+`laya.onnx`, `laya.onnx.data`, `laya_config.json` y `tokenizer/`. Si lo dejas
+vacío, alvaress usa la caché global y espera el bundle fijado por revisión que
+instala `alvaress install`. Si falta, el run sigue con heurísticas.
+`threads` controla los hilos intra-op de ONNX Runtime en CPU.
 
 ### Privacidad
 
-El `state` que recibe laya-ts se redacta antes de enviarse al modelo: claves,
+El `state` que recibe Laya se redacta antes de enviarse al modelo: claves,
 tokens y contraseñas se sustituyen por `[REDACTED_*]`. No incluyas datos
 personales ni código propietario completo. Usa un resumen de 1-3 frases; el
 prompt del agente `alvaress` ya lo exige.
@@ -361,9 +372,8 @@ ninguno de los dos, se aplica el valor por defecto.
   "graphify": { "autoUpdate": false },
   "laya": {
     "enabled": true,
-    "model": "convaiinnovations/laya",
-    "subfolder": "multilingual",
     "device": "cpu",
+    "threads": 4,
     "timeoutMs": 30000,
     "fallbackToHeuristic": true
   },
@@ -396,8 +406,9 @@ Valores por defecto:
 | Campo | Valor |
 | --- | --- |
 | `laya.enabled` | `true` |
-| `laya.model` | `convaiinnovations/laya` |
-| `laya.subfolder` | `multilingual` |
+| `laya.modelDir` | vacío (caché global) |
+| `laya.device` | `cpu` |
+| `laya.threads` | sin límite explícito |
 | `laya.timeoutMs` | `30000` (30 s) |
 | `laya.fallbackToHeuristic` | `true` |
 | `vitePlus.checkCommand` | `vp check` |
@@ -595,7 +606,7 @@ La skill `obsidian-sdd` define el uso por fase:
 | Fase | Orquestador | Subagentes |
 | --- | --- | --- |
 | 1 · Entender | Ejecuta `alvaress obsidian status` y lee la nota de la tarea (ODD) o del proyecto (SDD) para recuperar contexto, decisiones y riesgos. | Los de exploración pueden leer la nota y los enlaces. |
-| 2 · Decidir | Usa la nota para resumir el estado que envía a laya-ts. Sin secretos. | No consultan laya-ts ni escriben en la bóveda. |
+| 2 · Decidir | Usa la nota para resumir el estado que envía a Laya. Sin secretos. | No consultan Laya ni escriben en la bóveda. |
 | 3 · Ejecutar | En SDD escribe en `.harness/tasks/` y `openspec.yaml`; en ODD implementa el alcance de la nota. | Escriben solo en el proyecto; la bóveda es de solo lectura. |
 | 4 · Validar | Ejecuta Vite-Plus (`vp check` y `vp test`). | El verificador ejecuta los comandos y no toca la bóveda. |
 | 5 · Cerrar | Registra el cierre con `alvaress obsidian note` y marca `[x]` en ODD. | Devuelven el resultado al orquestador. |
@@ -648,7 +659,7 @@ alvaress obsidian note --from-run latest --task TASK-01
 - **Timeout de Aider** configurable (`aider.timeoutMs`, 10 min por defecto) con
   terminación `SIGTERM` y luego `SIGKILL`.
 - **Entorno saneado** para Aider: no hereda credenciales de npm ni GitHub.
-- **Timeout de laya-ts** configurable (`laya.timeoutMs`) con fallback heurístico.
+- **Timeout de Laya** configurable (`laya.timeoutMs`) con fallback heurístico.
 - **Frescura de Graphify** comprobada por `doctor`; `apply --update-graph` o
   `graphify.autoUpdate: true` lo actualizan al terminar.
 - **Permisos estrictos** en el agente y los subagentes: shell con allowlist,
@@ -719,8 +730,9 @@ Pruebas incluidas:
 - argumentos, utilidades de FS, enlaces simbólicos y skills;
 - verificación y bucle self-healing con Aider simulado;
 - `apply` con grupos paralelos/secuenciales, fallos y dry-run;
-- motor de decisión `laya-ts` con agente simulado y fallback heurístico;
-- adaptador de `laya-ts`, timeout, triaje de fallos y riesgos;
+- motor de decisión `Laya` con agente simulado y fallback heurístico;
+- adaptador de `Laya`, timeout, triaje de fallos y riesgos;
+- módulo vendorizado: secuencia, temperaturas, softmax y verificación del bundle;
 - caché de decisión, redacción de secretos, lock, backups, reportes y
   alcance del diff;
 - `doctor`, `report`, `restore`, `archive` y subagentes;
@@ -738,7 +750,7 @@ src/
 ├── commands/        install, init, agent, obsidian, skills, config, doctor, report, restore, archive
 ├── core/            contratos, máquina de estados y HALT
 ├── config/          loader con precedencia global/local
-├── decision/        adaptador de laya-ts y heurísticas locales
+├── decision/        adaptador de Laya, motor vendorizado y heurísticas
 ├── ui/              paleta TrueColor, loader de estados y reporte final
 ├── graphify/        estado y actualización del grafo
 ├── openspec/        manifiesto y tipos

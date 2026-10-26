@@ -44,7 +44,7 @@ export const SKILLS: SkillDefinition[] = [
 ## Puntos de uso en el flujo híbrido
 
 - **Fase 1 · Entender:** el orquestador ejecuta \`alvaress obsidian status\` y lee la nota de la tarea (ODD) o del proyecto (SDD) para recuperar contexto, decisiones y riesgos. Los subagentes de exploración pueden leer la nota y los enlaces, nunca escribir.
-- **Fase 2 · Decidir:** el orquestador usa la nota para resumir el estado que enviará a laya-ts. No incluyas secretos. Los subagentes no consultan laya-ts.
+- **Fase 2 · Decidir:** el orquestador usa la nota para resumir el estado que enviará a Laya. No incluyas secretos. Los subagentes no consultan Laya.
 - **Fase 3 · Ejecutar:** en SDD se escribe en \`.harness/tasks/\` y \`openspec.yaml\`; en ODD se implementa el alcance de la nota. La bóveda es de solo lectura para los subagentes y no se edita directamente.
 - **Fase 4 · Validar:** la bóveda no sustituye la validación. El verificador ejecuta Vite-Plus y no escribe en la bóveda.
 - **Fase 5 · Cerrar:** solo el orquestador actualiza la nota con \`alvaress obsidian note --summary ... --validation ... --risk ... --next ...\` y, en ODD, marca el checklist como \`[x]\` cuando la validación pasó.
@@ -54,7 +54,7 @@ export const SKILLS: SkillDefinition[] = [
 - Si no hay bóveda configurada, continúa sin ella; no la crees desde el agente.
 - No edites \`<bóveda>/Harness/\` a mano. Usa \`alvaress obsidian note\`.
 - En SDD no crees una nota por tarea: usa la nota del proyecto y los enlaces \`[[Tasks/...]]\`. En ODD actualiza la nota de la tarea sin duplicar el proyecto.
-- No envíes a laya-ts contenido de la bóveda con secretos, tokens o datos personales.
+- No envíes a Laya contenido de la bóveda con secretos, tokens o datos personales.
 - Al delegar en un subagente, pásale la ruta de la bóveda y la instrucción de solo lectura.`
   },
   {
@@ -198,7 +198,7 @@ Si no puedes determinar la causa, dilo; no adivines.`
 - Hace falta una migración, un cambio de esquema o una dependencia nueva.
 - El alcance no alcanza o el error está en un archivo no asignado.
 - El mismo error ya se repitió en dos intentos.
-- Falla una herramienta requerida (laya-ts, Vite-Plus, Graphify, Obsidian).
+- Falla una herramienta requerida (Laya, Vite-Plus, Graphify, Obsidian).
 - No hay una causa clara y el siguiente intento sería a ciegas.
 
 ## Límites

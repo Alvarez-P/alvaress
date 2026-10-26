@@ -39,14 +39,15 @@ export const LAYA_DIR = '.laya';
 export const LAYA_LOG_FILENAME = 'last_run.log';
 export const LAYA_LOG_PATH = path.join(LAYA_DIR, LAYA_LOG_FILENAME);
 export const LAYA_HALT_FILENAME = 'HALT.json';
-export const LAYA_CACHE_DIR = path.join(LAYA_DIR, 'cache');
 export const DEFAULT_MAX_FIX_ATTEMPTS = 2;
-export const LAYA_TS_PACKAGE = 'laya-ts';
-export const LAYA_TS_REPO = 'https://github.com/NandhaKishorM/laya.git';
-export const LAYA_TS_SUBDIR = 'laya-ts';
-export const LAYA_FALLBACK_PACKAGE = '@receptron/laya';
-export const DEFAULT_LAYA_MODEL = 'convaiinnovations/laya';
-export const DEFAULT_LAYA_SUBFOLDER = 'multilingual';
+export const LAYA_ONNX_RUNTIME_PACKAGE = 'onnxruntime-node';
+export const LAYA_TOKENIZER_PACKAGE = '@huggingface/tokenizers';
+/** Caché global del bundle: un solo modelo compartido entre proyectos. */
+export const LAYA_MODEL_CACHE_ROOT = path.join(
+  process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'),
+  'alvaress',
+  'laya-onnx'
+);
 export const DEFAULT_LAYA_TIMEOUT_MS = 30_000;
 
 export const VITE_PLUS_PACKAGE = 'vite-plus';

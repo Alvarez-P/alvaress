@@ -1,11 +1,18 @@
 import path from 'node:path';
-import { createRequire } from 'node:module';
+import { statSync } from 'node:fs';
 import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
-import { LAYA_TS_PACKAGE, VITE_PLUS_PACKAGE } from '../constants.js';
+import {
+  LAYA_MODEL_CACHE_ROOT,
+  LAYA_ONNX_RUNTIME_PACKAGE,
+  LAYA_TOKENIZER_PACKAGE,
+  VITE_PLUS_PACKAGE
+} from '../constants.js';
+import { BUNDLE_FILES, BUNDLE_REVISION } from '../decision/vendor/laya/index.js';
 import { detectObsidian } from '../obsidian/installer.js';
 import { getManifestPath, getTasksDir, loadManifest, taskFilePath } from '../openspec/manifest.js';
 import { getGraphStatus } from '../graphify/status.js';
+import { moduleAvailableFrom } from '../utils/modules.js';
 import { commandExists, runShellCommand } from '../utils/process.js';
 import { pathExists } from '../utils/fs.js';
 import { readProjectLock } from '../utils/lock.js';
@@ -27,13 +34,19 @@ export interface DoctorDeps {
   vitePlusAvailable?: boolean;
 }
 
-function moduleAvailable(specifier: string): boolean {
-  try {
-    createRequire(import.meta.url).resolve(specifier);
-    return true;
-  } catch {
-    return false;
+/** Comprobación barata: presencia y tamaño de cada archivo del bundle. */
+function missingBundleFiles(dir: string): string[] {
+  const problems: string[] = [];
+  for (const file of BUNDLE_FILES) {
+    try {
+      if (statSync(path.join(dir, file.path)).size !== file.bytes) {
+        problems.push(file.path);
+      }
+    } catch {
+      problems.push(file.path);
+    }
   }
+  return problems;
 }
 
 function check(
@@ -77,18 +90,48 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
   );
 
   const layaEnabled = config?.laya?.enabled ?? true;
-  const layaAvailable = deps.layaAvailable ?? moduleAvailable(LAYA_TS_PACKAGE);
-  checks.push(
-    !layaEnabled
-      ? check('laya-ts', 'warn', 'laya-ts está deshabilitado; se usarán heurísticas locales.')
-      : layaAvailable
-        ? check('laya-ts', 'ok', `laya-ts disponible (${config?.laya?.model ?? 'modelo por defecto'}).`)
+  const configuredDir = config?.laya?.modelDir;
+  const modelDir =
+    configuredDir !== undefined && configuredDir.trim().length > 0
+      ? path.resolve(root, configuredDir.trim())
+      : path.join(LAYA_MODEL_CACHE_ROOT, BUNDLE_REVISION);
+
+  if (!layaEnabled) {
+    checks.push(check('laya', 'warn', 'Laya está deshabilitado; se usarán heurísticas locales.'));
+  } else if (deps.layaAvailable !== undefined) {
+    // Inyectado (tests o integraciones): `true` significa que Laya está listo.
+    checks.push(
+      deps.layaAvailable
+        ? check('laya', 'ok', `Laya listo en ${modelDir}.`)
         : check(
-            'laya-ts',
+            'laya',
             'warn',
-            `laya-ts no está instalado; se usarán heurísticas locales hasta ejecutar "alvaress install".`
+            'Laya no está disponible; se usarán heurísticas locales hasta ejecutar "alvaress install".'
           )
-  );
+    );
+  } else if (
+    !moduleAvailableFrom(LAYA_ONNX_RUNTIME_PACKAGE, root) ||
+    !moduleAvailableFrom(LAYA_TOKENIZER_PACKAGE, root)
+  ) {
+    checks.push(
+      check(
+        'laya',
+        'warn',
+        `Falta el runtime de Laya (${LAYA_ONNX_RUNTIME_PACKAGE} o ${LAYA_TOKENIZER_PACKAGE}); se usarán heurísticas locales hasta ejecutar "alvaress install".`
+      )
+    );
+  } else {
+    const missing = missingBundleFiles(modelDir);
+    checks.push(
+      missing.length > 0
+        ? check(
+            'laya',
+            'warn',
+            `Modelo de Laya incompleto en ${modelDir} (faltan ${missing.join(', ')}); ejecuta "alvaress install".`
+          )
+        : check('laya', 'ok', `Laya listo en ${modelDir}.`)
+    );
+  }
 
   const vitePlusAvailable = deps.vitePlusAvailable ?? hasCommand('vp');
   checks.push(

@@ -143,6 +143,30 @@ Cada subagente responde en texto corto y estable. El worker lo normaliza:
 - `risks:` riesgos residuales o `ninguno`.
 - `verdict:` `fixed`, `needs-orchestrator`, `nuclear` o `listo`/`bloqueado`.
 
+## Motor de decisión
+
+El orquestador decide con Laya, un modelo ONNX local. El motor vive vendorizado
+en `src/decision/vendor/laya` (port MIT de `@receptron/laya`) y se carga desde
+una caché global compartida:
+
+```text
+~/.cache/alvaress/laya-onnx/<revision>/
+├── laya.onnx
+├── laya.onnx.data
+├── laya_config.json
+└── tokenizer/
+```
+
+- Si falta el bundle, el instalador lo descarga y verifica cada archivo con
+  SHA-256. `alvaress doctor` avisa si falta el runtime, el tokenizer o algún
+  archivo del modelo.
+- `laya.modelDir` permite usar un bundle propio; `laya.threads` limita los
+  hilos intra-op de ONNX Runtime.
+- Los subagentes nunca llaman a Laya. Solo el orquestador le envía un resumen
+  redactado del estado, con un máximo de tres llamadas por solicitud.
+- Si Laya falla o tarda más de `laya.timeoutMs`, el arnés sigue con las
+  heurísticas deterministas de `src/decision/heuristics.ts`.
+
 ## HALT
 
 El orquestador activa el Kill Switch y no reintenta cuando:

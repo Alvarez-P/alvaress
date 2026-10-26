@@ -1,6 +1,6 @@
-import fs from 'node:fs';
+import path from 'node:path';
 import type { LayaConfig } from '../config/loader.js';
-import { DEFAULT_LAYA_TIMEOUT_MS, LAYA_TS_PACKAGE } from '../constants.js';
+import { DEFAULT_LAYA_TIMEOUT_MS, LAYA_MODEL_CACHE_ROOT } from '../constants.js';
 import type {
   DecisionEngine,
   FailureInput,
@@ -12,13 +12,20 @@ import type {
 } from '../core/contracts.js';
 import { errorMessage } from '../utils/errors.js';
 import { HeuristicDecisionEngine } from './heuristics.js';
+import { BUNDLE_REVISION, LayaModel, verifyBundle } from './vendor/laya/index.js';
+import type { Question } from './vendor/laya/index.js';
 
 export interface LayaAnswer {
   type?: string;
+  choice?: string;
+  noul?: number;
+  score?: number;
+  probabilities?: Record<string, number>;
+  confidence?: number;
+  answer_confidence?: number;
   label?: string;
   value?: unknown;
   answer?: unknown;
-  confidence?: number;
   probability?: number;
 }
 
@@ -36,7 +43,7 @@ export interface LayaAgentLike {
   dispose?(): Promise<void> | void;
 }
 
-export type LayaAgentLoader = (config: LayaConfig) => Promise<LayaAgentLike>;
+export type LayaAgentLoader = (config: LayaConfig, root: string) => Promise<LayaAgentLike>;
 
 function choice(instructions: string, criteria: Record<string, string>): Record<string, unknown> {
   return { type: 'choice', instructions, criteria };
@@ -46,32 +53,57 @@ function noul(instructions: string): Record<string, unknown> {
   return { type: 'noul', instructions };
 }
 
-export async function loadLayaAgent(config: LayaConfig): Promise<LayaAgentLike> {
-  const specifier = LAYA_TS_PACKAGE;
-  const module = (await import(specifier)) as {
-    Agent?: { load(model: string, options?: Record<string, unknown>): Promise<LayaAgentLike> };
+/** Expande `~` sin depender de las utilidades de prompts. */
+function expandHome(target: string): string {
+  if (target === '~') {
+    return process.env.HOME ?? target;
+  }
+  if (target.startsWith('~/')) {
+    return path.join(process.env.HOME ?? '~', target.slice(2));
+  }
+  return target;
+}
+
+/**
+ * Resuelve el directorio del bundle: `laya.modelDir` si está configurado, o la
+ * caché global compartida. No descarga nada: si falta el modelo, el run cae a
+ * heurísticas y el instalador es quien se encarga de bajarlo.
+ */
+export async function resolveLayaModelDir(config: LayaConfig, root: string): Promise<string> {
+  const dir =
+    config.modelDir !== undefined && config.modelDir.trim().length > 0
+      ? path.resolve(root, expandHome(config.modelDir.trim()))
+      : path.join(LAYA_MODEL_CACHE_ROOT, BUNDLE_REVISION);
+
+  const check = await verifyBundle(dir);
+  if (!check.ok) {
+    const problems = [...check.missing, ...check.corrupt];
+    throw new Error(
+      `El modelo de Laya no está completo en ${dir} (${problems.join(', ')}). Ejecuta "alvaress install".`
+    );
+  }
+  return dir;
+}
+
+export async function loadLayaAgent(config: LayaConfig, root: string): Promise<LayaAgentLike> {
+  const dir = await resolveLayaModelDir(config, root);
+  const model = await LayaModel.load({
+    dir,
+    ...(config.device !== undefined ? { device: config.device } : {}),
+    ...(config.threads !== undefined ? { threads: config.threads } : {}),
+    resolveFrom: root
+  });
+
+  return {
+    predict: (state, questions) => model.systemOne(state, questions as Record<string, Question>),
+    close: () => model.close()
   };
-
-  if (module.Agent === undefined) {
-    throw new Error('laya-ts no exporta Agent; revisa la versión instalada.');
-  }
-
-  const localPath =
-    config.model.startsWith('.') ||
-    config.model.startsWith('/') ||
-    fs.existsSync(config.model);
-  const options: Record<string, unknown> = { device: config.device ?? 'cpu' };
-  if (!localPath && config.subfolder !== undefined && config.subfolder.length > 0) {
-    options.subfolder = config.subfolder;
-  }
-
-  return module.Agent.load(config.model, options);
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`laya-ts agotó ${timeoutMs}ms en ${label}.`));
+      reject(new Error(`Laya agotó ${timeoutMs}ms en ${label}.`));
     }, timeoutMs);
     timer.unref?.();
 
@@ -92,6 +124,9 @@ function readChoice(answer: LayaAnswer | undefined): string | undefined {
   if (answer === undefined) {
     return undefined;
   }
+  if (typeof answer.choice === 'string') {
+    return answer.choice;
+  }
   if (typeof answer.label === 'string') {
     return answer.label;
   }
@@ -108,6 +143,9 @@ function readBoolean(answer: LayaAnswer | undefined): boolean | undefined {
   if (answer === undefined) {
     return undefined;
   }
+  if (typeof answer.noul === 'number' && Number.isFinite(answer.noul)) {
+    return answer.noul >= 0.5;
+  }
   if (typeof answer.answer === 'boolean') {
     return answer.answer;
   }
@@ -121,7 +159,9 @@ function readBoolean(answer: LayaAnswer | undefined): boolean | undefined {
 }
 
 function readConfidence(answer: LayaAnswer | undefined, fallback: number): number {
-  const value = answer?.confidence ?? answer?.probability;
+  // `answer_confidence` (max p) es la cantidad para la que se calibraron las
+  // temperaturas; `confidence` es 1 - entropía normalizada.
+  const value = answer?.answer_confidence ?? answer?.confidence ?? answer?.probability;
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
@@ -210,7 +250,7 @@ export class LayaDecisionEngine implements DecisionEngine {
       const risks = [...base.risks];
       if (severity === 'medium' || severity === 'high') {
         risks.push({
-          title: `laya-ts clasificó el riesgo residual como ${severity}.`,
+          title: `Laya clasificó el riesgo residual como ${severity}.`,
           source: 'laya',
           severity
         });
@@ -247,8 +287,8 @@ export class LayaDecisionEngine implements DecisionEngine {
         nuclear,
         reason:
           verdict === 'orchestrator'
-            ? `laya-ts pide decisión del orquestador para el fallo de "${input.command}".`
-            : `laya-ts clasificó el fallo de "${input.command}" como ${verdict ?? 'desconocido'}.`,
+            ? `Laya pide decisión del orquestador para el fallo de "${input.command}".`
+            : `Laya clasificó el fallo de "${input.command}" como ${verdict ?? 'desconocido'}.`,
         confidence: readConfidence(prediction.answers.verdict, 0.7),
         source: 'laya'
       };
@@ -282,6 +322,8 @@ export class LayaDecisionEngine implements DecisionEngine {
 
 export interface CreateDecisionEngineOptions {
   config: LayaConfig;
+  /** Raíz del proyecto; desde ahí se resuelven el modelo y el runtime de ONNX. */
+  root?: string;
   loader?: LayaAgentLoader;
   fallback?: DecisionEngine;
 }
@@ -295,14 +337,17 @@ export async function createDecisionEngine(
   }
 
   try {
-    const agent = await (options.loader ?? loadLayaAgent)(options.config);
+    const agent = await (options.loader ?? loadLayaAgent)(
+      options.config,
+      options.root ?? process.cwd()
+    );
     return new LayaDecisionEngine(agent, {
       fallback,
       timeoutMs: options.config.timeoutMs
     });
   } catch (error) {
     if (!options.config.fallbackToHeuristic) {
-      throw new Error(`No se pudo cargar laya-ts: ${errorMessage(error)}`, { cause: error });
+      throw new Error(`No se pudo cargar Laya: ${errorMessage(error)}`, { cause: error });
     }
     return fallback;
   }

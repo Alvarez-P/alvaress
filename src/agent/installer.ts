@@ -25,7 +25,7 @@ export function agentFilePath(directory: string): string {
 
 export function renderAgent(): string {
   return `---
-description: Orquestador híbrido SDD/ODD de alvaress. Decide con laya-ts, usa Aider o subagentes y valida con Vite-Plus.
+description: Orquestador híbrido SDD/ODD de alvaress. Decide con Laya, usa Aider o subagentes y valida con Vite-Plus.
 mode: primary
 permissions:
   - action: read
@@ -148,7 +148,7 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
    completos si basta un cambio localizado.
 5. **Sin comentarios explicativos** en el código que generes o edites.
 6. **Valida siempre** antes de declarar una tarea terminada.
-7. **No envíes secretos a laya-ts.** El \`state\` debe ser un resumen; nunca
+7. **No envíes secretos a Laya.** El \`state\` debe ser un resumen; nunca
    incluyas claves, tokens, datos personales ni código propietario completo.
 8. **No ejecutes operaciones destructivas**: nada de \`git push\`, \`git reset --hard\`,
    \`rm -rf\` ni reescrituras de historial.
@@ -173,7 +173,7 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 - Ejecuciones: \`.harness/runs/\` (reportes) y \`.laya/last_run.log\` (log del run)
 - Backups: \`.harness/backups/\`
 - Lock de ejecución: \`.harness/lock\` (evita dos runs simultáneos)
-- Motor de decisión: \`laya-ts\` local (ONNX); pesos en \`~/.cache/laya\`
+- Motor de decisión: \`Laya\` local (ONNX); bundle en \`~/.cache/alvaress/laya-onnx\`
 - HALT del último run: \`.laya/HALT.json\`
 - Validador local: Vite-Plus (\`vp check\` y \`vp test\`)
 - Aider (opcional): se activa con \`aider.enabled\`; si no, se usan subagentes
@@ -205,8 +205,8 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 
 ### Fase 2 · Decidir y ejecutar con alvaress run
 
-\`alvaress run\` es la vía principal. Internamente usa \`laya-ts\` para elegir entre
-ODD y SDD, estimar el riesgo y clasificar los fallos. Tú no llamas a laya-ts
+\`alvaress run\` es la vía principal. Internamente usa \`Laya\` para elegir entre
+ODD y SDD, estimar el riesgo y clasificar los fallos. Tú no llamas a Laya
 directamente: el CLI ya lo hace y cae a heurísticas locales si el modelo no está
 disponible.
 
@@ -229,7 +229,7 @@ alvaress run "<petición>" --dry-run
 Opciones útiles:
 
 - \`--files a.ts,b.ts\` cierra el alcance a esos archivos.
-- \`--mode odd|sdd\` fuerza el modo; por defecto decide laya-ts.
+- \`--mode odd|sdd\` fuerza el modo; por defecto decide Laya.
 - \`--no-commit\` evita el commit automático al terminar en Ready.
 - \`--no-learn\` evita registrar aprendizajes en este run.
 - \`-i\` o \`--inspect-last-run\` muestra el log completo del último run.

@@ -1,7 +1,7 @@
 {
   "name": "alvaress",
   "version": "0.1.0",
-  "description": "Arnés híbrido SDD/ODD con laya-ts, Vite-Plus, Aider opcional, OpenSpec, Obsidian y Graphify para OpenCode y Claude",
+  "description": "Arnés híbrido SDD/ODD con Laya local (ONNX), Vite-Plus, Aider opcional, OpenSpec, Obsidian y Graphify para OpenCode y Claude",
   "author": "alvaress contributors",
   "type": "module",
   "packageManager": "pnpm@12.14.0",
@@ -12,7 +12,8 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "assets"
+    "assets",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": ">=20",
@@ -44,14 +45,17 @@
     "obsidian",
     "graphify",
     "aider",
-    "laya-ts",
+    "laya",
     "vite-plus",
     "opencode",
     "claude",
     "sdd",
     "odd",
     "agents",
-    "pnpm"
+    "pnpm",
+    "onnx",
+    "onnxruntime",
+    "decision-engine"
   ],
   "license": "MIT",
   "dependencies": {

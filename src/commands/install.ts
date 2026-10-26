@@ -1,20 +1,25 @@
 import path from 'node:path';
-import { createRequire } from 'node:module';
+import { unlink } from 'node:fs/promises';
 import * as p from '@clack/prompts';
 import { installAgent } from '../agent/installer.js';
 import { loadConfig, getConfigPaths, saveGlobalConfig } from '../config/loader.js';
 import type { HarnessConfig, HarnessConfigFile, PackageManager } from '../config/loader.js';
 import {
   COMMAND_SEPARATOR,
-  DEFAULT_LAYA_MODEL,
+  DEFAULT_LAYA_TIMEOUT_MS,
   DEFAULT_OBSIDIAN_VAULT,
   DEFAULT_PACKAGE_MANAGER,
   HARNESS_DIR,
-  LAYA_TS_PACKAGE,
+  LAYA_MODEL_CACHE_ROOT,
+  LAYA_ONNX_RUNTIME_PACKAGE,
+  LAYA_TOKENIZER_PACKAGE,
   VITE_PLUS_PACKAGE
 } from '../constants.js';
 import { detectObsidian, installObsidian } from '../obsidian/installer.js';
 import { connectObsidianVault } from '../obsidian/vault.js';
+import { BUNDLE_BYTES, BUNDLE_REVISION, ensureBundle, verifyBundle } from '../decision/vendor/laya/index.js';
+import { errorMessage } from '../utils/errors.js';
+import { moduleAvailableFrom } from '../utils/modules.js';
 import { ensureHarnessDirs, getManifestPath, inferProjectName, scaffoldManifest } from '../openspec/manifest.js';
 import { installSkills } from '../skills/installer.js';
 import { ensureDir, pathExists, relativeTo, writeJsonFile } from '../utils/fs.js';
@@ -53,7 +58,7 @@ const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
   },
   {
     value: 'laya',
-    label: '🧠 laya-ts (motor de decisión local)',
+    label: '🧠 Laya (motor de decisión local)',
     hint: 'routing ODD/SDD, riesgo y triaje de fallos en local'
   },
   {
@@ -83,19 +88,11 @@ const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
   }
 ];
 
-function moduleAvailable(specifier: string): boolean {
-  try {
-    createRequire(import.meta.url).resolve(specifier);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export interface InstallRuntime {
   commandExists: typeof commandExists;
   runCommand: typeof runCommand;
-  moduleAvailable: (specifier: string) => boolean;
+  /** Resuelve un módulo desde la raíz del proyecto (no desde alvaress). */
+  moduleAvailable: (specifier: string, from: string) => boolean;
   loadConfig: typeof loadConfig;
   getConfigPaths: typeof getConfigPaths;
   saveGlobalConfig: typeof saveGlobalConfig;
@@ -105,12 +102,13 @@ export interface InstallRuntime {
   installSkills: typeof installSkills;
   installAgent: typeof installAgent;
   installPipx: typeof installPipx;
+  ensureLayaBundle: typeof ensureBundle;
 }
 
 const DEFAULT_RUNTIME: InstallRuntime = {
   commandExists,
   runCommand,
-  moduleAvailable,
+  moduleAvailable: moduleAvailableFrom,
   loadConfig,
   getConfigPaths,
   saveGlobalConfig,
@@ -119,7 +117,8 @@ const DEFAULT_RUNTIME: InstallRuntime = {
   connectObsidianVault,
   installSkills,
   installAgent,
-  installPipx
+  installPipx,
+  ensureLayaBundle: ensureBundle
 };
 
 export interface InstallOptions {
@@ -184,7 +183,7 @@ export async function runInstall(
 
   let layaChanged = false;
   if (selected.includes('laya')) {
-    config = await configureLaya(config, yes, runtime);
+    config = await configureLaya(config, yes, runtime, root);
     layaChanged = true;
   }
 
@@ -451,7 +450,7 @@ async function installVitePlus(
 ): Promise<void> {
   const spinner = p.spinner();
   spinner.start('Comprobando Vite-Plus');
-  if (runtime.commandExists('vp') || runtime.moduleAvailable(VITE_PLUS_PACKAGE)) {
+  if (runtime.commandExists('vp') || runtime.moduleAvailable(VITE_PLUS_PACKAGE, root)) {
     spinner.stop('Vite-Plus ya está disponible.');
     return;
   }
@@ -480,61 +479,175 @@ async function installVitePlus(
   spinner.stop('Vite-Plus instalado.');
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes >= 1e9) {
+    return `${(bytes / 1e9).toFixed(2)} GB`;
+  }
+  if (bytes >= 1e6) {
+    return `${(bytes / 1e6).toFixed(0)} MB`;
+  }
+  return `${bytes} B`;
+}
+
+async function installLayaDependencies(
+  root: string,
+  config: HarnessConfig,
+  runtime: InstallRuntime
+): Promise<boolean> {
+  if (
+    runtime.moduleAvailable(LAYA_ONNX_RUNTIME_PACKAGE, root) &&
+    runtime.moduleAvailable(LAYA_TOKENIZER_PACKAGE, root)
+  ) {
+    return true;
+  }
+  if (!pathExists(path.join(root, 'package.json'))) {
+    p.log.warn(
+      `No hay package.json. Instala ${LAYA_ONNX_RUNTIME_PACKAGE} y ${LAYA_TOKENIZER_PACKAGE} manualmente.`
+    );
+    return false;
+  }
+
+  const manager = resolvePackageManager(config);
+  const spinner = p.spinner();
+  spinner.start(`Instalando el runtime de Laya con ${manager}`);
+  const result = await runtime.runCommand(
+    manager,
+    packageManagerInstallArgs(manager, [LAYA_ONNX_RUNTIME_PACKAGE, LAYA_TOKENIZER_PACKAGE]),
+    { cwd: root }
+  );
+  if (result.code !== 0) {
+    spinner.stop('No se pudo instalar el runtime de Laya.');
+    p.log.warn(
+      result.stderr.trim() ||
+        result.stdout.trim() ||
+        `Ejecuta "${manager} add -D ${LAYA_ONNX_RUNTIME_PACKAGE} ${LAYA_TOKENIZER_PACKAGE}" manualmente.`
+    );
+    return false;
+  }
+  spinner.stop('Runtime de Laya instalado.');
+  return true;
+}
+
+async function downloadLayaBundle(
+  dir: string,
+  yes: boolean,
+  runtime: InstallRuntime
+): Promise<boolean> {
+  // En el instalador se audita el hash completo; en cada `run` basta el tamaño.
+  const check = await verifyBundle(dir, { deep: true });
+  if (check.ok) {
+    p.log.success(`Modelo de Laya listo en ${dir}.`);
+    return true;
+  }
+
+  if (!yes) {
+    const proceed = unwrap(
+      await p.confirm({
+        message: `¿Descargar el modelo de Laya (${formatBytes(BUNDLE_BYTES)}) en ${dir}?`,
+        initialValue: true
+      })
+    );
+    if (!proceed) {
+      p.log.warn('Modelo de Laya omitido; alvaress usará heurísticas hasta que se descargue.');
+      return false;
+    }
+  }
+
+  // Un archivo corrupto con el tamaño correcto no se re-descargaría: bórralo.
+  await Promise.all(
+    check.corrupt.map((file) => unlink(path.join(dir, file)).catch(() => undefined))
+  );
+
+  const spinner = p.spinner();
+  spinner.start(`Descargando el modelo de Laya (${formatBytes(BUNDLE_BYTES)})`);
+  let lastFile = '';
+  let lastPercent = -1;
+
+  try {
+    await runtime.ensureLayaBundle({
+      dir,
+      onProgress: ({ file, received, total }) => {
+        const percent = total === null ? 0 : Math.floor((received / total) * 100);
+        if (file !== lastFile || percent !== lastPercent) {
+          lastFile = file;
+          lastPercent = percent;
+          spinner.message(
+            `${file} ${percent}% (${formatBytes(received)} de ${formatBytes(total ?? 0)})`
+          );
+        }
+      }
+    });
+  } catch (error) {
+    spinner.stop('No se pudo descargar el modelo de Laya.');
+    p.log.warn(errorMessage(error));
+    return false;
+  }
+
+  spinner.stop(`Modelo de Laya listo en ${dir}.`);
+  return true;
+}
+
 async function configureLaya(
   base: HarnessConfig,
   yes: boolean,
-  runtime: InstallRuntime
+  runtime: InstallRuntime,
+  root: string
 ): Promise<HarnessConfig> {
   const current = base.laya ?? {
     enabled: true,
-    model: DEFAULT_LAYA_MODEL,
-    subfolder: 'multilingual',
     device: 'cpu' as const,
-    timeoutMs: 30_000,
+    timeoutMs: DEFAULT_LAYA_TIMEOUT_MS,
     fallbackToHeuristic: true
   };
   const enabled = yes
     ? true
     : unwrap(
         await p.confirm({
-          message: '¿Activar laya-ts como motor de decisión?',
+          message: '¿Activar Laya como motor de decisión local?',
           initialValue: current.enabled
         })
       );
 
   if (!enabled) {
-    p.log.warn('laya-ts desactivado; alvaress usará heurísticas locales.');
+    p.log.warn('Laya desactivado; alvaress usará heurísticas locales.');
     return { ...base, laya: { ...current, enabled: false } };
   }
 
-  const model = yes
-    ? current.model
+  const modelDir = yes
+    ? (current.modelDir ?? '')
     : unwrap(
         await p.text({
-          message: 'Modelo o ruta local de laya-ts',
-          placeholder: current.model,
-          defaultValue: current.model,
-          validate: validateWithDefault(current.model, 'El modelo es obligatorio.')
+          message: 'Directorio local del modelo de Laya (vacío = caché gestionada)',
+          placeholder: current.modelDir ?? 'vacío',
+          defaultValue: current.modelDir ?? ''
         })
       ).trim();
 
-  const resolvedModel = model.length > 0 ? model : current.model;
-  if (runtime.moduleAvailable(LAYA_TS_PACKAGE)) {
-    p.log.success('laya-ts está instalado.');
-  } else {
-    p.log.warn(
-      `laya-ts no está instalado. Instálalo con "pnpm add -D github:NandhaKishorM/laya#path:/laya-ts" o desde ${LAYA_TS_PACKAGE}.`
-    );
+  const trimmed = modelDir.trim();
+  const depsReady = await installLayaDependencies(root, base, runtime);
+  if (!depsReady) {
+    p.log.warn('Laya quedará en heurísticas hasta que instales el runtime.');
   }
 
-  return {
-    ...base,
-    laya: {
-      ...current,
-      enabled: true,
-      model: resolvedModel
+  if (trimmed.length > 0) {
+    const resolved = path.resolve(root, expandHome(trimmed));
+    const result = await verifyBundle(resolved);
+    if (result.ok) {
+      p.log.success(`Bundle de Laya verificado en ${resolved}.`);
+    } else {
+      const problems = [...result.missing, ...result.corrupt];
+      p.log.warn(
+        `El bundle de ${resolved} está incompleto (${problems.join(', ')}). Ejecuta "alvaress doctor" para revisarlo.`
+      );
     }
-  };
+    return { ...base, laya: { ...current, enabled: true, modelDir: trimmed } };
+  }
+
+  if (depsReady) {
+    await downloadLayaBundle(path.join(LAYA_MODEL_CACHE_ROOT, BUNDLE_REVISION), yes, runtime);
+  }
+
+  return { ...base, laya: { ...current, enabled: true, modelDir: undefined } };
 }
 
 async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
@@ -580,7 +693,10 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
 
 async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigFile> {
   const vaultPath = await askRequired('Ruta de la bóveda Obsidian (local)', base.obsidianVaultPath);
-  const layaModel = await askRequired('Modelo o ruta local de laya-ts', base.laya?.model ?? DEFAULT_LAYA_MODEL);
+  const layaModelDir = await askText(
+    'Directorio local del modelo de Laya (vacío = caché gestionada)',
+    base.laya?.modelDir ?? ''
+  );
   const implementerModel = await askRequired(
     'Modelo del implementador (local)',
     base.models.aiderImplementer.modelName
@@ -592,7 +708,7 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
   return {
     obsidianVaultPath: path.resolve(expandHome(vaultPath)),
     packageManager,
-    laya: { model: layaModel },
+    laya: { modelDir: layaModelDir.trim() },
     models: {
       aiderImplementer: { modelName: implementerModel }
     },

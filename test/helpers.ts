@@ -71,8 +71,6 @@ export function baseConfig(overrides: Record<string, unknown> = {}): Record<stri
     obsidianVaultPath: '/tmp/vault',
     laya: {
       enabled: true,
-      model: 'convaiinnovations/laya',
-      subfolder: 'multilingual',
       device: 'cpu',
       timeoutMs: 30000,
       fallbackToHeuristic: true

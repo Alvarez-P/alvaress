@@ -2,8 +2,6 @@ import path from 'node:path';
 import {
   DEFAULT_AIDER_TIMEOUT_MS,
   DEFAULT_IMPLEMENTER_MODEL,
-  DEFAULT_LAYA_MODEL,
-  DEFAULT_LAYA_SUBFOLDER,
   DEFAULT_LAYA_TIMEOUT_MS,
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_PACKAGE_MANAGER,
@@ -29,9 +27,11 @@ export interface ModelProviderConfig {
 
 export interface LayaConfig {
   enabled: boolean;
-  model: string;
-  subfolder?: string;
+  /** Directorio local con el bundle ONNX. Vacío = caché global compartida. */
+  modelDir?: string;
   device?: 'cpu' | 'cuda';
+  /** Hilos intra-op de ONNX Runtime en CPU. */
+  threads?: number;
   timeoutMs: number;
   fallbackToHeuristic: boolean;
 }
@@ -76,9 +76,9 @@ export interface HarnessConfigFile {
   };
   laya?: {
     enabled?: boolean;
-    model?: string;
-    subfolder?: string;
+    modelDir?: string;
     device?: 'cpu' | 'cuda';
+    threads?: number;
     timeoutMs?: number;
     fallbackToHeuristic?: boolean;
   };
@@ -199,8 +199,7 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
       throw new ConfigError(`El campo "laya" debe ser un objeto en ${source}.`);
     }
     assertBoolean(value.laya.enabled, 'laya.enabled', source);
-    assertString(value.laya.model, 'laya.model', source);
-    assertString(value.laya.subfolder, 'laya.subfolder', source);
+    assertString(value.laya.modelDir, 'laya.modelDir', source);
     if (
       value.laya.device !== undefined &&
       value.laya.device !== 'cpu' &&
@@ -208,6 +207,7 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
     ) {
       throw new ConfigError(`El campo "laya.device" solo admite "cpu" o "cuda" en ${source}.`);
     }
+    assertPositiveInteger(value.laya.threads, 'laya.threads', source, 1);
     assertPositiveInteger(value.laya.timeoutMs, 'laya.timeoutMs', source, 1000);
     assertBoolean(value.laya.fallbackToHeuristic, 'laya.fallbackToHeuristic', source);
   }
@@ -322,9 +322,9 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
     },
     laya: {
       enabled: localConfig.laya?.enabled ?? globalConfig.laya?.enabled ?? true,
-      model: localConfig.laya?.model || globalConfig.laya?.model || DEFAULT_LAYA_MODEL,
-      subfolder: localConfig.laya?.subfolder || globalConfig.laya?.subfolder || DEFAULT_LAYA_SUBFOLDER,
+      modelDir: localConfig.laya?.modelDir || globalConfig.laya?.modelDir || undefined,
       device: localConfig.laya?.device ?? globalConfig.laya?.device ?? 'cpu',
+      threads: localConfig.laya?.threads ?? globalConfig.laya?.threads,
       timeoutMs:
         localConfig.laya?.timeoutMs ?? globalConfig.laya?.timeoutMs ?? DEFAULT_LAYA_TIMEOUT_MS,
       fallbackToHeuristic:
@@ -375,9 +375,9 @@ export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
     },
     laya: {
       enabled: config.laya?.enabled ?? true,
-      model: config.laya?.model ?? DEFAULT_LAYA_MODEL,
-      subfolder: config.laya?.subfolder ?? DEFAULT_LAYA_SUBFOLDER,
+      modelDir: config.laya?.modelDir ?? undefined,
       device: config.laya?.device ?? 'cpu',
+      threads: config.laya?.threads,
       timeoutMs: config.laya?.timeoutMs ?? DEFAULT_LAYA_TIMEOUT_MS,
       fallbackToHeuristic: config.laya?.fallbackToHeuristic ?? true
     },
