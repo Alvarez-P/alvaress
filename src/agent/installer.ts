@@ -11,6 +11,10 @@ export interface AgentInstallOptions {
   project?: boolean;
   globalDir?: string;
   projectDir?: string;
+  models?: {
+    orchestrator?: string;
+    subagents?: string;
+  };
 }
 
 export interface AgentInstallReport {
@@ -23,11 +27,16 @@ export function agentFilePath(directory: string): string {
   return path.join(directory, `${AGENT_NAME}.md`);
 }
 
-export function renderAgent(): string {
+function modelLine(model: string | undefined): string {
+  const value = model?.trim() ?? '';
+  return value.length > 0 ? `model: ${value}\n` : '';
+}
+
+export function renderAgent(model?: string): string {
   return `---
 description: Orquestador híbrido SDD/ODD de alvaress. Decide con Laya, usa Aider o subagentes y valida con Vite-Plus.
 mode: primary
-permissions:
+${modelLine(model)}permissions:
   - action: read
     resource: "*"
     effect: allow
@@ -610,17 +619,17 @@ export function installAgent(
   if (options.global !== false) {
     const directory = options.globalDir ?? getGlobalOpencodeAgentsDir();
     const file = agentFilePath(directory);
-    writeTextFile(file, renderAgent());
+    writeTextFile(file, renderAgent(options.models?.orchestrator));
     files.push(file);
-    subagents.push(...installSubagents(directory));
+    subagents.push(...installSubagents(directory, options.models?.subagents));
   }
 
   if (options.project !== false) {
     const directory = options.projectDir ?? getProjectOpencodeAgentsDir(root);
     const file = agentFilePath(directory);
-    writeTextFile(file, renderAgent());
+    writeTextFile(file, renderAgent(options.models?.orchestrator));
     files.push(file);
-    subagents.push(...installSubagents(directory));
+    subagents.push(...installSubagents(directory, options.models?.subagents));
   }
 
   return { name: AGENT_NAME, files, subagents };
@@ -1015,11 +1024,11 @@ function renderPermissions(rules: PermissionRule[]): string {
     .join('\n');
 }
 
-export function renderSubagent(subagent: SubagentDefinition): string {
+export function renderSubagent(subagent: SubagentDefinition, model?: string): string {
   return `---
 description: ${subagent.description}
 mode: ${subagent.mode}
-steps: ${subagent.steps}
+${modelLine(model)}steps: ${subagent.steps}
 permissions:
 ${renderPermissions(subagent.permissions)}
 ---
@@ -1036,10 +1045,10 @@ ${subagent.body}
 `;
 }
 
-export function installSubagents(directory: string): string[] {
+export function installSubagents(directory: string, model?: string): string[] {
   return SUBAGENTS.map((subagent) => {
     const file = subagentFilePath(directory, subagent.name);
-    writeTextFile(file, renderSubagent(subagent));
+    writeTextFile(file, renderSubagent(subagent, model));
     return file;
   });
 }

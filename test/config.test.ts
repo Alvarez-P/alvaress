@@ -17,6 +17,8 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
   const globalConfig: HarnessConfigFile = {
     obsidianVaultPath: '/global/vault',
     models: {
+      orchestrator: { modelName: 'global-orchestrator' },
+      subagents: { modelName: 'global-subagents' },
       aiderImplementer: {
         modelName: 'global-implementer',
         apiKey: 'global-implementer-key',
@@ -31,6 +33,7 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
   const localConfig: HarnessConfigFile = {
     obsidianVaultPath: '/local/vault',
     models: {
+      orchestrator: { modelName: 'local-orchestrator' },
       aiderImplementer: { modelName: 'local-implementer' }
     },
     laya: { modelDir: 'local-model' },
@@ -45,6 +48,8 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
   assert.equal(merged.models.aiderImplementer.modelName, 'local-implementer');
   assert.equal(merged.models.aiderImplementer.apiKey, 'global-implementer-key');
   assert.deepEqual(merged.models.aiderImplementer.env, { DEEPSEEK_API_KEY: 'global-implementer-key' });
+  assert.equal(merged.models.orchestrator.modelName, 'local-orchestrator');
+  assert.equal(merged.models.subagents.modelName, 'global-subagents');
   assert.equal(merged.laya?.modelDir, 'local-model');
   assert.equal(merged.laya?.timeoutMs, 5000);
   assert.equal(merged.laya?.enabled, true);
@@ -60,6 +65,8 @@ test('mergeConfig usa valores por defecto sin configuración', () => {
   const merged = mergeConfig({}, {});
 
   assert.equal(merged.obsidianVaultPath, '');
+  assert.equal(merged.models.orchestrator.modelName, '');
+  assert.equal(merged.models.subagents.modelName, '');
   assert.equal(merged.models.aiderImplementer.modelName, 'deepseek/deepseek-chat');
   assert.equal(merged.validation.maxAttempts, 3);
   assert.deepEqual(merged.validation.commands, [
@@ -133,6 +140,8 @@ test('validateConfigFile acepta la estructura completa', () => {
         fallbackToPackageManager: true
       },
       models: {
+        orchestrator: { modelName: 'openai/gpt-5' },
+        subagents: { modelName: 'openai/gpt-5-mini' },
         aiderImplementer: {
           modelName: 'deepseek/deepseek-chat',
           apiKey: 'sk-test',
@@ -186,13 +195,19 @@ test('toConfigFile conserva todas las claves del esquema', () => {
     'validation',
     'vitePlus'
   ]);
-  assert.deepEqual(Object.keys(file.models ?? {}).toSorted(), ['aiderImplementer']);
+  assert.deepEqual(Object.keys(file.models ?? {}).toSorted(), [
+    'aiderImplementer',
+    'orchestrator',
+    'subagents'
+  ]);
 });
 
 test('maskConfig oculta claves y secretos de entorno', () => {
   const config: HarnessConfig = {
     obsidianVaultPath: '/vault',
     models: {
+      orchestrator: { modelName: 'orchestrator' },
+      subagents: { modelName: 'subagents' },
       aiderImplementer: {
         modelName: 'implementer',
         apiKey: 'secret-implementer',
@@ -205,6 +220,8 @@ test('maskConfig oculta claves y secretos de entorno', () => {
 
   const masked = maskConfig(config);
 
+  assert.equal(masked.models.orchestrator.modelName, 'orchestrator');
+  assert.equal(masked.models.subagents.modelName, 'subagents');
   assert.equal(masked.models.aiderImplementer.apiKey, '********');
   assert.equal(masked.models.aiderImplementer.env?.DEEPSEEK_API_KEY, '********');
   assert.equal(masked.models.aiderImplementer.env?.OTHER, 'value');

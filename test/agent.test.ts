@@ -52,6 +52,51 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /resource: "rm \*"\n    effect: deny/);
 });
 
+test('renderAgent y renderSubagent escriben el modelo configurado', () => {
+  const agent = renderAgent('openai/gpt-5');
+  assert.match(agent, /^model: openai\/gpt-5$/m);
+
+  const subagent = SUBAGENTS.find((entry) => entry.name === 'alvaress-implementer');
+  assert.ok(subagent !== undefined);
+  const rendered = renderSubagent(subagent, 'openai/gpt-5-mini');
+  assert.match(rendered, /^model: openai\/gpt-5-mini$/m);
+});
+
+test('renderAgent omite model cuando no hay modelo configurado', () => {
+  assert.doesNotMatch(renderAgent(''), /^model:/m);
+  assert.doesNotMatch(renderAgent('   '), /^model:/m);
+});
+
+test('installAgent propaga el modelo a agentes y subagentes', () => {
+  const temp = makeTempDir('alvaress-agent-models-');
+  try {
+    const globalDir = path.join(temp.path, 'global');
+    const projectDir = path.join(temp.path, 'project');
+
+    installAgent(temp.path, {
+      globalDir,
+      projectDir,
+      models: {
+        orchestrator: 'anthropic/claude-sonnet-5-5',
+        subagents: 'anthropic/claude-haiku-5-5'
+      }
+    });
+
+    assert.match(
+      fs.readFileSync(agentFilePath(globalDir), 'utf-8'),
+      /^model: anthropic\/claude-sonnet-5-5$/m
+    );
+    const implementer = SUBAGENTS.find((entry) => entry.name === 'alvaress-implementer');
+    assert.ok(implementer !== undefined);
+    assert.match(
+      fs.readFileSync(subagentFilePath(globalDir, implementer.name), 'utf-8'),
+      /^model: anthropic\/claude-haiku-5-5$/m
+    );
+  } finally {
+    temp.cleanup();
+  }
+});
+
 test('installAgent escribe el agente global y el del proyecto', () => {
   const temp = makeTempDir('alvaress-agent-');
   try {

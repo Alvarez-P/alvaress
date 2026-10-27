@@ -36,12 +36,17 @@ export function runInit(root: string = process.cwd(), options: InitOptions = {})
   }
 
   const skills = installSkills(root, { linkGlobal: options.linkSkills !== false });
+  const config = loadConfig(root);
   const agent = installAgent(root, {
     global: options.linkSkills !== false,
-    project: true
+    project: true,
+    models: {
+      orchestrator: config.models.orchestrator.modelName,
+      subagents: config.models.subagents.modelName
+    }
   });
 
-  const vaultPath = loadConfig(root).obsidianVaultPath.trim();
+  const vaultPath = config.obsidianVaultPath.trim();
   const obsidian =
     vaultPath.length > 0
       ? connectObsidianVault(root, path.resolve(root, expandHome(vaultPath)))

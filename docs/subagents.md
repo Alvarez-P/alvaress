@@ -103,7 +103,9 @@ el diff y rechaza cualquier comentario nuevo antes de validar y commitear.
 | `alvaress-fixer` | `failure-triage`, `self-healing-verify`, `bounded-scope` |
 
 El frontmatter de cada subagente limita la acción `skill` a esa lista: cualquier
-otra skill se deniega.
+otra skill se deniega. Cuando `models.orchestrator` o `models.subagents` están
+configurados, el instalador escribe `model: provider/model` en el frontmatter
+correspondiente; si están vacíos, OpenCode hereda el modelo de la sesión.
 
 ## Seguridad y permisos
 

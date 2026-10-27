@@ -17,6 +17,8 @@ function configWith(vaultPath: string): HarnessConfig {
       fallbackToHeuristic: true
     },
     models: {
+      orchestrator: { modelName: 'orchestrator' },
+      subagents: { modelName: 'subagents' },
       aiderImplementer: { modelName: 'deepseek/deepseek-chat', apiKey: '', apiBase: '', env: {} }
     },
     validation: { maxAttempts: 1, commands: [] }

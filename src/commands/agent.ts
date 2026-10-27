@@ -1,4 +1,5 @@
 import { installAgent, renderAgent } from '../agent/installer.js';
+import { loadConfig } from '../config/loader.js';
 import { flagEnabled, parseArgs } from '../utils/args.js';
 import { logger } from '../utils/logger.js';
 
@@ -6,15 +7,21 @@ export function runAgentCommand(args: string[], root: string = process.cwd()): v
   const [subcommand, ...rest] = args;
 
   if (subcommand === 'show') {
-    console.log(renderAgent());
+    const config = loadConfig(root);
+    console.log(renderAgent(config.models.orchestrator.modelName));
     return;
   }
 
   if (subcommand === undefined || subcommand === 'install') {
     const { flags } = parseArgs(subcommand === undefined ? [] : rest);
+    const config = loadConfig(root);
     const report = installAgent(root, {
       global: !flagEnabled(flags, 'no-global'),
-      project: !flagEnabled(flags, 'no-project')
+      project: !flagEnabled(flags, 'no-project'),
+      models: {
+        orchestrator: config.models.orchestrator.modelName,
+        subagents: config.models.subagents.modelName
+      }
     });
     if (report.files.length === 0) {
       logger.warn('No se instaló el agente: todas las ubicaciones están desactivadas.');

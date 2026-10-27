@@ -164,10 +164,13 @@ Aider solo se instala si ya está habilitado en la configuración.
 6. Instala `onnxruntime-node` y `@huggingface/tokenizers`, y descarga el
    artefacto int8 de Laya en la caché global. Verifica tamaño y SHA-256.
 7. Crea o actualiza `~/.alvaressconfig.json` y, si aceptas, `.alvaressrc.json`.
-8. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
-9. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
-10. Escribe las skills en `.harness/skills/` y sus enlaces globales.
-11. Instala el agente `alvaress` y sus cuatro subagentes en OpenCode.
+8. Pregunta si quieres un solo modelo para orquestador, subagentes y Aider, o
+   uno por rol, y guarda `models.*`.
+9. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
+10. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
+11. Escribe las skills en `.harness/skills/` y sus enlaces globales.
+12. Instala el agente `alvaress` y sus cuatro subagentes en OpenCode con el
+    modelo elegido en su frontmatter.
 
 Comprueba cómo quedó todo con:
 
@@ -308,6 +311,12 @@ o `PASS`.
     "inheritEnv": true
   },
   "models": {
+    "orchestrator": {
+      "modelName": ""
+    },
+    "subagents": {
+      "modelName": ""
+    },
     "aiderImplementer": {
       "modelName": "deepseek/deepseek-chat",
       "apiKey": "${DEEPSEEK_API_KEY}",
@@ -349,6 +358,8 @@ o `PASS`.
 | `aider.timeoutMs` | `integer >= 1000` | `600000` | Timeout de Aider (10 min por defecto). |
 | `aider.extraArgs` | `string[]` | `[]` | Argumentos extra para Aider. |
 | `aider.inheritEnv` | `boolean` | `true` | Hereda el entorno. En `false`, solo pasa las variables permitidas y las de `env`. |
+| `models.orchestrator.modelName` | `string` | vacío = heredar el de OpenCode | Modelo `provider/model` del agente orquestador. Se escribe en el frontmatter del agente instalado. |
+| `models.subagents.modelName` | `string` | vacío = heredar el del orquestador | Modelo `provider/model` de los cuatro subagentes. Se escribe en cada frontmatter. |
 | `models.aiderImplementer.modelName` | `string` | `"deepseek/deepseek-chat"` | Modelo del implementador para Aider. |
 | `models.aiderImplementer.apiKey` | `string` | vacío | Se expone a Aider como `DEEPSEEK_API_KEY` y `OPENAI_API_KEY`. Admite `${VAR}`. |
 | `models.aiderImplementer.apiBase` | `string` | vacío | Se expone como `OPENAI_API_BASE`. Útil para endpoints compatibles con OpenAI. |

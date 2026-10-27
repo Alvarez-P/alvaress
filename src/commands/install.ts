@@ -252,8 +252,31 @@ export async function runInstall(
   const linked = report.links.length - skipped.length;
   p.log.info(`Enlaces globales de skills actualizados: ${linked}`);
 
+  if (!yes) {
+    const configureModels = unwrap(
+      await p.confirm({
+        message: '¿Configurar los modelos de orquestador, subagentes y Aider ahora?',
+        initialValue: true
+      })
+    );
+    if (configureModels) {
+      config = await promptModels(config, {
+        askAiderCredentials: selected.includes('aider') || config.aider?.enabled === true
+      });
+      runtime.saveGlobalConfig(config);
+      p.log.success(`Modelos guardados en ${paths.global}`);
+    }
+  }
+
   if (selected.includes('agent')) {
-    const agent = runtime.installAgent(root, { global: true, project: true });
+    const agent = runtime.installAgent(root, {
+      global: true,
+      project: true,
+      models: {
+        orchestrator: config.models.orchestrator.modelName,
+        subagents: config.models.subagents.modelName
+      }
+    });
     for (const file of agent.files) {
       p.log.success(`Agente ${agent.name} instalado en ${file}`);
     }
@@ -669,18 +692,6 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
       ? base.obsidianVaultPath
       : await askRequired('Ruta de la bóveda Obsidian', DEFAULT_OBSIDIAN_VAULT);
 
-  const implementerModel = await askRequired(
-    'Modelo del implementador (Aider)',
-    base.models.aiderImplementer.modelName
-  );
-  const implementerBase = await askText(
-    'API base del implementador',
-    base.models.aiderImplementer.apiBase ?? ''
-  );
-  const implementerKey = await askSecret(
-    base.models.aiderImplementer.apiKey ? 'API key del implementador (Enter conserva la actual)' : 'API key del implementador (Enter para vacío)'
-  );
-
   const maxAttempts = await askMaxAttempts(base.validation.maxAttempts);
   const commands = await askValidationCommands(base.validation.commands);
   const packageManager = await askPackageManager(base.packageManager ?? DEFAULT_PACKAGE_MANAGER);
@@ -689,17 +700,6 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
     ...base,
     obsidianVaultPath: path.resolve(expandHome(vaultPath)),
     packageManager,
-    models: {
-      aiderImplementer: {
-        modelName: implementerModel,
-        apiKey: implementerKey ?? base.models.aiderImplementer.apiKey ?? '',
-        apiBase: implementerBase,
-        env: {
-          ...base.models.aiderImplementer.env,
-          ...(implementerKey ? { DEEPSEEK_API_KEY: implementerKey } : {})
-        }
-      }
-    },
     validation: { maxAttempts, commands }
   };
 }
@@ -710,10 +710,6 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
     'Directorio local del modelo de Laya (vacío = caché gestionada)',
     base.laya?.modelDir ?? ''
   );
-  const implementerModel = await askRequired(
-    'Modelo del implementador (local)',
-    base.models.aiderImplementer.modelName
-  );
   const maxAttempts = await askMaxAttempts(base.validation.maxAttempts);
   const commands = await askValidationCommands(base.validation.commands);
   const packageManager = await askPackageManager(base.packageManager ?? DEFAULT_PACKAGE_MANAGER);
@@ -722,10 +718,111 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
     obsidianVaultPath: path.resolve(expandHome(vaultPath)),
     packageManager,
     laya: { modelDir: layaModelDir.trim() },
-    models: {
-      aiderImplementer: { modelName: implementerModel }
-    },
     validation: { maxAttempts, commands }
+  };
+}
+
+async function promptModels(
+  base: HarnessConfig,
+  options: { askAiderCredentials: boolean }
+): Promise<HarnessConfig> {
+  const mode = unwrap(
+    await p.select<'single' | 'per-role'>({
+      message: '¿Cómo quieres configurar los modelos?',
+      options: [
+        {
+          value: 'single',
+          label: 'Un solo modelo para los tres roles',
+          hint: 'orquestador, subagentes y Aider'
+        },
+        {
+          value: 'per-role',
+          label: 'Un modelo por rol',
+          hint: 'orquestador, subagentes y Aider por separado'
+        }
+      ],
+      initialValue: 'single'
+    })
+  );
+
+  if (mode === 'single') {
+    const model = await askRequired(
+      'Modelo para orquestador, subagentes y Aider',
+      base.models.aiderImplementer.modelName
+    );
+    const apiBase = options.askAiderCredentials
+      ? await askText(
+          'API base para Aider (vacío = la del proveedor)',
+          base.models.aiderImplementer.apiBase ?? ''
+        )
+      : base.models.aiderImplementer.apiBase ?? '';
+    const apiKey = options.askAiderCredentials
+      ? await askSecret(
+          base.models.aiderImplementer.apiKey
+            ? 'API key para Aider (Enter conserva la actual)'
+            : 'API key para Aider (Enter para vacío)'
+        )
+      : undefined;
+
+    return {
+      ...base,
+      models: {
+        orchestrator: { modelName: model },
+        subagents: { modelName: model },
+        aiderImplementer: {
+          modelName: model,
+          apiKey: apiKey ?? base.models.aiderImplementer.apiKey ?? '',
+          apiBase,
+          env: {
+            ...base.models.aiderImplementer.env,
+            ...(apiKey ? { DEEPSEEK_API_KEY: apiKey } : {})
+          }
+        }
+      }
+    };
+  }
+
+  const orchestrator = await askText(
+    'Modelo del orquestador (vacío = heredar el de OpenCode)',
+    base.models.orchestrator.modelName
+  );
+  const subagents = await askText(
+    'Modelo de los subagentes (vacío = heredar el del orquestador)',
+    base.models.subagents.modelName
+  );
+  const implementer = await askRequired(
+    'Modelo de Aider',
+    base.models.aiderImplementer.modelName
+  );
+  const apiBase = options.askAiderCredentials
+    ? await askText(
+        'API base para Aider (vacío = la del proveedor)',
+        base.models.aiderImplementer.apiBase ?? ''
+      )
+    : base.models.aiderImplementer.apiBase ?? '';
+  const apiKey = options.askAiderCredentials
+    ? await askSecret(
+        base.models.aiderImplementer.apiKey
+          ? 'API key para Aider (Enter conserva la actual)'
+          : 'API key para Aider (Enter para vacío)'
+      )
+    : undefined;
+
+  return {
+    ...base,
+    models: {
+      orchestrator: { modelName: orchestrator },
+      subagents: { modelName: subagents },
+      aiderImplementer: {
+        modelName: implementer,
+        apiKey: apiKey ?? base.models.aiderImplementer.apiKey ?? '',
+        apiBase,
+        env: {
+          ...base.models.aiderImplementer.env,
+          ...(apiKey ? { DEEPSEEK_API_KEY: apiKey } : {})
+        }
+      }
+    }
   };
 }
 

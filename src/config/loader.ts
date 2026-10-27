@@ -18,8 +18,12 @@ import { defaultValidationCommands } from '../utils/package-manager.js';
 export type PackageManager = 'pnpm' | 'npm';
 export type ScopeMode = 'strict' | 'warn' | 'off';
 
-export interface ModelProviderConfig {
+export interface ModelSelection {
+  /** `provider/model` de OpenCode. Vacío = heredar el modelo de la sesión. */
   modelName: string;
+}
+
+export interface ModelProviderConfig extends ModelSelection {
   apiKey?: string;
   apiBase?: string;
   env?: Record<string, string>;
@@ -58,6 +62,8 @@ export interface HarnessConfig {
     inheritEnv?: boolean;
   };
   models: {
+    orchestrator: ModelSelection;
+    subagents: ModelSelection;
     aiderImplementer: ModelProviderConfig;
   };
   validation: {
@@ -94,6 +100,8 @@ export interface HarnessConfigFile {
     inheritEnv?: boolean;
   };
   models?: {
+    orchestrator?: Partial<ModelSelection>;
+    subagents?: Partial<ModelSelection>;
     aiderImplementer?: Partial<ModelProviderConfig>;
   };
   validation?: {
@@ -123,6 +131,16 @@ function assertString(value: unknown, field: string, source: string): void {
   if (value !== undefined && typeof value !== 'string') {
     throw new ConfigError(`El campo "${field}" debe ser una cadena en ${source}.`);
   }
+}
+
+function assertModelSelection(value: unknown, field: string, source: string): void {
+  if (value === undefined) {
+    return;
+  }
+  if (!isRecord(value)) {
+    throw new ConfigError(`El campo "${field}" debe ser un objeto en ${source}.`);
+  }
+  assertString(value.modelName, `${field}.modelName`, source);
 }
 
 function assertModel(value: unknown, field: string, source: string): void {
@@ -239,6 +257,8 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
     if (!isRecord(value.models)) {
       throw new ConfigError(`El campo "models" debe ser un objeto en ${source}.`);
     }
+    assertModelSelection(value.models.orchestrator, 'models.orchestrator', source);
+    assertModelSelection(value.models.subagents, 'models.subagents', source);
     assertModel(value.models.aiderImplementer, 'models.aiderImplementer', source);
   }
 
@@ -294,6 +314,10 @@ function interpolateCommands(commands: string[] | undefined): string[] | undefin
 }
 
 export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: HarnessConfigFile): HarnessConfig {
+  const globalOrchestrator = globalConfig.models?.orchestrator;
+  const localOrchestrator = localConfig.models?.orchestrator;
+  const globalSubagents = globalConfig.models?.subagents;
+  const localSubagents = localConfig.models?.subagents;
   const globalImplementer = globalConfig.models?.aiderImplementer;
   const localImplementer = localConfig.models?.aiderImplementer;
   const packageManager =
@@ -338,6 +362,12 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
       inheritEnv: localConfig.aider?.inheritEnv ?? globalConfig.aider?.inheritEnv ?? true
     },
     models: {
+      orchestrator: {
+        modelName: localOrchestrator?.modelName ?? globalOrchestrator?.modelName ?? ''
+      },
+      subagents: {
+        modelName: localSubagents?.modelName ?? globalSubagents?.modelName ?? ''
+      },
       aiderImplementer: {
         modelName: localImplementer?.modelName || globalImplementer?.modelName || DEFAULT_IMPLEMENTER_MODEL,
         apiKey: interpolateEnv(localImplementer?.apiKey || globalImplementer?.apiKey) ?? '',
@@ -393,6 +423,12 @@ export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
       inheritEnv: config.aider?.inheritEnv ?? true
     },
     models: {
+      orchestrator: {
+        modelName: config.models.orchestrator.modelName
+      },
+      subagents: {
+        modelName: config.models.subagents.modelName
+      },
       aiderImplementer: {
         modelName: config.models.aiderImplementer.modelName,
         apiKey: config.models.aiderImplementer.apiKey ?? '',
@@ -430,6 +466,12 @@ export function maskConfig(config: HarnessConfig): HarnessConfig {
     vitePlus: config.vitePlus,
     aider: config.aider,
     models: {
+      orchestrator: {
+        modelName: config.models.orchestrator.modelName
+      },
+      subagents: {
+        modelName: config.models.subagents.modelName
+      },
       aiderImplementer: {
         ...config.models.aiderImplementer,
         apiKey: maskValue(config.models.aiderImplementer.apiKey ?? ''),
