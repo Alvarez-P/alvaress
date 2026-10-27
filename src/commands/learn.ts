@@ -1,41 +1,64 @@
-import path from 'node:path';
+import { loadConfig } from '../config/loader.js';
+import type { HarnessConfig } from '../config/loader.js';
+import { DEFAULT_LAYA_TIMEOUT_MS } from '../constants.js';
+import type { DecisionEngine, LearningScopeDecision } from '../core/contracts.js';
+import { HeuristicDecisionEngine } from '../decision/heuristics.js';
+import { createDecisionEngine } from '../decision/laya.js';
 import {
   addLearning,
   assertLearningKind,
   filterLearnings,
-  findLearning,
+  findScopedLearning,
   formatLearning,
-  getMemoryPaths,
-  loadLearnings,
+  getMemoryStores,
+  loadScopedLearnings,
+  promoteLearning,
   pruneLearnings,
   rebuildPlaybook,
-  recordLearningUse,
+  recordScopedLearningUse,
   searchLearnings
 } from '../memory/learnings.js';
-import type { Learning, MemoryPaths } from '../memory/learnings.js';
+import type {
+  Learning,
+  LearningScope,
+  LearningScopeFilter,
+  MemoryStores,
+  ScopedLearning
+} from '../memory/learnings.js';
+import { inferProjectName } from '../openspec/manifest.js';
 import { flagEnabled, parseArgs } from '../utils/args.js';
 
 const HELP = `alvaress learn
 
-Aprendizajes globales que el agente reutiliza entre proyectos.
+Aprendizajes que el agente reutiliza. Hay dos stores:
+
+  global   ~/.alvaress/memory/learnings.json   (transversal a proyectos)
+  proyecto <root>/.harness/memory/learnings.json (contexto del repo)
+
+Al guardar, Laya decide si el aprendizaje es global o del proyecto. Puedes
+forzarlo con --global o --scope. Usa ALVARESS_MEMORY_DIR para mover el global.
 
 Uso:
   alvaress learn add <tipo> "<título>" ["<detalle>"]
       [--kind step|solution|pitfall|preference|improvement]
       [--title "<título>"] [--body "<detalle>"] [--tag pnpm,ci]
-      [--project <nombre>] [--source <tarea|run>] [--json]
-  alvaress learn list [--kind <tipo>] [--tag <tag>] [--limit 20] [--json]
-  alvaress learn search "<texto>" [--kind <tipo>] [--tag <tag>] [--limit 10] [--json]
+      [--project <nombre>] [--source <tarea|run>]
+      [--global | --scope project|global] [--json]
+  alvaress learn list [--scope all|global|project] [--kind <tipo>] [--tag <tag>] [--limit 20] [--json]
+  alvaress learn search "<texto>" [--scope all|global|project] [--kind <tipo>] [--tag <tag>] [--limit 10] [--json]
   alvaress learn show <id> [--json]
   alvaress learn use <id>
-  alvaress learn prune [--keep 100] [--max-age-days 90] [--dry-run]
-  alvaress learn playbook [--json]
+  alvaress learn promote <id>
+  alvaress learn prune [--scope all|global|project] [--keep 100] [--max-age-days 90] [--dry-run]
+  alvaress learn playbook [--scope all|global|project] [--json]
 
-El store vive en ~/.alvaress/memory/learnings.json y el resumen legible en
-~/.alvaress/memory/PLAYBOOK.md. Usa ALVARESS_MEMORY_DIR para cambiarlo.`;
+El playbook del proyecto incluye lo global relevante; el global solo lo global.`;
 
 export interface LearnCommandDeps {
   memoryDir?: string;
+  projectMemoryDir?: string;
+  decisions?: DecisionEngine;
+  config?: HarnessConfig;
   stdout?: (line: string) => void;
 }
 
@@ -56,20 +79,74 @@ function parseLimit(flags: Record<string, string | boolean>, fallback: number): 
   return value;
 }
 
+function parseScope(
+  flags: Record<string, string | boolean>,
+  fallback: LearningScopeFilter
+): LearningScopeFilter {
+  const raw = flagValue(flags, 'scope');
+  if (raw === undefined) {
+    return flagEnabled(flags, 'global') ? 'global' : fallback;
+  }
+  if (raw !== 'all' && raw !== 'global' && raw !== 'project') {
+    throw new Error('El valor de --scope solo admite "all", "global" o "project".');
+  }
+  return raw;
+}
+
 function printLearning(learning: Learning, stdout: (line: string) => void): void {
   stdout(formatLearning(learning));
   stdout('');
 }
 
-function resolvePaths(deps: LearnCommandDeps): MemoryPaths {
-  return getMemoryPaths(deps.memoryDir);
+function resolveStores(root: string, deps: LearnCommandDeps): MemoryStores {
+  return getMemoryStores(root, {
+    globalDir: deps.memoryDir,
+    projectDir: deps.projectMemoryDir
+  });
 }
 
-export function runLearnCommand(
+function rebuildForScope(stores: MemoryStores, scope: LearningScope): void {
+  if (scope === 'global') {
+    rebuildPlaybook(stores.global, loadScopedLearnings(stores, 'global'), new Date(), 'global');
+    return;
+  }
+  rebuildPlaybook(stores.project, loadScopedLearnings(stores, 'all'), new Date(), 'project');
+}
+
+function rebuildAll(stores: MemoryStores): void {
+  rebuildForScope(stores, 'global');
+  rebuildForScope(stores, 'project');
+}
+
+async function resolveDecisionEngine(
+  root: string,
+  deps: LearnCommandDeps
+): Promise<{ engine: DecisionEngine; owned: boolean }> {
+  if (deps.decisions !== undefined) {
+    return { engine: deps.decisions, owned: false };
+  }
+
+  let config: HarnessConfig;
+  try {
+    config = deps.config ?? loadConfig(root);
+  } catch {
+    return { engine: new HeuristicDecisionEngine(), owned: false };
+  }
+
+  const laya = config.laya ?? {
+    enabled: false,
+    device: 'cpu' as const,
+    timeoutMs: DEFAULT_LAYA_TIMEOUT_MS,
+    fallbackToHeuristic: true
+  };
+  return { engine: await createDecisionEngine({ root, config: laya }), owned: true };
+}
+
+export async function runLearnCommand(
   args: string[],
   root: string = process.cwd(),
   deps: LearnCommandDeps = {}
-): void {
+): Promise<void> {
   const stdout = deps.stdout ?? ((line: string) => console.log(line));
   const [subcommand, ...rest] = args;
 
@@ -83,7 +160,7 @@ export function runLearnCommand(
     return;
   }
 
-  const paths = resolvePaths(deps);
+  const stores = resolveStores(root, deps);
 
   if (subcommand === 'add') {
     const { positional, flags } = parseArgs(rest);
@@ -98,37 +175,78 @@ export function runLearnCommand(
     const body = flagValue(flags, 'body') ?? positional.slice(2).join(' ');
     const tags = [flagValue(flags, 'tag'), flagValue(flags, 'tags')]
       .filter((tag): tag is string => tag !== undefined);
-    const project = flagValue(flags, 'project') ?? path.basename(path.resolve(root));
+    const project = flagValue(flags, 'project') ?? inferProjectName(root);
+    const learningKind = assertLearningKind(kind);
 
+    const forcedScope = parseScope(flags, 'project');
+    if (forcedScope === 'all') {
+      throw new Error('learn add requiere --scope global o --scope project.');
+    }
+    const forced =
+      flagEnabled(flags, 'global') || flagValue(flags, 'scope') !== undefined;
+
+    let scope: LearningScope = forcedScope;
+    let decision: LearningScopeDecision | undefined;
+
+    if (!forced) {
+      const { engine, owned } = await resolveDecisionEngine(root, deps);
+      try {
+        decision = await engine.decideLearningScope({
+          kind: learningKind,
+          title,
+          body,
+          tags,
+          project
+        });
+        scope = decision.scope;
+      } finally {
+        if (owned) {
+          await engine.close?.();
+        }
+      }
+    }
+
+    const target = scope === 'global' ? stores.global : stores.project;
     const result = addLearning(
       {
-        kind: assertLearningKind(kind),
+        kind: learningKind,
         title,
         body,
         tags,
         project,
         source: flagValue(flags, 'source')
       },
-      paths
+      target
     );
+    rebuildForScope(stores, scope);
 
     if (flagEnabled(flags, 'json')) {
-      stdout(JSON.stringify(result, null, 2));
+      stdout(
+        JSON.stringify(
+          { ...result, scope, decision, store: target.store, playbook: target.playbook },
+          null,
+          2
+        )
+      );
       return;
     }
+
     stdout(
       result.created
         ? `Aprendizaje guardado: ${result.learning.id} · ${result.learning.title}`
         : `Aprendizaje reforzado: ${result.learning.id} · ${result.learning.title} (usos: ${result.learning.uses})`
     );
-    stdout(`Playbook: ${paths.playbook}`);
+    const reason = decision !== undefined ? ` — ${decision.reason}` : forced ? ' — forzado' : '';
+    stdout(`Scope: ${scope}${reason}`);
+    stdout(`Store: ${target.store}`);
+    stdout(`Playbook: ${target.playbook}`);
     return;
   }
 
   if (subcommand === 'list') {
     const { flags } = parseArgs(rest);
     const kind = flagValue(flags, 'kind');
-    const learnings = filterLearnings(loadLearnings(paths), {
+    const learnings = filterLearnings(loadScopedLearnings(stores, parseScope(flags, 'all')), {
       kind: kind === undefined ? undefined : assertLearningKind(kind),
       tag: flagValue(flags, 'tag'),
       limit: parseLimit(flags, 20)
@@ -143,8 +261,9 @@ export function runLearnCommand(
       return;
     }
     for (const learning of learnings) {
+      const scope = (learning as ScopedLearning).scope ?? 'global';
       stdout(
-        `${learning.id}  ${learning.kind.padEnd(11)} ${learning.project.padEnd(18)} usos=${learning.uses}  ${learning.title}`
+        `${learning.id}  ${learning.kind.padEnd(11)} ${scope.padEnd(7)} ${learning.project.padEnd(18)} usos=${learning.uses}  ${learning.title}`
       );
     }
     return;
@@ -157,7 +276,7 @@ export function runLearnCommand(
       throw new Error('Uso: alvaress learn search "<texto>"');
     }
     const kind = flagValue(flags, 'kind');
-    const learnings = loadLearnings(paths);
+    const learnings = loadScopedLearnings(stores, parseScope(flags, 'all'));
     const scoped = kind === undefined
       ? learnings
       : learnings.filter((learning) => learning.kind === assertLearningKind(kind));
@@ -183,7 +302,7 @@ export function runLearnCommand(
     if (id === undefined) {
       throw new Error('Uso: alvaress learn show <id>');
     }
-    const learning = findLearning(loadLearnings(paths), id);
+    const learning = findScopedLearning(stores, id);
     if (learning === undefined) {
       throw new Error(`No existe el aprendizaje "${id}". Usa "alvaress learn list".`);
     }
@@ -201,8 +320,30 @@ export function runLearnCommand(
     if (id === undefined) {
       throw new Error('Uso: alvaress learn use <id>');
     }
-    const learning = recordLearningUse(id, paths);
-    stdout(`Aprendizaje reutilizado: ${learning.id} · ${learning.title} (usos: ${learning.uses})`);
+    const learning = recordScopedLearningUse(id, stores);
+    stdout(
+      `Aprendizaje reutilizado: ${learning.id} · ${learning.title} (${learning.scope}, usos: ${learning.uses})`
+    );
+    return;
+  }
+
+  if (subcommand === 'promote') {
+    const { positional, flags } = parseArgs(rest);
+    const id = positional[0];
+    if (id === undefined) {
+      throw new Error('Uso: alvaress learn promote <id>');
+    }
+    const result = promoteLearning(id, stores);
+    if (flagEnabled(flags, 'json')) {
+      stdout(JSON.stringify({ ...result, store: stores.global.store }, null, 2));
+      return;
+    }
+    stdout(
+      result.created
+        ? `Aprendizaje promovido al global: ${result.learning.id} · ${result.learning.title}`
+        : `Aprendizaje reforzado en el global: ${result.learning.id} · ${result.learning.title}`
+    );
+    stdout(`Store global: ${stores.global.store}`);
     return;
   }
 
@@ -216,32 +357,77 @@ export function runLearnCommand(
       throw new Error('El valor de --max-age-days debe ser un entero mayor o igual a 1.');
     }
     const dryRun = flagEnabled(flags, 'dry-run');
-    const result = pruneLearnings(paths, { keep, maxAgeDays, dryRun });
+    const scope = parseScope(flags, 'all');
+    const scopes: LearningScope[] =
+      scope === 'all' ? ['global', 'project'] : [scope];
+    const results = scopes.map((target) => {
+      const result = pruneLearnings(target === 'global' ? stores.global : stores.project, {
+        keep,
+        maxAgeDays,
+        dryRun
+      });
+      return { scope: target, ...result };
+    });
+    if (!dryRun) {
+      rebuildAll(stores);
+    }
 
     if (flagEnabled(flags, 'json')) {
-      stdout(JSON.stringify({ ...result, dryRun }, null, 2));
+      stdout(JSON.stringify({ dryRun, results }, null, 2));
       return;
     }
-    if (result.removed.length === 0) {
-      stdout(`Sin cambios: ${result.kept} aprendizaje(s) conservados.`);
+    const removed = results.reduce((total, result) => total + result.removed.length, 0);
+    if (removed === 0) {
+      const kept = results.reduce((total, result) => total + result.kept, 0);
+      stdout(`Sin cambios: ${kept} aprendizaje(s) conservados.`);
       return;
     }
-    for (const learning of result.removed) {
-      stdout(`${dryRun ? 'Se eliminaría' : 'Eliminado'}: ${learning.id} · ${learning.title}`);
+    for (const result of results) {
+      for (const learning of result.removed) {
+        stdout(
+          `${dryRun ? 'Se eliminaría' : 'Eliminado'} (${result.scope}): ${learning.id} · ${learning.title}`
+        );
+      }
     }
-    stdout(`${dryRun ? 'Simulación' : 'Limpieza'}: ${result.removed.length} eliminado(s), ${result.kept} conservado(s).`);
+    const kept = results.reduce((total, result) => total + result.kept, 0);
+    stdout(
+      `${dryRun ? 'Simulación' : 'Limpieza'}: ${removed} eliminado(s), ${kept} conservado(s).`
+    );
     return;
   }
 
   if (subcommand === 'playbook') {
     const { flags } = parseArgs(rest);
-    const learnings = loadLearnings(paths);
-    rebuildPlaybook(paths, learnings);
+    const scope = parseScope(flags, 'all');
+    if (scope !== 'project') {
+      rebuildForScope(stores, 'global');
+    }
+    if (scope !== 'global') {
+      rebuildForScope(stores, 'project');
+    }
+    const globalEntries = loadScopedLearnings(stores, 'global').length;
+    const projectEntries = loadScopedLearnings(stores, 'all').length;
     if (flagEnabled(flags, 'json')) {
-      stdout(JSON.stringify({ path: paths.playbook, entries: learnings.length }, null, 2));
+      stdout(
+        JSON.stringify(
+          {
+            global: { path: stores.global.playbook, entries: globalEntries },
+            project: { path: stores.project.playbook, entries: projectEntries }
+          },
+          null,
+          2
+        )
+      );
       return;
     }
-    stdout(`Playbook regenerado en ${paths.playbook} (${learnings.length} aprendizaje(s)).`);
+    if (scope !== 'project') {
+      stdout(`Playbook global regenerado en ${stores.global.playbook} (${globalEntries} aprendizaje(s)).`);
+    }
+    if (scope !== 'global') {
+      stdout(
+        `Playbook del proyecto regenerado en ${stores.project.playbook} (${projectEntries} aprendizaje(s)).`
+      );
+    }
     return;
   }
 

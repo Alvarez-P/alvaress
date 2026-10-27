@@ -336,3 +336,82 @@ test('createDecisionEngine envuelve el agente cargado', async () => {
 
   assert.ok(engine instanceof LayaDecisionEngine);
 });
+
+test('HeuristicDecisionEngine decide global para prácticas transversales', async () => {
+  const engine = new HeuristicDecisionEngine();
+  const decision = await engine.decideLearningScope({
+    kind: 'pitfall',
+    title: 'pnpm no reinstala dependencias con el lockfile roto',
+    body: 'Ejecutar pnpm install --force antes de borrar node_modules.',
+    tags: ['pnpm'],
+    project: 'demo'
+  });
+
+  assert.equal(decision.scope, 'global');
+  assert.equal(decision.source, 'heuristic');
+});
+
+test('HeuristicDecisionEngine decide proyecto para contexto local', async () => {
+  const decision = await new HeuristicDecisionEngine().decideLearningScope({
+    kind: 'pitfall',
+    title: 'El endpoint de facturas exige migración local',
+    body: 'Antes de tocar src/billing/repository.ts ejecuta la migración del proyecto.',
+    tags: [],
+    project: 'demo'
+  });
+
+  assert.equal(decision.scope, 'project');
+});
+
+test('HeuristicDecisionEngine respeta los tags explícitos de scope', async () => {
+  const engine = new HeuristicDecisionEngine();
+  const global = await engine.decideLearningScope({
+    kind: 'preference',
+    title: 'Preferencia explícita de scope',
+    body: 'Este aprendizaje se marcó como global aunque mencione src/app.ts.',
+    tags: ['global'],
+    project: 'demo'
+  });
+  const project = await engine.decideLearningScope({
+    kind: 'preference',
+    title: 'Preferencia explícita de scope',
+    body: 'Este aprendizaje se marcó como del proyecto aunque hable de pnpm.',
+    tags: ['project'],
+    project: 'demo'
+  });
+
+  assert.equal(global.scope, 'global');
+  assert.equal(project.scope, 'project');
+});
+
+test('LayaDecisionEngine decide el scope del aprendizaje', async () => {
+  const agent = fakeAgent({ scope: { type: 'choice', choice: 'global', answer_confidence: 0.88 } });
+  const decision = await new LayaDecisionEngine(agent).decideLearningScope({
+    kind: 'solution',
+    title: 'Validar migraciones en seco',
+    body: 'Ejecutar el SQL en una transacción y revertir antes de aplicar.',
+    tags: ['db'],
+    project: 'demo'
+  });
+
+  assert.equal(decision.scope, 'global');
+  assert.equal(decision.confidence, 0.88);
+  assert.equal(decision.source, 'laya');
+  assert.ok(agent.calls[0]?.questions.scope !== undefined);
+});
+
+test('LayaDecisionEngine cae a la heurística si el scope falla', async () => {
+  const agent = fakeAgent(async () => {
+    throw new Error('modelo no disponible');
+  });
+  const decision = await new LayaDecisionEngine(agent).decideLearningScope({
+    kind: 'pitfall',
+    title: 'El endpoint de facturas exige migración local',
+    body: 'Antes de tocar src/billing/repository.ts ejecuta la migración del proyecto.',
+    tags: [],
+    project: 'demo'
+  });
+
+  assert.equal(decision.scope, 'project');
+  assert.equal(decision.source, 'heuristic');
+});

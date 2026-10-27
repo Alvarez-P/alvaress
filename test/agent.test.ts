@@ -38,6 +38,9 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /no pegues logs completos/i);
   assert.match(rendered, /Aider es opcional/);
   assert.match(rendered, /alvaress-explorer/);
+  assert.match(rendered, /Aprendizajes del proyecto: `\.harness\/memory\/learnings\.json`/);
+  assert.match(rendered, /Laya decide el scope/);
+  assert.match(rendered, /alvaress learn promote/);
   assert.match(rendered, /alvaress-fixer/);
   assert.match(rendered, /resource: "pnpm run validate \*"/);
   assert.doesNotMatch(rendered, /resource: "pnpm run \*"/);

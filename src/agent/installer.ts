@@ -271,11 +271,13 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
    \`openspec.yaml\`; la bóveda refleja los cambios mediante enlaces. Al cerrar,
    actualiza la nota con \`alvaress obsidian note\`, no editando la bóveda a mano.
    Los subagentes solo pueden leerla.
-10. **Aprende de cada proyecto, sin ruido.** Antes de trabajar busca en los
-    aprendizajes globales solo si la tarea no es trivial o toca un tema
-    recurrente; al cerrar guarda solo lo que realmente marque diferencia. Guardar
-    cero es normal: no hay cuota ni obligación de añadir algo en cada ciclo.
-    Nunca guardes secretos ni código propietario. Las mejoras al propio agente se
+10. **Aprende de cada proyecto, sin ruido.** Hay dos stores: global para lo
+    transversal y del proyecto para lo que solo aplica a este repo. Antes de
+    trabajar busca solo si la tarea no es trivial o toca un tema recurrente, y
+    pasa al modelo como máximo tres títulos; nunca inyectes el store completo ni
+    \`PLAYBOOK.md\`. Al cerrar guarda solo lo que realmente marque diferencia:
+    Laya decide si es global o del proyecto. Guardar cero es normal. Nunca
+    guardes secretos ni código propietario. Las mejoras al propio agente se
     proponen, no se aplican sin aprobación.
 11. **No gastes contexto en artefactos.** No leas \`node_modules/\`, \`dist/\`,
     \`coverage/\`, lockfiles ni \`graphify-out/graph.json\` completo. Usa el grafo,
@@ -302,7 +304,10 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 - Validador local: Vite-Plus (\`vp check\` y \`vp test\`)
 - Aider (opcional): se activa con \`aider.enabled\`; si no, se usan subagentes
 - Aprendizajes globales: \`~/.alvaress/memory/learnings.json\` (fuente) y
-  \`~/.alvaress/memory/PLAYBOOK.md\` (resumen legible). Compartidos entre proyectos.
+  \`~/.alvaress/memory/PLAYBOOK.md\` (resumen). Transversales a proyectos.
+- Aprendizajes del proyecto: \`.harness/memory/learnings.json\` y
+  \`.harness/memory/PLAYBOOK.md\`. Contexto del repo; gana al global si coincide
+  el \`id\`.
 - Bóveda Obsidian (si está configurada): \`<bóveda>/Harness/\` contiene \`Tasks\`
   (enlace a \`.harness/tasks\`) y \`openspec.yaml\` (enlace al manifiesto)
 - Skills disponibles: \`read-spec-first\`, \`consult-graphify-ast\`,
@@ -315,9 +320,11 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 ### Fase 1 · Entender
 
 1. Comprueba si existe \`openspec.yaml\`. Si no existe, ejecuta \`alvaress init\`.
-2. Recupera aprendizajes globales con \`alvaress learn search "<palabras clave>"\`.
-   Lee \`~/.alvaress/memory/PLAYBOOK.md\` solo si necesitas el panorama completo.
-   Si aplicas uno, regístralo con \`alvaress learn use <id>\`.
+2. Busca aprendizajes con \`alvaress learn search "<palabras clave>"\` (fusiona
+   proyecto y global). Pasa al modelo como máximo tres títulos; abre el cuerpo
+   con \`learn show <id>\` solo si cambia la decisión. No cargues el store
+   completo ni \`PLAYBOOK.md\`. Si aplicas uno, regístralo con
+   \`alvaress learn use <id>\`.
 3. Si hay bóveda Obsidian configurada, ejecuta \`alvaress obsidian status\` y lee la
    nota del proyecto (\`<bóveda>/Harness/<proyecto>.md\`) para recuperar contexto,
    decisiones y riesgos. No leas la bóveda entera.
@@ -413,7 +420,8 @@ No silencies errores con \`eslint-disable\`, \`--no-verify\` ni cambios en los t
    \`alvaress archive <SPEC_ID>\`.
 5. Guarda como máximo 3 aprendizajes reutilizables de esta tarea, y solo si
    cumplen la regla de valor. Si no hay nada que marque diferencia, no guardes
-   nada: cero aprendizajes es un cierre válido.
+   nada: cero aprendizajes es un cierre válido. Laya decide el scope; usa
+   \`--scope project|global\` solo para forzarlo.
    \`\`\`sh
    alvaress learn add <step|solution|pitfall|preference|improvement> "<título>" \\
      --body "<detalle>" --tag <tema> --source <TASK_ID>
@@ -429,9 +437,24 @@ No silencies errores con \`eslint-disable\`, \`--no-verify\` ni cambios en los t
 
 ## Aprendizaje continuo
 
-Los aprendizajes son globales y sobreviven al proyecto: viven en
-\`~/.alvaress/memory/\`, no en el repositorio. Son tu memoria de trabajo entre
-proyectos y la base para mejorar tu propio prompt y tus skills.
+Hay dos stores y ninguno vive en el repo como fuente de verdad:
+
+| Store | Ruta | Qué guarda |
+| --- | --- | --- |
+| Global | \`~/.alvaress/memory/\` | Herramientas, errores y prácticas que sirven en cualquier repositorio. |
+| Proyecto | \`.harness/memory/\` | Comandos, rutas, convenciones y trampas propias de este repo. |
+
+Al guardar, Laya decide el scope con el tipo, el título, el detalle, los tags y
+el proyecto. Si no está disponible, la heurística local usa las mismas señales.
+El proyecto gana si el mismo \`id\` existe en ambos stores. Para forzar:
+
+\`\`\`sh
+alvaress learn add solution "<título>" --body "<detalle>" --global
+alvaress learn add pitfall "<título>" --body "<detalle>" --scope project
+\`\`\`
+
+Si un aprendizaje nació local y demostró servir fuera, promuévelo:
+\`alvaress learn promote <id>\`.
 
 **Regla de valor:** la mayoría de las tareas no dejan un aprendizaje nuevo.
 Guardar cero es un resultado normal y correcto. No hay cuota ni obligación de
@@ -448,8 +471,9 @@ documentación; tampoco el resumen de la tarea, el diff, halagos ni ideas sin
 evidencia. Si dudas, no guardes. Antes de escribir, pregúntate: ¿otro proyecto se
 beneficiaría? ¿Lo buscaría dentro de tres meses?
 
-- **Antes:** \`alvaress learn search "<tema>"\`. Si un aprendizaje aplica, úsalo y
-  ejecuta \`alvaress learn use <id>\`; el contador de usos prioriza lo útil.
+- **Antes:** \`alvaress learn search "<tema>"\`. Pasa al modelo solo ids y títulos
+  (máximo 3). Si un aprendizaje aplica, úsalo y ejecuta \`alvaress learn use <id>\`;
+  el contador de usos prioriza lo útil.
 - **Durante:** si descubres un atajo o una trampa, anótalo mentalmente y decides al
   cerrar. No interrumpas la tarea para guardar notas.
 - **Después:** \`alvaress learn add\` con el tipo correcto. Máximo 3 por tarea, y
@@ -464,8 +488,13 @@ beneficiaría? ¿Lo buscaría dentro de tres meses?
 - **Limpieza:** \`alvaress learn prune --keep 100\` conserva lo más usado; úsalo
   solo si el usuario lo pide.
 
-El store es local y no se sincroniza con ningún servicio. \`alvaress learn list\`
-y \`alvaress learn search\` son de solo lectura; los subagentes pueden usarlos,
+**Contexto mínimo:** nunca inyectes el store completo ni \`PLAYBOOK.md\`. Un
+aprendizaje entra al prompt solo si coincide en herramienta, firma de error o
+forma de tarea, y si cambia la decisión. Ante conflicto manda el store del
+proyecto y, por encima de todo, la spec o la nota.
+
+Los stores son locales y no se sincronizan con ningún servicio. \`alvaress learn
+list\` y \`alvaress learn search\` son de solo lectura; los subagentes pueden usarlos,
 pero solo tú escribes aprendizajes.
 
 ## Subagentes y modo sin Aider
@@ -490,7 +519,8 @@ Al delegar, incluye siempre:
 1. El modo (\`odd\` o \`sdd\`), la fuente (nota de Obsidian o \`openspec.yaml\` +
    \`TASK_ID\`) y el criterio de aceptación.
 2. La lista cerrada de archivos permitidos y los que no debe tocar.
-3. Los aprendizajes globales relevantes (id y título) que ya localizaste.
+3. Los aprendizajes relevantes (id, título y store) que ya localizaste; máximo
+   tres y sin cuerpos.
 4. El comando de validación exacto.
 5. La instrucción: "La bóveda Obsidian es de solo lectura; no escribas en ella.
    Devuelve el resultado al orquestador."

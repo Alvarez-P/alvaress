@@ -30,7 +30,13 @@ import type {
 import { HarnessCore, createRunId, firstFailure } from '../core/harness.js';
 import { HeuristicDecisionEngine } from '../decision/heuristics.js';
 import { createDecisionEngine } from '../decision/laya.js';
-import { addLearning, recordLearningUse } from '../memory/learnings.js';
+import {
+  addLearning,
+  getMemoryStores,
+  loadScopedLearnings,
+  rebuildPlaybook,
+  recordScopedLearningUse
+} from '../memory/learnings.js';
 import { appendVaultNoteEntry, connectObsidianVault, getVaultNotePath } from '../obsidian/vault.js';
 import {
   inferProjectName,
@@ -668,9 +674,10 @@ export async function runHarnessCommand(
         }
 
         if (input.request.learn !== false) {
+          const stores = getMemoryStores(root);
           for (const learning of input.exploration.learnings) {
             try {
-              recordLearningUse(learning.id);
+              recordScopedLearningUse(learning.id, stores);
             } catch {
               // Un aprendizaje eliminado no debe bloquear el cierre.
             }
@@ -678,16 +685,50 @@ export async function runHarnessCommand(
 
           if (lastFix !== undefined) {
             try {
-              const title = `Fallo de ${lastFix.command} reparado en ${inferProjectName(root)}`.slice(0, 120);
-              addLearning({
-                kind: 'pitfall',
-                title,
-                body: `El comando ${lastFix.command} falló durante el run ${runId} y se reparó con un cambio acotado. Error inicial: ${lastFix.error.slice(0, 600)}`,
-                tags: ['validacion', input.mode],
-                project: inferProjectName(root),
-                source: runId
-              });
-              log.text('Aprendizaje', 'Se guardó el fallo reparado como pitfall reutilizable.');
+              const project = inferProjectName(root);
+              const title = `Fallo de ${lastFix.command} reparado en ${project}`.slice(0, 120);
+              const body = `El comando ${lastFix.command} falló durante el run ${runId} y se reparó con un cambio acotado. Error inicial: ${lastFix.error.slice(0, 600)}`;
+              const tags = ['validacion', input.mode];
+              const scopeDecision =
+                decisions !== undefined
+                  ? await decisions.decideLearningScope({
+                      kind: 'pitfall',
+                      title,
+                      body,
+                      tags,
+                      project
+                    })
+                  : {
+                      scope: 'project' as const,
+                      confidence: 0.5,
+                      reason: 'Sin motor de decisión; se guarda en el proyecto.',
+                      source: 'heuristic' as const
+                    };
+              const target =
+                scopeDecision.scope === 'global' ? stores.global : stores.project;
+              addLearning(
+                {
+                  kind: 'pitfall',
+                  title,
+                  body,
+                  tags,
+                  project,
+                  source: runId
+                },
+                target
+              );
+              rebuildPlaybook(
+                target,
+                scopeDecision.scope === 'global'
+                  ? loadScopedLearnings(stores, 'global')
+                  : loadScopedLearnings(stores, 'all'),
+                new Date(),
+                scopeDecision.scope
+              );
+              log.text(
+                'Aprendizaje',
+                `Fallo reparado guardado como pitfall en el store ${scopeDecision.scope} (${scopeDecision.source}).`
+              );
             } catch (error) {
               log.text('Aprendizaje', `Omitido: ${errorMessage(error)}`);
             }

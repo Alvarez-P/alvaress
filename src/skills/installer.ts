@@ -83,15 +83,16 @@ export const SKILLS: SkillDefinition[] = [
   },
   {
     name: 'continuous-learning',
-    description: 'Guarda solo aprendizajes globales que marcan diferencia y los reutiliza en proyectos futuros.',
+    description: 'Guarda aprendizajes en el store global o del proyecto y los reutiliza sin inflar el contexto.',
     scope: 'project',
-    body: `Los aprendizajes viven fuera del proyecto, en \`~/.alvaress/memory/\`. Sirven para no volver a resolver dos veces el mismo problema y para proponer mejoras al propio agente.
+    body: `Hay dos stores: \`~/.alvaress/memory/\` para lo transversal y \`.harness/memory/\` para el contexto de este repo. Sirven para no volver a resolver dos veces el mismo problema y para proponer mejoras al propio agente.
 
 ## Antes de trabajar
 
 1. Si la tarea no es trivial o toca un tema que ya resolviste, ejecuta \`alvaress learn search "<tema>"\` con las palabras clave. No gastes una búsqueda en cambios de una línea.
-2. Lee \`~/.alvaress/memory/PLAYBOOK.md\` solo si necesitas el panorama completo; no lo cargues para una tarea pequeña.
+2. Pasa al modelo como máximo tres títulos. Abre el cuerpo con \`alvaress learn show <id>\` solo si cambia la decisión. Nunca cargues el store completo ni \`PLAYBOOK.md\`.
 3. Si un aprendizaje aplica, úsalo y regístralo con \`alvaress learn use <id>\`.
+4. Descarta el aprendizaje si no coincide en herramienta, firma de error o forma de tarea, o si contradice la spec o el código actual.
 
 ## Después de cerrar
 
@@ -113,6 +114,22 @@ No guardes:
 - halagos, notas de ánimo o ideas sin evidencia.
 
 Si dudas, no guardes. Antes de escribir, pregúntate: ¿otro proyecto se beneficiaría? ¿Lo buscaría dentro de tres meses?
+
+## Scope
+
+Laya decide si el aprendizaje es \`global\` o \`project\` al guardar. Si no está disponible, una heurística local usa las mismas señales: herramientas y prácticas transversales van al global; rutas, ids y configuración del repo van al proyecto. El proyecto gana si el mismo \`id\` existe en ambos.
+
+\`\`\`sh
+# Laya decide el store
+alvaress learn add solution "<título>" --body "<detalle>"
+
+# Forzar el scope
+alvaress learn add solution "<título>" --body "<detalle>" --global
+alvaress learn add pitfall "<título>" --body "<detalle>" --scope project
+
+# Promover del proyecto al global
+alvaress learn promote <id>
+\`\`\`
 
 Tipos:
 

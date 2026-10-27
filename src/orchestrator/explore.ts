@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { HarnessConfig } from '../config/loader.js';
 import { OPENSPEC_FILENAME } from '../constants.js';
 import type { Exploration, Risk, RouteDecision, RunRequest } from '../core/contracts.js';
-import { loadLearnings, searchLearnings } from '../memory/learnings.js';
+import { getMemoryStores, loadScopedLearnings, searchLearnings } from '../memory/learnings.js';
 import {
   collectWorkItems,
   contextPath,
@@ -207,9 +207,14 @@ export function resolveOddNote(
   return undefined;
 }
 
-function relevantLearnings(request: string, description: string): Array<{ id: string; title: string }> {
+function relevantLearnings(
+  root: string,
+  request: string,
+  description: string
+): Array<{ id: string; title: string }> {
   try {
-    const learnings = loadLearnings();
+    const stores = getMemoryStores(root);
+    const learnings = loadScopedLearnings(stores, 'all');
     if (learnings.length === 0) {
       return [];
     }
@@ -282,7 +287,7 @@ function taskExploration(
     acceptance,
     files,
     validation,
-    learnings: relevantLearnings(request.request, item.task.description),
+    learnings: relevantLearnings(root, request.request, item.task.description),
     risks,
     ...(blockedBy !== undefined ? { blockedBy } : {})
   };
@@ -326,7 +331,7 @@ async function exploreSdd(
       acceptance: [request.request],
       files: request.files ?? [],
       validation: context.config.validation.commands,
-      learnings: relevantLearnings(request.request, ''),
+      learnings: relevantLearnings(context.root, request.request, ''),
       risks: [],
       blockedBy: `No hay tareas pendientes en ${OPENSPEC_FILENAME}. Crea la spec y sus tareas primero.`
     };
@@ -362,7 +367,7 @@ async function exploreOdd(
       acceptance: [request.request],
       files: request.files ?? [],
       validation: context.config.validation.commands,
-      learnings: relevantLearnings(request.request, ''),
+      learnings: relevantLearnings(context.root, request.request, ''),
       risks: [],
       blockedBy:
         'No se encontró la nota ODD. Configura obsidianVaultPath, crea la nota del proyecto o usa --mode sdd.'
@@ -399,7 +404,7 @@ async function exploreOdd(
     acceptance,
     files,
     validation: context.config.validation.commands,
-    learnings: relevantLearnings(request.request, note),
+    learnings: relevantLearnings(context.root, request.request, note),
     risks
   };
 }

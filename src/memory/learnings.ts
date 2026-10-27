@@ -4,6 +4,7 @@ import {
   GLOBAL_MEMORY_DIR,
   GLOBAL_MEMORY_FILENAME,
   GLOBAL_PLAYBOOK_FILENAME,
+  HARNESS_DIR,
   MEMORY_DIR_ENV
 } from '../constants.js';
 import { ensureDir, pathExists, readJsonFile, writeJsonFile, writeTextFileAtomic } from '../utils/fs.js';
@@ -56,6 +57,23 @@ export interface MemoryPaths {
   playbook: string;
 }
 
+export type LearningScope = 'global' | 'project';
+export type LearningScopeFilter = LearningScope | 'all';
+
+export interface ScopedLearning extends Learning {
+  scope: LearningScope;
+}
+
+export interface MemoryStores {
+  global: MemoryPaths;
+  project: MemoryPaths;
+}
+
+export interface PromoteResult {
+  learning: Learning;
+  created: boolean;
+}
+
 export interface AddLearningInput {
   kind: LearningKind;
   title: string;
@@ -102,6 +120,24 @@ export function getMemoryPaths(dir?: string): MemoryPaths {
     dir: resolved,
     store: path.join(resolved, GLOBAL_MEMORY_FILENAME),
     playbook: path.join(resolved, GLOBAL_PLAYBOOK_FILENAME)
+  };
+}
+
+/** Store de aprendizajes propio del proyecto: `<root>/.harness/memory/`. */
+export function getProjectMemoryPaths(root: string): MemoryPaths {
+  return getMemoryPaths(path.join(root, HARNESS_DIR, 'memory'));
+}
+
+export function getMemoryStores(
+  root: string,
+  options: { globalDir?: string; projectDir?: string } = {}
+): MemoryStores {
+  return {
+    global: getMemoryPaths(options.globalDir),
+    project:
+      options.projectDir !== undefined && options.projectDir.trim().length > 0
+        ? getMemoryPaths(options.projectDir)
+        : getProjectMemoryPaths(root)
   };
 }
 
@@ -165,9 +201,18 @@ export function loadLearnings(paths: MemoryPaths = getMemoryPaths()): Learning[]
     .filter((entry): entry is Learning => entry !== undefined);
 }
 
+function stripScope(learning: Learning): Learning {
+  if (!('scope' in learning)) {
+    return learning;
+  }
+  const copy = { ...learning } as Learning & { scope?: LearningScope };
+  delete copy.scope;
+  return copy;
+}
+
 export function saveLearnings(learnings: Learning[], paths: MemoryPaths = getMemoryPaths()): void {
   ensureDir(paths.dir);
-  const store: LearningStoreFile = { version: 1, learnings };
+  const store: LearningStoreFile = { version: 1, learnings: learnings.map(stripScope) };
   writeJsonFile(paths.store, store);
 }
 
@@ -279,11 +324,15 @@ function compareRank(a: Learning, b: Learning): number {
   return rank(b) - rank(a);
 }
 
-export function sortLearnings(learnings: Learning[]): Learning[] {
+export function sortLearnings<T extends Learning>(learnings: T[]): T[] {
   return learnings.toSorted(compareRank);
 }
 
-export function searchLearnings(learnings: Learning[], query: string, limit = 10): Learning[] {
+export function searchLearnings<T extends Learning>(
+  learnings: T[],
+  query: string,
+  limit = 10
+): T[] {
   const terms = query
     .toLowerCase()
     .split(/\s+/)
@@ -319,7 +368,10 @@ export function searchLearnings(learnings: Learning[], query: string, limit = 10
   return scored.slice(0, limit).map((entry) => entry.learning);
 }
 
-export function filterLearnings(learnings: Learning[], filter: LearningFilter = {}): Learning[] {
+export function filterLearnings<T extends Learning>(
+  learnings: T[],
+  filter: LearningFilter = {}
+): T[] {
   const tag = filter.tag?.trim().replace(/^#+/, '').toLowerCase();
   const filtered = learnings.filter((learning) => {
     if (filter.kind !== undefined && learning.kind !== filter.kind) {
@@ -345,6 +397,107 @@ export function findLearning(learnings: Learning[], id: string): Learning | unde
   }
   const matches = learnings.filter((learning) => learning.id.toLowerCase().startsWith(query));
   return matches.length === 1 ? matches[0] : undefined;
+}
+
+/**
+ * Carga y fusiona los dos stores. El del proyecto gana cuando ambos tienen el
+ * mismo id, porque describe el contexto concreto donde se está trabajando.
+ */
+export function loadScopedLearnings(
+  stores: MemoryStores,
+  scope: LearningScopeFilter = 'all'
+): ScopedLearning[] {
+  const byId = new Map<string, ScopedLearning>();
+
+  if (scope !== 'project') {
+    for (const learning of loadLearnings(stores.global)) {
+      byId.set(learning.id, { ...learning, scope: 'global' });
+    }
+  }
+  if (scope !== 'global') {
+    for (const learning of loadLearnings(stores.project)) {
+      byId.set(learning.id, { ...learning, scope: 'project' });
+    }
+  }
+
+  return sortLearnings([...byId.values()]);
+}
+
+export function findScopedLearning(
+  stores: MemoryStores,
+  id: string
+): ScopedLearning | undefined {
+  const project = findLearning(loadLearnings(stores.project), id);
+  if (project !== undefined) {
+    return { ...project, scope: 'project' };
+  }
+  const global = findLearning(loadLearnings(stores.global), id);
+  return global !== undefined ? { ...global, scope: 'global' } : undefined;
+}
+
+export function recordScopedLearningUse(
+  id: string,
+  stores: MemoryStores,
+  now: Date = new Date()
+): ScopedLearning {
+  const project = loadLearnings(stores.project);
+  const projectMatch = findLearning(project, id);
+  if (projectMatch !== undefined) {
+    projectMatch.uses += 1;
+    projectMatch.lastUsedAt = now.toISOString();
+    saveLearnings(project, stores.project);
+    rebuildPlaybook(stores.project, loadScopedLearnings(stores, 'all'), now, 'project');
+    return { ...projectMatch, scope: 'project' };
+  }
+
+  const global = loadLearnings(stores.global);
+  const globalMatch = findLearning(global, id);
+  if (globalMatch === undefined) {
+    throw new Error(`No existe el aprendizaje "${id}". Usa "alvaress learn list".`);
+  }
+  globalMatch.uses += 1;
+  globalMatch.lastUsedAt = now.toISOString();
+  saveLearnings(global, stores.global);
+  rebuildPlaybook(stores.global, global, now, 'global');
+  return { ...globalMatch, scope: 'global' };
+}
+
+/** Copia un aprendizaje del proyecto al store global sin borrarlo del proyecto. */
+export function promoteLearning(
+  id: string,
+  stores: MemoryStores,
+  now: Date = new Date()
+): PromoteResult {
+  const project = loadLearnings(stores.project);
+  const source = findLearning(project, id);
+  if (source === undefined) {
+    const alreadyGlobal = findLearning(loadLearnings(stores.global), id);
+    if (alreadyGlobal !== undefined) {
+      throw new Error(`El aprendizaje "${id}" ya vive en el store global.`);
+    }
+    throw new Error(`No existe el aprendizaje "${id}" en el proyecto.`);
+  }
+
+  const global = loadLearnings(stores.global);
+  const timestamp = now.toISOString();
+  const existing = global.find((entry) => entry.id === source.id);
+
+  if (existing !== undefined) {
+    existing.body = source.body.length > existing.body.length ? source.body : existing.body;
+    existing.tags = normalizeTags([...existing.tags, ...source.tags]);
+    existing.uses = Math.max(existing.uses, source.uses);
+    existing.source = source.source ?? existing.source;
+    existing.updatedAt = timestamp;
+    saveLearnings(global, stores.global);
+    rebuildPlaybook(stores.global, global, now, 'global');
+    return { learning: existing, created: false };
+  }
+
+  const promoted: Learning = { ...source, updatedAt: timestamp };
+  global.push(promoted);
+  saveLearnings(global, stores.global);
+  rebuildPlaybook(stores.global, global, now, 'global');
+  return { learning: promoted, created: true };
 }
 
 export function recordLearningUse(
@@ -401,13 +554,21 @@ export function pruneLearnings(
   return { removed, kept: kept.length };
 }
 
-export function renderPlaybook(learnings: Learning[], now: Date = new Date()): string {
+export function renderPlaybook(
+  learnings: Learning[],
+  now: Date = new Date(),
+  playbookScope: LearningScope = 'global'
+): string {
   const ranked = sortLearnings(learnings);
   const visible = ranked.slice(0, MAX_PLAYBOOK_ENTRIES);
+  const intro =
+    playbookScope === 'project'
+      ? 'Aprendizajes del proyecto y globales reutilizables. Se generan con'
+      : 'Aprendizajes globales que el agente reutiliza entre proyectos. Se generan con';
   const lines = [
     '# Playbook de alvaress',
     '',
-    'Aprendizajes globales que el agente reutiliza entre proyectos. Se generan con',
+    `${intro}`,
     '`alvaress learn`; no edites este archivo a mano.',
     '',
     `Generado: ${now.toISOString()}`,
@@ -428,7 +589,13 @@ export function renderPlaybook(learnings: Learning[], now: Date = new Date()): s
     lines.push(`## ${KIND_LABELS[kind]}`, '');
     for (const learning of group) {
       lines.push(`### ${learning.title}`, '');
-      const meta = [`\`${learning.id}\``, learning.project, `usos: ${learning.uses}`];
+      const entryScope = (learning as ScopedLearning).scope;
+      const meta = [
+        `\`${learning.id}\``,
+        learning.project,
+        ...(entryScope !== undefined ? [entryScope] : []),
+        `usos: ${learning.uses}`
+      ];
       lines.push(meta.join(' · '), '');
       if (learning.body.length > 0) {
         lines.push(learning.body, '');
@@ -452,16 +619,24 @@ export function renderPlaybook(learnings: Learning[], now: Date = new Date()): s
 export function rebuildPlaybook(
   paths: MemoryPaths = getMemoryPaths(),
   learnings: Learning[] = loadLearnings(paths),
-  now: Date = new Date()
+  now: Date = new Date(),
+  playbookScope: LearningScope = 'global'
 ): string {
   ensureDir(paths.dir);
-  const content = renderPlaybook(learnings, now);
+  const content = renderPlaybook(learnings, now, playbookScope);
   writeTextFileAtomic(paths.playbook, content);
   return content;
 }
 
 export function formatLearning(learning: Learning): string {
-  const meta = [learning.id, learning.kind, learning.project, `usos: ${learning.uses}`];
+  const entryScope = (learning as ScopedLearning).scope;
+  const meta = [
+    learning.id,
+    learning.kind,
+    learning.project,
+    ...(entryScope !== undefined ? [`scope: ${entryScope}`] : []),
+    `usos: ${learning.uses}`
+  ];
   const lines = [`${learning.title}`, meta.join(' · ')];
   if (learning.body.length > 0) {
     lines.push(learning.body);

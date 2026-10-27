@@ -78,21 +78,21 @@ cierra el alcance antes de pasar a la siguiente.
 
 | Fase | Qué pasa | Herramienta |
 | --- | --- | --- |
-| **1 · Entender** | Detecta ODD o SDD, lee la nota o `openspec.yaml`, consulta el grafo y cierra archivos, criterios y comandos de validación. | Graphify, OpenSpec, Obsidian |
+| **1 · Entender** | Detecta ODD o SDD, lee la nota o `openspec.yaml`, consulta el grafo, carga solo los aprendizajes relevantes y cierra archivos, criterios y comandos de validación. | Graphify, OpenSpec, Obsidian, memoria |
 | **2 · Decidir** | Elige la ruta, estima complejidad y clasifica riesgos. Si Laya no está disponible, usa heurísticas. | Laya ONNX int8 |
 | **3 · Ejecutar** | Implementa el cambio con Aider o con los subagentes. El worker no hace commits ni escribe en la bóveda. | Aider o subagentes |
-| **4 · Validar** | Ejecuta `vp check` y `vp test` (o los comandos de la tarea). Si falla, repara y vuelve a validar. | Vite-Plus |
-| **5 · Cerrar** | Marca la tarea o el checklist, escribe el reporte, actualiza la nota y hace commit solo con los archivos del run. | OpenSpec, Obsidian, Git |
+| **4 · Validar** | Ejecuta `vp check` y `vp test` (o los comandos de la tarea). Si falla, busca un pitfall que coincida, repara y vuelve a validar. | Vite-Plus, memoria |
+| **5 · Cerrar** | Marca la tarea o el checklist, escribe el reporte, actualiza la nota, guarda hasta tres aprendizajes y hace commit solo con los archivos del run. | OpenSpec, Obsidian, Git, memoria |
 
 ### Estados de un `run`
 
 | Estado | Qué pasa | Quién actúa |
 | --- | --- | --- |
-| `Exploring` | Detecta el modo, lee la fuente, consulta Graphify y cierra el alcance. | Orquestador y `alvaress-explorer` |
+| `Exploring` | Detecta el modo, lee la fuente, consulta Graphify, carga los aprendizajes relevantes y cierra el alcance. | Orquestador y `alvaress-explorer` |
 | `Working` | Implementa el cambio. | Aider o `alvaress-implementer` |
 | `Checking` | Ejecuta la validación y guarda stdout/stderr en `.laya/last_run.log`. | Orquestador o `alvaress-verifier` |
-| `Fixing` | Repara la causa y vuelve a validar. Máximo dos intentos. | `alvaress-fixer` o Aider |
-| `Ready` | Marca el cierre, escribe el reporte y la nota, y hace commit de los archivos del run. | Orquestador |
+| `Fixing` | Busca un pitfall que coincida con el error, repara la causa y vuelve a validar. Máximo dos intentos. | `alvaress-fixer` o Aider |
+| `Ready` | Marca el cierre, escribe el reporte y la nota, guarda aprendizajes y hace commit de los archivos del run. | Orquestador |
 | `Halted` | Fallo nuclear, de alcance o de herramienta. No hay commit ni cierre. | Orquestador |
 
 Se detiene en `Halted` cuando el fixer devuelve `nuclear`, el mismo error
@@ -215,7 +215,7 @@ Aider o editará directamente, validará y actualizará el estado de la tarea.
 | `alvaress report [latest\|list\|show <id>]` | Muestra los reportes de `.harness/runs/`. | — |
 | `alvaress restore [--list\|latest\|<id>]` | Lista o restaura `openspec.yaml` desde `.harness/backups/`. | `--list` |
 | `alvaress skills` | Reinstala las skills del proyecto y sus enlaces globales. | `--no-link` |
-| `alvaress learn <subcomando>` | Guarda, busca y reutiliza aprendizajes globales. | `add`, `list`, `search`, `show`, `use`, `prune`, `playbook` |
+| `alvaress learn <subcomando>` | Guarda, busca y reutiliza aprendizajes globales y del proyecto. | `add`, `list`, `search`, `show`, `use`, `promote`, `prune`, `playbook` |
 | `alvaress agent [install\|show]` | Instala el agente y sus subagentes, o imprime el prompt del orquestador. | `--no-global`, `--no-project` |
 | `alvaress obsidian [status\|sync\|note]` | Consulta o actualiza la bóveda y la nota del proyecto. | `--summary`, `--task`, `--from-run`, `--validation`, `--risk`, `--next` |
 | `alvaress config [show\|paths]` | Muestra la configuración resuelta (secretos enmascarados) o sus rutas. | — |
@@ -228,13 +228,14 @@ cancelada.
 
 | Subcomando | Qué hace |
 | --- | --- |
-| `alvaress learn add <tipo> "<título>"` | Guarda un aprendizaje (`step`, `solution`, `pitfall`, `preference` o `improvement`). |
-| `alvaress learn list` | Lista aprendizajes; filtra con `--kind`, `--tag` y `--limit`. |
-| `alvaress learn search "<texto>"` | Busca por relevancia; filtra con `--kind`, `--tag` y `--limit`. |
-| `alvaress learn show <id>` | Muestra un aprendizaje concreto. |
-| `alvaress learn use <id>` | Marca un aprendizaje como reutilizado. |
-| `alvaress learn prune` | Limpia por antigüedad o conserva los últimos N; `--dry-run` simula. |
-| `alvaress learn playbook` | Regenera `PLAYBOOK.md`. |
+| `alvaress learn add <tipo> "<título>"` | Guarda un aprendizaje (`step`, `solution`, `pitfall`, `preference` o `improvement`); Laya decide si va al global o al proyecto. |
+| `alvaress learn list` | Lista aprendizajes; filtra con `--scope`, `--kind`, `--tag` y `--limit`. |
+| `alvaress learn search "<texto>"` | Busca por relevancia; filtra con `--scope`, `--kind`, `--tag` y `--limit`. |
+| `alvaress learn show <id>` | Muestra un aprendizaje concreto con su store y contador de usos. |
+| `alvaress learn use <id>` | Marca un aprendizaje como reutilizado en el store donde vive. |
+| `alvaress learn promote <id>` | Copia un aprendizaje del proyecto al store global. |
+| `alvaress learn prune` | Limpia por antigüedad o conserva los últimos N; `--scope` elige el store y `--dry-run` simula. |
+| `alvaress learn playbook` | Regenera `PLAYBOOK.md`; el del proyecto incluye lo global relevante. |
 | `alvaress agent install` | Instala el agente y sus subagentes; `--no-global` y `--no-project` limitan las ubicaciones. |
 | `alvaress agent show` | Imprime el prompt del orquestador. |
 | `alvaress obsidian status` | Muestra la bóveda, la nota y los enlaces. |
@@ -426,7 +427,7 @@ enlaces en `~/.config/opencode/skills/<nombre>` y `~/.claude/skills/<nombre>`:
 | `self-healing-verify` | Valida con Vite-Plus tras cada edición y limita los ciclos de reparación. |
 | `universal-design-patterns` | Respeta los patrones existentes, evita abstracciones nuevas y comenta solo lo no obvio. |
 | `obsidian-sdd` | Define el uso de Obsidian por fase y el acceso de solo lectura de los subagentes. |
-| `continuous-learning` | Consulta y guarda aprendizajes solo cuando marcan diferencia. |
+| `continuous-learning` | Consulta títulos relevantes y guarda aprendizajes en el store global o del proyecto sin inflar el contexto. |
 | `bounded-scope` | Mantiene al subagente en los archivos asignados y le enseña a detenerse. |
 | `vite-plus-verify` | Ejecuta `vp check`/`vp test` y devuelve el error exacto sin ruido. |
 | `failure-triage` | Clasifica un fallo como trivial o nuclear antes de repararlo. |
@@ -507,17 +508,72 @@ alvaress obsidian note --from-run latest --task TASK-01
 
 ## Aprendizaje continuo
 
-El agente aprende entre proyectos sin mandar nada a la nube. Los aprendizajes se
-guardan en `~/.alvaress/memory/`:
+El agente aprende sin mandar nada a la nube y sin inflar el contexto. Hay dos
+stores separados:
 
-- `learnings.json`: fuente de verdad con tipo, título, detalle, tags, proyecto,
-  origen y contador de usos.
-- `PLAYBOOK.md`: resumen legible que el agente consulta cuando hace falta.
+| Store | Ruta | Qué guarda |
+| --- | --- | --- |
+| **Global** | `~/.alvaress/memory/learnings.json` y `PLAYBOOK.md` | Herramientas, errores y prácticas que sirven en cualquier repositorio. |
+| **Proyecto** | `<proyecto>/.harness/memory/learnings.json` y `PLAYBOOK.md` | Comandos, rutas, convenciones y trampas propias de este repo. |
 
-Antes de trabajar, el agente busca con `alvaress learn search "<tema>"` solo si
-la tarea no es trivial o toca un tema recurrente. Al cerrar, guarda como máximo
-tres aprendizajes y solo si aportan valor. **Cero aprendizajes es un cierre
-válido.**
+### Quién decide el scope
+
+Al guardar, **Laya** clasifica el aprendizaje como `global` o `project` usando el
+tipo, el título, el detalle, los tags y el nombre del proyecto. Si Laya no está
+disponible, una heurística local aplica las mismas señales: herramientas y
+prácticas transversales → global; rutas, ids y configuración del repo →
+proyecto.
+
+Puedes saltarte la decisión:
+
+```bash
+alvaress learn add solution "Validar migraciones en seco" --global
+alvaress learn add pitfall "El endpoint de facturas exige migración" --scope project
+```
+
+Y promover lo que nació local y demostró servir fuera:
+
+```bash
+alvaress learn promote L-1a2b3c4d
+```
+
+El store del proyecto siempre gana si el mismo `id` existe en ambos.
+
+### Dónde se consultan en el flujo
+
+| Fase | Qué se revisa | Límite |
+| --- | --- | --- |
+| **1 · Entender** | Solo títulos que coincidan con la petición, la tarea y los archivos, en ambos stores. | 3 títulos, sin cuerpos |
+| **3 · Ejecutar** | Nada por defecto. El implementador solo pide un aprendizaje si la tarea lo amerita. | 2 |
+| **4 · Validar / Fixing** | Solo `pitfall` o `solution` que coincidan con el comando y la firma del error. | 2 |
+| **5 · Cerrar** | No se lee: se guarda el pitfall reparado y hasta 3 aprendizajes nuevos. | 3 |
+
+Regla de oro: **el store completo y el `PLAYBOOK.md` nunca se inyectan al
+prompt.** Se consultan por búsqueda y se pasan solo ids y títulos; el cuerpo se
+abre con `learn show` únicamente si hace falta. El objetivo es que un
+aprendizaje ocupe contexto solo cuando cambia la decisión.
+
+### Cómo decidir si un aprendizaje aplica
+
+Se toma en cuenta solo si cumple estas condiciones:
+
+1. **Misma herramienta, comando o stack.** Un pitfall de `pnpm` no aplica a un
+   error de `pip`.
+2. **Misma firma de error o misma forma de tarea.** Si el mensaje o el contexto
+   no coinciden, no se usa.
+3. **El proyecto gana al global.** Ante conflicto, manda el store del proyecto.
+4. **La spec o la nota ganan a todo.** Si el aprendizaje contradice la fuente
+   del trabajo o el código actual, se descarta.
+5. **Usos y fecha solo desempatan.** No son motivo suficiente para meter
+   contexto.
+6. **Si no cambia la decisión, no se usa.** Un aprendizaje que no altera el
+   plan es ruido.
+
+El orquestador ejecuta `alvaress learn use <id>` solo cuando el aprendizaje se
+aplicó de verdad. Así el contador prioriza lo útil y `learn prune` puede retirar
+lo que nunca se usó.
+
+### Tipos
 
 | Tipo | Para qué sirve |
 | --- | --- |
@@ -527,20 +583,27 @@ válido.**
 | `preference` | Una convención del usuario o del equipo. |
 | `improvement` | Una mejora propuesta al prompt, a una skill o al CLI. |
 
+### Comandos
+
 ```bash
-alvaress learn search "migraciones"
+alvaress learn search "migraciones" --scope all --limit 5
 alvaress learn add solution "Validar migraciones en seco" \
   --body "Ejecutar el SQL en una transacción y revertir antes de aplicar." \
   --tag db --tag migrations --source TASK-01
-alvaress learn list --kind pitfall
+alvaress learn list --kind pitfall --scope project
+alvaress learn show L-1a2b3c4d
 alvaress learn use L-1a2b3c4d
-alvaress learn playbook
-alvaress learn prune --keep 100 --dry-run
+alvaress learn promote L-1a2b3c4d
+alvaress learn playbook --scope all
+alvaress learn prune --scope all --keep 100 --dry-run
 ```
 
-Los `improvement` son propuestas: el agente los menciona y no edita su propio
-prompt ni sus skills sin aprobación. Puedes cambiar el store con
-`ALVARESS_MEMORY_DIR`.
+- `--scope all|global|project` filtra lectura, limpieza y playbook.
+- `learn prune` limpia ambos stores por defecto; usa `--scope` para acotarlo.
+- Los `improvement` son propuestas: el agente los menciona y no edita su propio
+  prompt ni sus skills sin aprobación.
+- `ALVARESS_MEMORY_DIR` mueve el store global; el del proyecto siempre vive en
+  `.harness/memory/`.
 
 ## Manifiesto `openspec.yaml`
 

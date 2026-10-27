@@ -3,6 +3,8 @@ import type {
   DecisionEngine,
   FailureInput,
   FailureVerdict,
+  LearningScopeDecision,
+  LearningScopeInput,
   Risk,
   RiskAssessment,
   RiskInput,
@@ -23,6 +25,87 @@ const NUCLEAR_PATTERN =
 
 const TRIVIAL_PATTERN =
   /(syntax|unexpected token|ts\d{4}|type error|no such file|cannot find module|module not found|oxlint|eslint|lint|format|unused|not assignable|does not exist|property .* missing|undefined is not|expected .* received)/i;
+
+/**
+ * Señales de que un aprendizaje es transversal. Son herramientas, protocolos y
+ * prácticas que no dependen del repositorio donde se descubrieron.
+ */
+const GLOBAL_LEARNING_PATTERN =
+  /\b(pnpm|npm|yarn|node|typescript|tsc|oxlint|eslint|vitest|vite|git|github|actions|ci|docker|kubernetes|postgres|sqlite|redis|migraci[oó]n|lockfile|monorepo|husky|commitlint|lint-staged|shell|bash|zsh|http|json|yaml|markdown|obsidian|graphify|aider|opencode)\b/i;
+
+/** Señales de contexto local: rutas, ids y configuración del repo. */
+const PROJECT_LEARNING_PATTERN =
+  /(\bsrc\/|\btest\/|\.harness|openspec\.yaml|package\.json|tsconfig|TASK-\d+|SPEC-\d+|localhost|127\.0\.0\.1|\/home\/|\/Users\/)/i;
+
+export function heuristicLearningScope(input: LearningScopeInput): LearningScopeDecision {
+  const text = `${input.title}\n${input.body}\n${input.tags.join(' ')}`;
+  const tags = input.tags.map((tag) => tag.toLowerCase());
+  const projectName = input.project.trim().toLowerCase();
+  const mentionsProject =
+    projectName.length > 0 &&
+    projectName !== 'global' &&
+    text.toLowerCase().includes(projectName);
+
+  if (tags.includes('global') || tags.includes('cross-project') || tags.includes('transversal')) {
+    return {
+      scope: 'global',
+      confidence: 0.9,
+      reason: 'El aprendizaje está etiquetado explícitamente como global.',
+      source: 'heuristic'
+    };
+  }
+  if (tags.includes('project') || tags.includes('local') || tags.includes('repo')) {
+    return {
+      scope: 'project',
+      confidence: 0.9,
+      reason: 'El aprendizaje está etiquetado explícitamente como del proyecto.',
+      source: 'heuristic'
+    };
+  }
+  if (mentionsProject) {
+    return {
+      scope: 'project',
+      confidence: 0.82,
+      reason: `El aprendizaje menciona el proyecto "${input.project}".`,
+      source: 'heuristic'
+    };
+  }
+  if (input.kind === 'improvement') {
+    return {
+      scope: 'global',
+      confidence: 0.72,
+      reason: 'Las mejoras al agente o a sus skills suelen aplicar a cualquier proyecto.',
+      source: 'heuristic'
+    };
+  }
+
+  const globalSignal = GLOBAL_LEARNING_PATTERN.test(text);
+  const projectSignal = PROJECT_LEARNING_PATTERN.test(text);
+
+  if (projectSignal && !globalSignal) {
+    return {
+      scope: 'project',
+      confidence: 0.74,
+      reason: 'El aprendizaje cita rutas, ids o configuración propios de este repositorio.',
+      source: 'heuristic'
+    };
+  }
+  if (globalSignal && !projectSignal) {
+    return {
+      scope: 'global',
+      confidence: 0.7,
+      reason: 'El aprendizaje trata una herramienta o práctica transversal, sin contexto local.',
+      source: 'heuristic'
+    };
+  }
+
+  return {
+    scope: 'project',
+    confidence: 0.6,
+    reason: 'Sin señales claras de reutilización, se guarda en el proyecto para no contaminar el global.',
+    source: 'heuristic'
+  };
+}
 
 export function estimateComplexity(input: RouteInput): Complexity {
   const length = input.request.trim().length;
@@ -137,5 +220,9 @@ export class HeuristicDecisionEngine implements DecisionEngine {
 
   classifyFailure(input: FailureInput): Promise<FailureVerdict> {
     return Promise.resolve(heuristicVerdict(input));
+  }
+
+  decideLearningScope(input: LearningScopeInput): Promise<LearningScopeDecision> {
+    return Promise.resolve(heuristicLearningScope(input));
   }
 }

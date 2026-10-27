@@ -19,7 +19,8 @@ está desactivado. La máquina de estados no cambia: solo cambia el `Worker`.
 - `aider.enabled: false` → `SubagentWorker`: `alvaress-implementer` y
   `alvaress-fixer`.
 - El orquestador decide, cierra el alcance, hace el commit, marca Obsidian y
-  escribe aprendizajes en ambos modos.
+  escribe aprendizajes en el store (global o proyecto) que Laya determine en
+  ambos modos.
 
 ## Contrato del worker
 
@@ -110,9 +111,10 @@ Los cuatro perfiles comparten estas medidas:
 - Lectura de `.env`, `.pem`, `.key`, `.p12`, `id_rsa` e `id_ed25519` denegada.
 - `shell: "*"` denegado al final del perfil: solo pasan los comandos permitidos.
 - `external_directory` denegado en implementer, verifier y fixer: no leen ni
-  escriben fuera del proyecto. El explorer lo permite para leer la bóveda y la
-  memoria global, pero tiene `edit: "*"` denegado y solo debe abrir la nota del
-  proyecto o de la tarea, no directorios externos arbitrarios.
+  escriben fuera del proyecto. El explorer lo permite para leer la bóveda y los
+  stores de memoria global y del proyecto, pero tiene `edit: "*"` denegado y solo
+  debe abrir la nota del proyecto o de la tarea, no directorios externos
+  arbitrarios.
 - Sin `git push`, `git reset`, `git clean`, `git commit`, `git checkout`,
   `git restore`, `rm`, `sudo`, `curl` ni `wget`.
 - Sin `pnpm`/`npm publish`, `pnpm dlx`, `npm exec`, `npx --yes`, `find -exec`,

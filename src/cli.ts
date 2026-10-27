@@ -34,7 +34,7 @@ Uso:
   alvaress verify <TASK_ID>           Ejecuta el bucle self-healing sobre una tarea.
   alvaress archive <SPEC_ID>          Archiva una spec con todas sus tareas en Done.
   alvaress skills [--no-link]         Reinstala las skills del proyecto y sus enlaces globales.
-  alvaress learn [add|list|search]    Guarda y reutiliza aprendizajes globales entre proyectos.
+  alvaress learn [add|list|search|...]  Guarda y reutiliza aprendizajes globales y del proyecto.
   alvaress agent [install|show]       Instala o muestra el agente orquestador alvaress y sus subagentes.
   alvaress obsidian [status|sync|note]  Consulta o actualiza la bóveda Obsidian.
   alvaress doctor [--json]            Diagnóstico previo: configuración, herramientas, grafo y lock.
@@ -180,7 +180,7 @@ export async function runCli(argv: string[]): Promise<void> {
       return;
     }
     case 'learn': {
-      runLearnCommand(rest, process.cwd());
+      await runLearnCommand(rest, process.cwd());
       return;
     }
     case 'agent': {

@@ -148,6 +148,14 @@ function makeFixture(options: FixtureOptions = {}): HarnessFixture {
         }
       );
     },
+    async decideLearningScope() {
+      return {
+        scope: 'project',
+        confidence: 0.8,
+        reason: 'aprendizaje del proyecto',
+        source: 'heuristic'
+      };
+    },
     async close(): Promise<void> {
       closed.decisions = true;
     }

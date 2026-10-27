@@ -9,6 +9,8 @@ import type {
   DecisionEngine,
   FailureInput,
   FailureVerdict,
+  LearningScopeDecision,
+  LearningScopeInput,
   RiskAssessment,
   RiskInput,
   RouteDecision,
@@ -316,6 +318,35 @@ export class LayaDecisionEngine implements DecisionEngine {
       };
     } catch {
       return this.fallback.classifyFailure(input);
+    }
+  }
+
+  async decideLearningScope(input: LearningScopeInput): Promise<LearningScopeDecision> {
+    const base = await this.fallback.decideLearningScope(input);
+
+    try {
+      const prediction = await this.ask(
+        `Proyecto: ${input.project}\nTipo: ${input.kind}\nTítulo: ${input.title}\nDetalle: ${input.body}\nTags: ${input.tags.join(', ') || 'sin tags'}`,
+        {
+          scope: choice('¿Este aprendizaje sirve en otros proyectos o es específico de este?', {
+            global:
+              'es una práctica, error o solución general que se puede reutilizar en cualquier proyecto',
+            project:
+              'menciona archivos, comandos, convenciones o contexto que solo existen en este proyecto'
+          })
+        },
+        'learning-scope'
+      );
+
+      const scope = readChoice(prediction.answers.scope) === 'global' ? 'global' : 'project';
+      return {
+        scope,
+        confidence: readConfidence(prediction.answers.scope, base.confidence),
+        reason: `Laya clasificó el aprendizaje como ${scope === 'global' ? 'global' : 'del proyecto'}.`,
+        source: 'laya'
+      };
+    } catch {
+      return base;
     }
   }
 

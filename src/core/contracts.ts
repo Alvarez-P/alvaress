@@ -188,6 +188,21 @@ export interface FailureInput {
   attempt: number;
 }
 
+export interface LearningScopeInput {
+  kind: string;
+  title: string;
+  body: string;
+  tags: string[];
+  project: string;
+}
+
+export interface LearningScopeDecision {
+  scope: 'global' | 'project';
+  confidence: number;
+  reason: string;
+  source: 'laya' | 'heuristic';
+}
+
 export interface FailureVerdict {
   trivial: boolean;
   nuclear: boolean;
@@ -200,6 +215,7 @@ export interface DecisionEngine {
   route(input: RouteInput): Promise<RouteDecision>;
   assessRisk(input: RiskInput): Promise<RiskAssessment>;
   classifyFailure(input: FailureInput): Promise<FailureVerdict>;
+  decideLearningScope(input: LearningScopeInput): Promise<LearningScopeDecision>;
   close?(): Promise<void>;
 }
 

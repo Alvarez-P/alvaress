@@ -135,6 +135,14 @@ function fakeDecisions(mode: 'odd' | 'sdd'): DecisionEngine {
         confidence: 0.8,
         source: 'heuristic'
       };
+    },
+    async decideLearningScope() {
+      return {
+        scope: 'project',
+        confidence: 0.8,
+        reason: 'aprendizaje del proyecto',
+        source: 'heuristic'
+      };
     }
   };
 }

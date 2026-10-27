@@ -138,6 +138,9 @@ test('las skills evitan sobreingeniería y no confunden fallos de herramienta co
   assert.match(triage.body, /no edites ni borres tests/i);
 
   assert.match(learning.body, /no gastes una búsqueda en cambios de una línea/i);
+  assert.match(learning.body, /\.harness\/memory\//);
+  assert.match(learning.body, /--scope project/);
+  assert.match(learning.body, /alvaress learn promote/);
   assert.match(graphify.body, /No ejecutes `graphify update`/);
   assert.match(verify.body, /Máximo dos ciclos/i);
   assert.match(verify.body, /no reinstales ni cambies el gestor/i);
