@@ -762,7 +762,7 @@ las tareas necesarias. Para cambios triviales evita Aider y edita directamente.
 
 ## Skills
 
-El instalador escribe cinco skills en `.harness/skills/<nombre>/SKILL.md` y crea
+El instalador escribe nueve skills en `.harness/skills/<nombre>/SKILL.md` y crea
 enlaces simbólicos en:
 
 - `~/.config/opencode/skills/<nombre>`

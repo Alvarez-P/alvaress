@@ -13,6 +13,9 @@
   "files": [
     "dist",
     "assets",
+    "docs/laya-int8.md",
+    "docs/subagents.md",
+    "scripts/quantize-laya.py",
     "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
@@ -58,6 +61,17 @@
     "decision-engine"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Alvarez-P/alvaress.git"
+  },
+  "homepage": "https://github.com/Alvarez-P/alvaress#readme",
+  "bugs": {
+    "url": "https://github.com/Alvarez-P/alvaress/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
     "yaml": "^2.9.1"

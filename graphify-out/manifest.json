@@ -1,8 +1,8 @@
 {
   "package.json": {
-    "mtime": 1792982524.1009514,
-    "seen": 1792982725.7294185,
-    "ast_hash": "172e74c3d519b8d980e4fce1c93a9f36",
+    "mtime": 1793060595.4580772,
+    "seen": 1793060610.5267735,
+    "ast_hash": "d132cd01874b62163be6525cfa61cb0d",
     "semantic_hash": ""
   },
   "src/cli.ts": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793060183.1741111,
-    "seen": 1793060196.440347,
-    "ast_hash": "84f0f702a9e4d702092cc5f266bd5745",
+    "mtime": 1793060568.3260794,
+    "seen": 1793060610.5268743,
+    "ast_hash": "063fe61287cf1e2fd691756893251a14",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
