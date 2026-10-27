@@ -1,9 +1,9 @@
 # Graph Report - alvaress  (2026-10-26)
 
 ## Corpus Check
-- 97 files · ~88,058 words
+- 96 files · ~87,984 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 5 file(s) not represented in the graph (top: (none) 5)
+- Unclassified: 4 file(s) not represented in the graph (top: (none) 4)
 
 ## Summary
 - 1077 nodes · 3232 edges · 55 communities (51 shown, 4 thin omitted)
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `832b040b`
+- Built from commit: `697b7012`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

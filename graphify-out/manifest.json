@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793059738.2701523,
-    "seen": 1793059793.5877216,
-    "ast_hash": "044b38d6dde8dd144312405e193b25e8",
+    "mtime": 1793060183.1741111,
+    "seen": 1793060196.440347,
+    "ast_hash": "84f0f702a9e4d702092cc5f266bd5745",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
@@ -399,12 +399,6 @@
     "mtime": 1792818179.0744445,
     "seen": 1792818190.4320002,
     "ast_hash": "a0d08ffeb61d418aa447bb658e403028",
-    "semantic_hash": ""
-  },
-  "skills-lock.json": {
-    "mtime": 1792818735.778428,
-    "seen": 1792881297.0116067,
-    "ast_hash": "6e510314703bbc327cf10cd32e40bc2b",
     "semantic_hash": ""
   },
   "assets/alvaress-flow.svg": {

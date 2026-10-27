@@ -480,7 +480,6 @@ obtienen.
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | Formato de manifiesto y tareas SDD. | No se instala: alvaress usa el formato y crea `openspec.yaml`. |
 | [OpenCode](https://opencode.ai) | Runtime donde viven el agente y los subagentes. | Lo instalas tú; alvaress añade el agente y sus skills. |
 | [pipx](https://pipx.pypa.io) | Instala Graphify y Aider en entornos Python aislados. | Gestor del sistema o `python3 -m pip install --user pipx`. |
-| [`svg-diagram`](https://github.com/bybit-exchange/svg-diagram) | Convenciones y linter del diagrama de este README. | Skill local en `.agents/skills/svg-diagram`; no se instala en tu proyecto. |
 
 ### En el propio paquete
 
@@ -899,19 +898,9 @@ alvaress obsidian note --from-run latest --task TASK-01
 
 ## Diagramas
 
-El diagrama de este README se dibujó con la skill
-[`svg-diagram`](https://github.com/bybit-exchange/svg-diagram), incluida solo
-para este proyecto en `.agents/skills/svg-diagram`. El SVG vive en
-`assets/alvaress-flow.svg` y la animación del nombre en
-`assets/alvaress-intro.gif`.
-
-Si cambias el flujo, actualiza el SVG y valida que siga el estilo de la casa:
-
-```bash
-node .agents/skills/svg-diagram/tools/svg-lint/bin/svg-lint.mjs assets/alvaress-flow.svg
-```
-
-El linter no debe reportar errores ni advertencias.
+El diagrama de flujo vive en `assets/alvaress-flow.svg` y la animación del
+nombre en `assets/alvaress-intro.gif`. Si cambias el flujo, actualiza el SVG a
+mano y revisa que siga legible en claro y oscuro.
 
 ## Commits
 
@@ -989,7 +978,6 @@ src/
 └── utils/           args, errores, FS, lock, gestor de paquetes, pipx, redacción, logger y procesos
 test/                pruebas con node:test
 assets/              animación y diagramas SVG del README
-.agents/skills/      skills locales del proyecto (svg-diagram)
 docs/spec.md         prompt original de generación del proyecto
 ```
 
