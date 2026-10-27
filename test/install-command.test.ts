@@ -13,7 +13,7 @@ function result(code = 0): CommandResult {
   return { code, stdout: '', stderr: '' };
 }
 
-test('install --yes usa pnpm y no Ollama aunque el proyecto declare npm', async () => {
+test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
   const temp = makeTempDir('alvaress-install-yes-');
   try {
     const root = path.join(temp.path, 'project');
@@ -88,7 +88,6 @@ test('install --yes usa pnpm y no Ollama aunque el proyecto declare npm', async 
     assert.ok(calls.includes('pnpm add -D vite-plus'));
     assert.ok(calls.includes('pnpm add -D oxlint typescript @types/node'));
     assert.equal(calls.some((call) => call.includes('aider')), false);
-    assert.equal(calls.some((call) => call.includes('ollama')), false);
     assert.equal(saved?.laya?.enabled, true);
     assert.equal(saved?.laya?.modelDir, '/models/laya');
     assert.equal(saved?.obsidianVaultPath, vault);

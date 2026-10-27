@@ -28,7 +28,7 @@ export interface NoulQuestion {
 export type Question = ChoiceQuestion | ScoreQuestion | NoulQuestion;
 
 export interface AnswerBase {
-  /** Confianza Jev: 1 - entropía normalizada. Solo choice y score la incluyen. */
+  /** Confianza normalizada: 1 - entropía. Solo choice y score la incluyen. */
   confidence?: number;
   /** max(p): la cantidad para la que se calibraron las temperaturas. */
   answer_confidence: number;

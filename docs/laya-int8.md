@@ -6,8 +6,8 @@ con pesos de 8 bits y bloques de 32. El artefacto pesa **488 MB** frente a los
 
 Este documento describe cómo se genera, cómo se verifica y cómo se usa. El
 instalador está configurado para descargarlo por defecto desde el release
-`laya-int8-v1` de alvaress. La publicación de ese release todavía no se ha
-hecho: falta confirmación explícita.
+[`laya-int8-v1`](https://github.com/Alvarez-P/alvaress/releases/tag/laya-int8-v1)
+de alvaress, ya publicado con los cinco assets y sus hashes SHA-256.
 
 ## Qué cuantiza
 
@@ -151,11 +151,12 @@ Si prefieres un directorio propio, apunta `laya.modelDir` al bundle:
 heurísticas. El run también acepta un bundle fp32 de una instalación anterior,
 así que actualizar no obliga a descargar el modelo otra vez.
 
-## Publicación pendiente
+## Publicación
 
-El instalador apunta al release `laya-int8-v1` del repositorio
-`Alvarez-P/alvaress`. Los assets deben llamarse así (GitHub no admite `/` en el
-nombre de un asset, por eso los del tokenizador van planos):
+El release [`laya-int8-v1`](https://github.com/Alvarez-P/alvaress/releases/tag/laya-int8-v1)
+del repositorio `Alvarez-P/alvaress` ya está publicado con los cinco assets. Los
+assets se llaman así (GitHub no admite `/` en el nombre de un asset, por eso los
+del tokenizador van planos):
 
 | Asset remoto | Ruta en el bundle |
 | --- | --- |
@@ -166,8 +167,9 @@ nombre de un asset, por eso los del tokenizador van planos):
 | `tokenizer_config.json` | `tokenizer/tokenizer_config.json` |
 
 El manifiesto `laya_int8.json` lo escribe el instalador con los hashes fijados
-en `BUNDLE_FILES`; no hace falta publicarlo. Subir el release requiere
-autenticación de GitHub y confirmación explícita.
+en `BUNDLE_FILES`; no hace falta publicarlo. Para regenerar el release se sube
+cada asset con su nombre y se comprueba el SHA-256 contra los hashes de este
+documento.
 
 El artefacto es una obra derivada de los pesos de Laya
 ([`receptron/laya-onnx`](https://huggingface.co/receptron/laya-onnx), MIT). Al

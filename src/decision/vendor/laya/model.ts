@@ -168,10 +168,7 @@ export class LayaModel {
   private encode = (text: string): number[] =>
     this.tokenizer.encode(text, { add_special_tokens: false }).ids;
 
-  /**
-   * Responde todas las preguntas de un estado en un solo forward pass.
-   * Misma forma de petición/respuesta que `system_one` de Jev.
-   */
+  /** Responde todas las preguntas de un estado en un solo forward pass. */
   async systemOne(
     state: unknown,
     questions: Record<string, Question>

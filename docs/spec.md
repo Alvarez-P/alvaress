@@ -4,10 +4,9 @@
 > proyecto. La arquitectura vigente es un arnés híbrido **SDD + ODD** que usa
 > `Laya` como motor de decisión local, [Vite-Plus](https://vite.plus) para
 > validar y **Aider opcional** (subagentes de OpenCode cuando está desactivado).
-> Los ejemplos de configuración y las referencias a Ollama o al orquestador `jev`
-> que aparecen más abajo son legado y no describen el comportamiento actual.
-> Consulta el [README](../README.md) y [docs/subagents.md](./subagents.md) para la
-> referencia viva.
+> Los ejemplos de configuración que aparecen más abajo son históricos y pueden
+> no coincidir con el esquema actual. Consulta el [README](../README.md) y
+> [docs/subagents.md](./subagents.md) para la referencia viva.
 
 Actúa como un Ingeniero de Software Principal experto en Herramientas de CLI Core y Automatización de Agentes de IA. Tu objetivo es generar el código fuente completo en TypeScript (compatible con Node.js/Bun) para una herramienta CLI open-source llamada `alvaress`.
 
@@ -23,12 +22,6 @@ El sistema debe ser capaz de inicializar, leer y escribir exactamente los siguie
 {
   "obsidianVaultPath": "/ruta/a/tu/boveda/obsidian",
   "models": {
-    "jevOrchestrator": {
-      "modelName": "qwen2.5-coder:3b",
-      "apiKey": "",
-      "apiBase": "http://localhost:11434/v1",
-      "env": {}
-    },
     "aiderImplementer": {
       "modelName": "deepseek/deepseek-chat",
       "apiKey": "sk-deepseek-clave-aqui",
@@ -92,7 +85,6 @@ export interface ModelProviderConfig {
 export interface HarnessConfig {
   obsidianVaultPath: string;
   models: {
-    jevOrchestrator: ModelProviderConfig;
     aiderImplementer: ModelProviderConfig;
   };
   validation: {
@@ -120,12 +112,6 @@ export function loadConfig(): HarnessConfig {
   return {
     obsidianVaultPath: localConfig.obsidianVaultPath || globalConfig.obsidianVaultPath || '',
     models: {
-      jevOrchestrator: {
-        modelName: localConfig.models?.jevOrchestrator?.modelName || globalConfig.models?.jevOrchestrator?.modelName || 'qwen2.5-coder:3b',
-        apiKey: localConfig.models?.jevOrchestrator?.apiKey || globalConfig.models?.jevOrchestrator?.apiKey || '',
-        apiBase: localConfig.models?.jevOrchestrator?.apiBase || globalConfig.models?.jevOrchestrator?.apiBase || '',
-        env: { ...globalConfig.models?.jevOrchestrator?.env, ...localConfig.models?.jevOrchestrator?.env }
-      },
       aiderImplementer: {
         modelName: localConfig.models?.aiderImplementer?.modelName || globalConfig.models?.aiderImplementer?.modelName || 'deepseek/deepseek-chat',
         apiKey: localConfig.models?.aiderImplementer?.apiKey || globalConfig.models?.aiderImplementer?.apiKey || '',

@@ -197,7 +197,7 @@ export function clampTemperatures(config: LayaBundleConfig): LayaBundleConfig {
   return { ...config, temperature, temperature_by_options };
 }
 
-/** Confianza estilo Jev: 1 - entropía normalizada de la distribución. */
+/** Confianza normalizada: 1 - entropía de la distribución. */
 export function confidenceFromProbs(probabilities: number[]): number {
   const k = probabilities.length;
   if (k < 2) {
