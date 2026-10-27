@@ -11,10 +11,6 @@ Instala un agente de OpenCode llamado **`alvaress`**, sus skills y la
 configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission-AI/OpenSpec),
 [Obsidian](https://obsidian.md) y [Graphify](https://github.com/Graphify-Labs/graphify).
 
-<p align="center">
-  <img src="assets/alvaress-intro.gif" alt="Alvarez + Harness = Alvaress" width="640">
-</p>
-
 ## Contenido
 
 - [Qué es alvaress](#qué-es-alvaress)
@@ -72,10 +68,6 @@ proyecto; la fuente SDD es `openspec.yaml` más la tarea.
 En ambos modos el agente escribe el código, valida y deja rastro. La diferencia
 es cuánta estructura necesita el trabajo, no quién manda: la fuente siempre es
 la nota o la spec, nunca la memoria del modelo.
-
-> **ODD no significa “Obsidian-Driven Development”.** Obsidian es una superficie
-> opcional para la nota ODD; si no hay bóveda ni nota, usa `--mode sdd` o crea la
-> nota antes de lanzar el run.
 
 ## Flujo del agente
 
