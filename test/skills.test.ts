@@ -39,7 +39,11 @@ test('renderSkill genera frontmatter YAML y cuerpo literal', () => {
       'description: Obliga al agente a leer la nota ODD o la especificación SDD antes de programar.',
       'scope: project',
       '---',
-      'Antes de modificar o proponer cualquier cambio, lee la fuente del modo: en ODD, la nota de Obsidian y el alcance acordado; en SDD, `openspec.yaml` y `.harness/tasks/TASK_ID.md`. No improvises. Lista los criterios de aceptación en tu memoria interna antes de escribir código.',
+      'Antes de modificar o proponer cualquier cambio, lee la fuente del modo: en ODD, la nota de Obsidian y el alcance acordado; en SDD, `openspec.yaml` y `.harness/tasks/TASK_ID.md`. No improvises.',
+      '',
+      '- Resume los criterios de aceptación en 1-3 líneas; no copies la especificación completa.',
+      '- Si la fuente no existe, está incompleta o contradice la solicitud, devuelve `scope: blocked` con lo que falta. No rellenes huecos con suposiciones.',
+      '- Lee solo la fuente, los archivos del alcance y el contexto que ya te pasó el orquestador. No explores el proyecto entero.',
       ''
     ].join('\n')
   );
@@ -110,6 +114,33 @@ test('la skill obsidian-sdd define las fases y la política de subagentes', () =
   assert.match(skill.body, /solo lectura/i);
   assert.match(skill.body, /alvaress obsidian note/);
   assert.match(skill.body, /openspec\.yaml/);
+});
+
+test('las skills evitan sobreingeniería y no confunden fallos de herramienta con HALT', () => {
+  const patterns = SKILLS.find((entry) => entry.name === 'universal-design-patterns');
+  const triage = SKILLS.find((entry) => entry.name === 'failure-triage');
+  const learning = SKILLS.find((entry) => entry.name === 'continuous-learning');
+  const graphify = SKILLS.find((entry) => entry.name === 'consult-graphify-ast');
+  const verify = SKILLS.find((entry) => entry.name === 'self-healing-verify');
+
+  assert.ok(patterns !== undefined);
+  assert.ok(triage !== undefined);
+  assert.ok(learning !== undefined);
+  assert.ok(graphify !== undefined);
+  assert.ok(verify !== undefined);
+
+  assert.match(patterns.body, /no introduzcas/i);
+  assert.match(patterns.body, /comenta solo/i);
+  assert.doesNotMatch(patterns.body, /altamente escalable/i);
+
+  assert.match(triage.body, /needs-orchestrator/);
+  assert.match(triage.body, /Laya no esté disponible no es nuclear/i);
+  assert.match(triage.body, /no edites ni borres tests/i);
+
+  assert.match(learning.body, /no gastes una búsqueda en cambios de una línea/i);
+  assert.match(graphify.body, /No ejecutes `graphify update`/);
+  assert.match(verify.body, /Máximo dos ciclos/i);
+  assert.match(verify.body, /no reinstales ni cambies el gestor/i);
 });
 
 test('las skills de subagente definen alcance, Vite-Plus y triaje', () => {

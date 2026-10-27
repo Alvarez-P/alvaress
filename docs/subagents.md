@@ -111,9 +111,13 @@ Los cuatro perfiles comparten estas medidas:
 - `shell: "*"` denegado al final del perfil: solo pasan los comandos permitidos.
 - `external_directory` denegado en implementer, verifier y fixer: no leen ni
   escriben fuera del proyecto. El explorer lo permite para leer la bóveda y la
-  memoria global, pero tiene `edit: "*"` denegado.
+  memoria global, pero tiene `edit: "*"` denegado y solo debe abrir la nota del
+  proyecto o de la tarea, no directorios externos arbitrarios.
 - Sin `git push`, `git reset`, `git clean`, `git commit`, `git checkout`,
-  `git restore`, `rm -rf`, `sudo`, `curl` ni `wget`.
+  `git restore`, `rm`, `sudo`, `curl` ni `wget`.
+- Sin `pnpm`/`npm publish`, `pnpm dlx`, `npm exec`, `npx --yes`, `find -exec`,
+  `find -delete`, `sed -i` ni `rg --pre`.
+- Sin scripts de deploy, release, publish, migración, base de datos o seed.
 - Sin `alvaress apply`, `alvaress verify`, `alvaress obsidian note`,
   `alvaress archive` ni `alvaress learn add`.
 - La bóveda Obsidian es de solo lectura en todos los casos.

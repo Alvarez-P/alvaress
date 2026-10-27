@@ -39,6 +39,12 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /Aider es opcional/);
   assert.match(rendered, /alvaress-explorer/);
   assert.match(rendered, /alvaress-fixer/);
+  assert.match(rendered, /resource: "pnpm run validate \*"/);
+  assert.doesNotMatch(rendered, /resource: "pnpm run \*"/);
+  assert.doesNotMatch(rendered, /resource: "pnpm exec \*"/);
+  assert.match(rendered, /resource: "pnpm publish \*"\n    effect: deny/);
+  assert.match(rendered, /resource: "find \* -exec \*"\n    effect: deny/);
+  assert.match(rendered, /resource: "rm \*"\n    effect: deny/);
 });
 
 test('installAgent escribe el agente global y el del proyecto', () => {
@@ -129,6 +135,15 @@ test('renderSubagent declara skills, pasos y permisos restrictivos', () => {
   assert.ok(shellDenyIndex >= 0);
   assert.ok(shellAllowIndex > shellDenyIndex);
   assert.doesNotMatch(implementerRendered, /resource: "git commit \*"/);
+  assert.doesNotMatch(implementerRendered, /resource: "pnpm run \*"/);
+  assert.match(implementerRendered, /resource: "pnpm run validate \*"/);
+
+  for (const subagent of SUBAGENTS) {
+    const rendered = renderSubagent(subagent);
+    assert.match(rendered, /resource: "rm \*"\n    effect: deny/);
+    assert.match(rendered, /resource: "find \* -exec \*"\n    effect: deny/);
+    assert.match(rendered, /resource: "pnpm publish \*"\n    effect: deny/);
+  }
 
   const verifierRendered = renderSubagent(verifier);
   assert.match(verifierRendered, /`vite-plus-verify`/);

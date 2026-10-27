@@ -60,9 +60,9 @@
     "semantic_hash": ""
   },
   "src/openspec/manifest.ts": {
-    "mtime": 1792811998.9466124,
-    "seen": 1792812809.4950297,
-    "ast_hash": "508d6d49251d9e39c7e6a64c36ac04c7",
+    "mtime": 1793061327.6100125,
+    "seen": 1793061340.0489469,
+    "ast_hash": "9e3eb29f344651ddf6da76a9d5eb2886",
     "semantic_hash": ""
   },
   "src/openspec/types.ts": {
@@ -90,15 +90,15 @@
     "semantic_hash": ""
   },
   "src/orchestrator/verify.ts": {
-    "mtime": 1792812049.5266097,
-    "seen": 1792812809.495037,
-    "ast_hash": "f357c4abe795cbdd170868656495de88",
+    "mtime": 1793061327.6100125,
+    "seen": 1793061340.04896,
+    "ast_hash": "51b325e92f18409d0bb4f7b83dd03d98",
     "semantic_hash": ""
   },
   "src/skills/installer.ts": {
-    "mtime": 1793059756.6821506,
-    "seen": 1793059793.5876775,
-    "ast_hash": "4e418e72cfc260d50617f81aacf00de2",
+    "mtime": 1793061175.9687068,
+    "seen": 1793061340.048962,
+    "ast_hash": "fc097c11f8340ee0a8c99c005b7d142f",
     "semantic_hash": ""
   },
   "src/utils/args.ts": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793060568.3260794,
-    "seen": 1793060610.5268743,
-    "ast_hash": "063fe61287cf1e2fd691756893251a14",
+    "mtime": 1793061327.6100125,
+    "seen": 1793061340.0490081,
+    "ast_hash": "26ee55a6f5e67b3cbecce2f4336d6909",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "test/skills.test.ts": {
-    "mtime": 1792978034.058955,
-    "seen": 1792982725.729522,
-    "ast_hash": "de489205dc08ea7cd89b4b4c2eff89cb",
+    "mtime": 1793061246.090019,
+    "seen": 1793061340.0490005,
+    "ast_hash": "8b52c962b2095bd8eb03b01caf1306fd",
     "semantic_hash": ""
   },
   "test/verify.test.ts": {
@@ -246,9 +246,9 @@
     "semantic_hash": ""
   },
   "src/agent/installer.ts": {
-    "mtime": 1793059681.290157,
-    "seen": 1793059793.587628,
-    "ast_hash": "d0ea7b65714912bef2d26bd87dda7fe0",
+    "mtime": 1793061226.2500205,
+    "seen": 1793061340.048912,
+    "ast_hash": "fa3308829651e4f5f109cac69245328f",
     "semantic_hash": ""
   },
   "src/commands/agent.ts": {
@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "test/agent.test.ts": {
-    "mtime": 1792982437.8010013,
-    "seen": 1792982725.7294986,
-    "ast_hash": "0bd49dfa2afc07685287dce8751c51bd",
+    "mtime": 1793061255.7060182,
+    "seen": 1793061340.0489767,
+    "ast_hash": "a529adeb7eb9778deadd101f28ca6d3e",
     "semantic_hash": ""
   },
   "src/obsidian/installer.ts": {
@@ -360,9 +360,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1792814187.678552,
-    "seen": 1792814218.910056,
-    "ast_hash": "fb1bab0a5e390c63db310c355dd6c5c5",
+    "mtime": 1793061259.018018,
+    "seen": 1793061340.049006,
+    "ast_hash": "64e96f2d8e70c0f7121c2b814cfa1f6b",
     "semantic_hash": ""
   },
   ".github/workflows/release.yml": {
@@ -426,9 +426,9 @@
     "semantic_hash": ""
   },
   "docs/subagents.md": {
-    "mtime": 1792985492.629269,
-    "seen": 1792985604.1675935,
-    "ast_hash": "d8a650dbbb7d54f071a2fbba87a379fe",
+    "mtime": 1793061238.5860195,
+    "seen": 1793061340.0490117,
+    "ast_hash": "f6ff23c3d4ec738a71993eaad3112235",
     "semantic_hash": ""
   },
   "src/core/contracts.ts": {
@@ -528,9 +528,9 @@
     "semantic_hash": ""
   },
   "src/orchestrator/workers.ts": {
-    "mtime": 1792977671.4314022,
-    "seen": 1792977882.9000747,
-    "ast_hash": "507e6e8a1b9982a799bab7ed61eb2dbb",
+    "mtime": 1793061327.6100125,
+    "seen": 1793061340.048961,
+    "ast_hash": "e5eb1790c89059cbcd53577f5180d1f0",
     "semantic_hash": ""
   },
   "test/run.test.ts": {

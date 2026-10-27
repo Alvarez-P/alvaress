@@ -27,6 +27,21 @@ jobs:
       - run: pnpm test
       - run: pnpm pack --dry-run
 
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm pack
+      - run: npm install --prefix "$RUNNER_TEMP/alvaress-smoke" ./alvaress-*.tgz
+      - run: "$RUNNER_TEMP/alvaress-smoke/node_modules/.bin/alvaress" --version
+      - run: "$RUNNER_TEMP/alvaress-smoke/node_modules/.bin/alvaress" --help
+
   commitlint:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

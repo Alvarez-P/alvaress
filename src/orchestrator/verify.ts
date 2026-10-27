@@ -86,7 +86,7 @@ export async function verifyAndRepairTask(taskId: string, options: VerifyOptions
     );
 
     const implementer = config.models.aiderImplementer;
-    const repairMessage = `El código generado falló las pruebas lógicas locales con el siguiente reporte de error:\n\n${accumulatedError}\nPor favor, analiza el error, modifica los archivos necesarios para resolverlo y mantén el tipado estricto de TypeScript y decoradores de NestJS sin añadir comentarios explicativos en el código.`;
+    const repairMessage = `El código generado falló las pruebas lógicas locales con el siguiente reporte de error:\n\n${accumulatedError}\nPor favor, analiza el error, modifica los archivos necesarios para resolverlo y mantén el tipado estricto de TypeScript. Comenta solo lo no obvio y no edites tests para que pasen: si el contrato cambió, reporta \`needs-orchestrator\`.`;
 
     const taskDocument = path.join('.harness', 'tasks', `${taskId}.md`);
     const repairFiles = (options.files ?? []).filter((file) => pathExists(path.join(root, file)));

@@ -60,7 +60,7 @@ export function buildWorkMessage(plan: WorkPlan): string {
     '- No toques archivos fuera del alcance permitido.',
     '- No ejecutes git commit ni git push.',
     '- No escribas en la bóveda Obsidian.',
-    '- No añadas comentarios explicativos al código.',
+    '- Comenta solo lo no obvio; no repitas el código con comentarios.',
     '- Devuelve un resumen breve de los archivos modificados.'
   ].join('\n');
 }

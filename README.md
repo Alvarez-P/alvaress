@@ -344,12 +344,18 @@ cuando hace falta el detalle.
 
 El agente `primary` puede leer, buscar, editar y usar skills. El shell tiene una
 allowlist: `alvaress`, `graphify`, `aider`, `git status/diff/log/show`,
-`pnpm test/run/exec/dlx`, `vp`, `npx vp`, `npm test/run`, `npx oxlint/tsc`,
-`rg`, `grep`, `sed -n`, `find` y `ls`. Todo lo demás pide confirmación.
+`pnpm test`, `pnpm run validate/build/lint/typecheck/test`,
+`pnpm exec vp/oxlint/tsc/eslint/vitest`, `vp`, `npx vp`, `npm test`,
+`npm run validate/build/lint/typecheck/test`, `npx oxlint/tsc`, `rg`, `grep`,
+`sed -n`, `find` y `ls`. Todo lo demás pide confirmación.
 
 Están denegados de forma explícita:
 
-- `git push`, `git reset --hard` y `rm -rf`;
+- `git push`, `git reset`, `git clean`, `git checkout`, `git restore`, `rm`,
+  `sudo`, `curl` y `wget`;
+- `pnpm`/`npm publish`, `pnpm dlx`, `npm exec` y `npx --yes`;
+- `find -exec`, `find -delete`, `sed -i` y `rg --pre`;
+- scripts de deploy, release, publish, migración, base de datos y seed;
 - que los subagentes lancen otros subagentes o consulten la web;
 - `execute` y `question` en los subagentes;
 - la lectura de `.env`, `.pem`, `.key`, `.p12`, `id_rsa` e `id_ed25519`;
@@ -775,7 +781,7 @@ Skills incluidas:
 | `read-spec-first` | Obliga a leer la nota ODD o la especificación SDD antes de programar. |
 | `consult-graphify-ast` | Evita lecturas masivas de código y prioriza Graphify. |
 | `self-healing-verify` | Exige validar con Vite-Plus (`vp check` y `vp test`) tras cada edición. |
-| `universal-design-patterns` | Fuerza patrones de diseño y prohíbe comentarios en el código generado. |
+| `universal-design-patterns` | Respeta los patrones existentes, evita abstracciones nuevas y comenta solo lo no obvio. |
 | `obsidian-sdd` | Define en qué fases del flujo híbrido usa Obsidian el orquestador y qué pueden hacer los subagentes (solo lectura). |
 | `continuous-learning` | Consulta y guarda aprendizajes globales solo cuando marcan diferencia. |
 | `bounded-scope` | Mantiene al subagente en los archivos asignados y le enseña a detenerse. |

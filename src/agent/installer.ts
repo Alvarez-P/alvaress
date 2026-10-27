@@ -74,13 +74,34 @@ permissions:
     resource: "pnpm test *"
     effect: allow
   - action: shell
-    resource: "pnpm run *"
+    resource: "pnpm run validate *"
     effect: allow
   - action: shell
-    resource: "pnpm exec *"
+    resource: "pnpm run build *"
     effect: allow
   - action: shell
-    resource: "pnpm dlx *"
+    resource: "pnpm run lint *"
+    effect: allow
+  - action: shell
+    resource: "pnpm run typecheck *"
+    effect: allow
+  - action: shell
+    resource: "pnpm run test *"
+    effect: allow
+  - action: shell
+    resource: "pnpm exec vp *"
+    effect: allow
+  - action: shell
+    resource: "pnpm exec oxlint *"
+    effect: allow
+  - action: shell
+    resource: "pnpm exec tsc *"
+    effect: allow
+  - action: shell
+    resource: "pnpm exec eslint *"
+    effect: allow
+  - action: shell
+    resource: "pnpm exec vitest *"
     effect: allow
   - action: shell
     resource: "vp *"
@@ -92,7 +113,19 @@ permissions:
     resource: "npm test *"
     effect: allow
   - action: shell
-    resource: "npm run *"
+    resource: "npm run validate *"
+    effect: allow
+  - action: shell
+    resource: "npm run build *"
+    effect: allow
+  - action: shell
+    resource: "npm run lint *"
+    effect: allow
+  - action: shell
+    resource: "npm run typecheck *"
+    effect: allow
+  - action: shell
+    resource: "npm run test *"
     effect: allow
   - action: shell
     resource: "npx oxlint *"
@@ -119,10 +152,91 @@ permissions:
     resource: "git push *"
     effect: deny
   - action: shell
-    resource: "git reset --hard *"
+    resource: "git reset *"
     effect: deny
   - action: shell
-    resource: "rm -rf *"
+    resource: "git clean *"
+    effect: deny
+  - action: shell
+    resource: "git checkout *"
+    effect: deny
+  - action: shell
+    resource: "git restore *"
+    effect: deny
+  - action: shell
+    resource: "rm *"
+    effect: deny
+  - action: shell
+    resource: "sudo *"
+    effect: deny
+  - action: shell
+    resource: "curl *"
+    effect: deny
+  - action: shell
+    resource: "wget *"
+    effect: deny
+  - action: shell
+    resource: "pnpm publish *"
+    effect: deny
+  - action: shell
+    resource: "npm publish *"
+    effect: deny
+  - action: shell
+    resource: "pnpm dlx *"
+    effect: deny
+  - action: shell
+    resource: "npm exec *"
+    effect: deny
+  - action: shell
+    resource: "npx --yes *"
+    effect: deny
+  - action: shell
+    resource: "find * -exec *"
+    effect: deny
+  - action: shell
+    resource: "find * -delete *"
+    effect: deny
+  - action: shell
+    resource: "sed * -i *"
+    effect: deny
+  - action: shell
+    resource: "rg * --pre *"
+    effect: deny
+  - action: shell
+    resource: "pnpm run deploy*"
+    effect: deny
+  - action: shell
+    resource: "npm run deploy*"
+    effect: deny
+  - action: shell
+    resource: "pnpm run release*"
+    effect: deny
+  - action: shell
+    resource: "npm run release*"
+    effect: deny
+  - action: shell
+    resource: "pnpm run publish*"
+    effect: deny
+  - action: shell
+    resource: "npm run publish*"
+    effect: deny
+  - action: shell
+    resource: "pnpm run migrate*"
+    effect: deny
+  - action: shell
+    resource: "npm run migrate*"
+    effect: deny
+  - action: shell
+    resource: "pnpm run db:*"
+    effect: deny
+  - action: shell
+    resource: "npm run db:*"
+    effect: deny
+  - action: shell
+    resource: "pnpm run seed*"
+    effect: deny
+  - action: shell
+    resource: "npm run seed*"
     effect: deny
 ---
 
@@ -146,7 +260,8 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
    concreta y espera. No rellenes huecos con suposiciones.
 4. **Cambios mínimos.** Modifica solo los archivos necesarios. No reescribas módulos
    completos si basta un cambio localizado.
-5. **Sin comentarios explicativos** en el código que generes o edites.
+5. **Comenta solo lo no obvio.** No añadas comentarios que repitan el código;
+   documenta decisiones, invariantes o workarounds y sigue el estilo del proyecto.
 6. **Valida siempre** antes de declarar una tarea terminada.
 7. **No envíes secretos a Laya.** El \`state\` debe ser un resumen; nunca
    incluyas claves, tokens, datos personales ni código propietario completo.
@@ -157,10 +272,19 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
    actualiza la nota con \`alvaress obsidian note\`, no editando la bóveda a mano.
    Los subagentes solo pueden leerla.
 10. **Aprende de cada proyecto, sin ruido.** Antes de trabajar busca en los
-    aprendizajes globales; al cerrar guarda solo lo que realmente marque
-    diferencia. Guardar cero es normal: no hay cuota ni obligación de añadir algo
-    en cada ciclo. Nunca guardes secretos ni código propietario. Las mejoras al
-    propio agente se proponen, no se aplican sin aprobación.
+    aprendizajes globales solo si la tarea no es trivial o toca un tema
+    recurrente; al cerrar guarda solo lo que realmente marque diferencia. Guardar
+    cero es normal: no hay cuota ni obligación de añadir algo en cada ciclo.
+    Nunca guardes secretos ni código propietario. Las mejoras al propio agente se
+    proponen, no se aplican sin aprobación.
+11. **No gastes contexto en artefactos.** No leas \`node_modules/\`, \`dist/\`,
+    \`coverage/\`, lockfiles ni \`graphify-out/graph.json\` completo. Usa el grafo,
+    \`rg\` y rangos de líneas.
+12. **No toques tests para que pasen.** Si el contrato cambió, el orquestador
+    decide; tú corriges el código o reportas el fallo.
+13. **No instales ni publiques.** No ejecutes \`pnpm dlx\`, \`pnpm publish\`,
+    \`npm publish\`, \`graphify update\` ni \`alvaress install\` sin pedirlo. Si falta
+    una herramienta, avisa y espera.
 
 ## Contexto del proyecto
 
@@ -406,7 +530,10 @@ Reglas de delegación:
 - \`graphify explain "<concepto>"\` para un símbolo o módulo concreto.
 - \`graphify path "<A>" "<B>"\` para entender una relación.
 - Lee solo el rango de líneas que necesitas.
+- No leas \`node_modules/\`, \`dist/\`, \`coverage/\` ni lockfiles.
 - No repitas lecturas ni pegues logs completos; filtra con \`tail\`, \`rg\` o \`sed -n\`.
+- No ejecutes \`find\` con \`-exec\`, \`sed -i\`, \`rg --pre\` ni comandos que escriban fuera del alcance.
+- No uses \`pnpm dlx\` ni \`npx\` para instalar; pide la dependencia.
 - Resume el estado en 1-3 frases; no envíes el repositorio completo.
 - Reutiliza la spec y las tareas como memoria: no vuelvas a deducir lo que ya está
   escrito.
@@ -503,11 +630,58 @@ const VALIDATION_COMMANDS = [
   'vp check *',
   'vp test *',
   'pnpm exec vp *',
+  'pnpm exec oxlint *',
+  'pnpm exec tsc *',
+  'pnpm exec eslint *',
+  'pnpm exec vitest *',
   'pnpm test *',
-  'pnpm run *',
+  'pnpm run validate *',
+  'pnpm run build *',
+  'pnpm run lint *',
+  'pnpm run typecheck *',
+  'pnpm run test *',
   'npm test *',
-  'npm run *',
-  'npx vp *'
+  'npm run validate *',
+  'npm run build *',
+  'npm run lint *',
+  'npm run typecheck *',
+  'npm run test *',
+  'npx vp *',
+  'npx oxlint *',
+  'npx tsc *'
+];
+
+const DANGEROUS_SHELL_DENY: PermissionRule[] = [
+  { action: 'shell', resource: 'git push *', effect: 'deny' },
+  { action: 'shell', resource: 'git reset *', effect: 'deny' },
+  { action: 'shell', resource: 'git clean *', effect: 'deny' },
+  { action: 'shell', resource: 'git checkout *', effect: 'deny' },
+  { action: 'shell', resource: 'git restore *', effect: 'deny' },
+  { action: 'shell', resource: 'rm *', effect: 'deny' },
+  { action: 'shell', resource: 'sudo *', effect: 'deny' },
+  { action: 'shell', resource: 'curl *', effect: 'deny' },
+  { action: 'shell', resource: 'wget *', effect: 'deny' },
+  { action: 'shell', resource: 'pnpm publish *', effect: 'deny' },
+  { action: 'shell', resource: 'npm publish *', effect: 'deny' },
+  { action: 'shell', resource: 'pnpm dlx *', effect: 'deny' },
+  { action: 'shell', resource: 'npm exec *', effect: 'deny' },
+  { action: 'shell', resource: 'npx --yes *', effect: 'deny' },
+  { action: 'shell', resource: 'find * -exec *', effect: 'deny' },
+  { action: 'shell', resource: 'find * -delete *', effect: 'deny' },
+  { action: 'shell', resource: 'sed * -i *', effect: 'deny' },
+  { action: 'shell', resource: 'rg * --pre *', effect: 'deny' },
+  { action: 'shell', resource: 'pnpm run deploy*', effect: 'deny' },
+  { action: 'shell', resource: 'npm run deploy*', effect: 'deny' },
+  { action: 'shell', resource: 'pnpm run release*', effect: 'deny' },
+  { action: 'shell', resource: 'npm run release*', effect: 'deny' },
+  { action: 'shell', resource: 'pnpm run publish*', effect: 'deny' },
+  { action: 'shell', resource: 'npm run publish*', effect: 'deny' },
+  { action: 'shell', resource: 'pnpm run migrate*', effect: 'deny' },
+  { action: 'shell', resource: 'npm run migrate*', effect: 'deny' },
+  { action: 'shell', resource: 'pnpm run db:*', effect: 'deny' },
+  { action: 'shell', resource: 'npm run db:*', effect: 'deny' },
+  { action: 'shell', resource: 'pnpm run seed*', effect: 'deny' },
+  { action: 'shell', resource: 'npm run seed*', effect: 'deny' }
 ];
 
 const SECRET_READ_DENY: PermissionRule[] = [
@@ -554,7 +728,8 @@ function shellPermissions(commands: string[]): PermissionRule[] {
       action: 'shell',
       resource: command,
       effect: 'allow' as const
-    }))
+    })),
+    ...DANGEROUS_SHELL_DENY
   ];
 }
 
@@ -599,6 +774,9 @@ una tarea SDD, y proponer un alcance cerrado. No decides la implementación.
 5. No incluyas secretos, tokens, rutas personales ni datos de clientes en tu
    respuesta. Si encuentras un secreto, menciónalo sin reproducirlo.
 6. No propongas refactors fuera del alcance ni archivos "por si acaso".
+7. No leas fuera de la bóveda y la memoria global; no recorras directorios
+   externos ni archivos del sistema.
+8. No ejecutes \`graphify update\` ni reconstruyas el grafo.
 
 ## Contrato de respuesta
 
@@ -652,8 +830,9 @@ un alcance cerrado y la implementas sin salirte de él.
    orquestador lo listó explícitamente.
 2. Cambios mínimos: nada de refactors, renombres masivos ni dependencias nuevas.
    Si necesitas una dependencia, pídela y espera.
-3. No añadas comentarios explicativos al código.
-4. Aplica patrones de diseño universales y tipado estricto.
+3. Comenta solo lo no obvio; no repitas el código con comentarios. Sigue el
+   estilo del proyecto.
+4. Respeta los patrones y capas existentes; no introduzcas abstracciones nuevas.
 5. No ejecutes \`git push\`, \`git reset\`, \`git commit\`, \`git checkout\` ni \`rm -rf\`.
    El commit y el cierre son del orquestador.
 6. La bóveda Obsidian es de solo lectura: no escribas en ella ni ejecutes
@@ -671,6 +850,8 @@ y \`pnpm exec vp test\`. Corrige y vuelve a validar una vez. Si sigue fallando,
 devuelve el error exacto; no entres en un bucle.
 
 ## Contrato de respuesta
+
+Máximo 15 líneas:
 
 - \`scope:\` \`ok\` o \`blocked\` + ruta exacta.
 - \`files:\` archivos modificados y una micro-descripción por archivo.
@@ -705,10 +886,11 @@ devuelves el fallo exacto.
    \`alvaress obsidian note\`, \`alvaress archive\` ni \`alvaress learn add\`.
 2. Ejecuta exactamente los comandos que te pase el orquestador o, si no hay,
    \`vp check\` y \`vp test\`; fallback \`pnpm exec vp check\` y \`pnpm exec vp test\`.
-3. Nunca uses \`--watch\`, \`--update\`, \`-u\` ni \`--no-verify\`.
-4. No ocultes fallos ni resumas un error sin el mensaje real.
-5. La bóveda Obsidian es de solo lectura.
-6. No leas ni pegues secretos.
+3. Nunca uses \`--watch\`, \`--fix\`, \`--update\`, \`-u\` ni \`--no-verify\`.
+4. No instales Vite-Plus ni cambies la configuración para que la validación pase.
+5. No ocultes fallos ni resumas un error sin el mensaje real.
+6. La bóveda Obsidian es de solo lectura.
+7. No leas ni pegues secretos.
 
 ## Contrato de respuesta
 
@@ -760,14 +942,19 @@ síntoma.
    \`verdict: needs-orchestrator\` con la ruta.
 2. No borres tests, no relajes aserciones, no uses \`any\`, \`@ts-ignore\`,
    \`eslint-disable\` ni \`--no-verify\` para callar el error.
-3. No añadas comentarios explicativos.
-4. No ejecutes \`git commit\`, \`git push\`, \`git reset\`, \`git checkout\` ni \`rm -rf\`.
-5. No escribas en la bóveda Obsidian ni ejecutes \`alvaress obsidian note\`.
-6. No ejecutes \`alvaress apply\`, \`alvaress verify\`, \`alvaress archive\` ni
+3. Comenta solo lo no obvio; no repitas el código con comentarios.
+4. No edites ni borres tests. Si el contrato cambió, devuelve
+   \`verdict: needs-orchestrator\`.
+5. No ejecutes \`git commit\`, \`git push\`, \`git reset\`, \`git checkout\`,
+   \`git restore\`, \`git clean\` ni \`rm\`.
+6. No escribas en la bóveda Obsidian ni ejecutes \`alvaress obsidian note\`.
+7. No ejecutes \`alvaress apply\`, \`alvaress verify\`, \`alvaress archive\` ni
    \`alvaress learn add\`.
-7. No leas ni pegues secretos.
+8. No leas ni pegues secretos.
 
 ## Contrato de respuesta
+
+Máximo 15 líneas:
 
 - \`verdict:\` \`fixed\`, \`needs-orchestrator\` o \`nuclear\`.
 - \`cause:\` causa raíz en una frase.
