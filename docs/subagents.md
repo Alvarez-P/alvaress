@@ -88,6 +88,11 @@ del resultado es el diff.
 El orquestador no delega la decisión, el commit, el `[x]` de Obsidian ni los
 aprendizajes. Los subagentes no lanzan otros subagentes ni consultan la web.
 
+Aider y los subagentes reciben una regla explícita: cero comentarios en el código
+generado (nada de explicaciones, separadores, `TODO`/`FIXME` ni JSDoc de
+relleno); solo conservan los comentarios que ya existían. El orquestador revisa
+el diff y rechaza cualquier comentario nuevo antes de validar y commitear.
+
 ## Skills por subagente
 
 | Subagente | Skills obligatorias |

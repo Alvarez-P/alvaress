@@ -415,6 +415,11 @@ Es un agente `primary`, seleccionable con **Tab** en OpenCode o con
 El orquestador no delega la decisión, el commit, el cierre de Obsidian ni los
 aprendizajes. La bóveda es de solo lectura para los cuatro subagentes.
 
+Aider y los subagentes tienen prohibido agregar comentarios al código: ni
+explicaciones, ni separadores, ni `TODO`/`FIXME`, ni JSDoc de relleno. Conservan
+solo los comentarios que ya existían. El orquestador revisa el diff y rechaza
+cualquier comentario nuevo antes de validar y commitear.
+
 ### Skills
 
 El instalador escribe nueve skills en `.harness/skills/<nombre>/SKILL.md` y crea
@@ -425,7 +430,7 @@ enlaces en `~/.config/opencode/skills/<nombre>` y `~/.claude/skills/<nombre>`:
 | `read-spec-first` | Lee la nota ODD o la spec SDD antes de programar y resume los criterios. |
 | `consult-graphify-ast` | Evita lecturas masivas y prioriza Graphify. |
 | `self-healing-verify` | Valida con Vite-Plus tras cada edición y limita los ciclos de reparación. |
-| `universal-design-patterns` | Respeta los patrones existentes, evita abstracciones nuevas y comenta solo lo no obvio. |
+| `universal-design-patterns` | Respeta los patrones existentes, evita abstracciones nuevas y no agrega comentarios al código. |
 | `obsidian-sdd` | Define el uso de Obsidian por fase y el acceso de solo lectura de los subagentes. |
 | `continuous-learning` | Consulta títulos relevantes y guarda aprendizajes en el store global o del proyecto sin inflar el contexto. |
 | `bounded-scope` | Mantiene al subagente en los archivos asignados y le enseña a detenerse. |

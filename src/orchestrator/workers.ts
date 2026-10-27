@@ -60,7 +60,7 @@ export function buildWorkMessage(plan: WorkPlan): string {
     '- No toques archivos fuera del alcance permitido.',
     '- No ejecutes git commit ni git push.',
     '- No escribas en la bóveda Obsidian.',
-    '- Comenta solo lo no obvio; no repitas el código con comentarios.',
+    '- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.',
     '- Devuelve un resumen breve de los archivos modificados.'
   ].join('\n');
 }
@@ -85,6 +85,7 @@ export function buildFixMessage(input: FixInput): string {
     '',
     'Reglas:',
     '- Corrige la causa, no silencies el error.',
+    '- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.',
     '- No toques tests ni archivos fuera del alcance salvo que el error lo exija.',
     '- No ejecutes git commit ni git push.',
     '- No escribas en la bóveda Obsidian.'

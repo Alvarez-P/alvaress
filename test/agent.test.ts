@@ -41,6 +41,8 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /Aprendizajes del proyecto: `\.harness\/memory\/learnings\.json`/);
   assert.match(rendered, /Laya decide el scope/);
   assert.match(rendered, /alvaress learn promote/);
+  assert.match(rendered, /Cero comentarios en el código generado/);
+  assert.match(rendered, /revisa el diff/);
   assert.match(rendered, /alvaress-fixer/);
   assert.match(rendered, /resource: "pnpm run validate \*"/);
   assert.doesNotMatch(rendered, /resource: "pnpm run \*"/);
@@ -140,6 +142,7 @@ test('renderSubagent declara skills, pasos y permisos restrictivos', () => {
   assert.doesNotMatch(implementerRendered, /resource: "git commit \*"/);
   assert.doesNotMatch(implementerRendered, /resource: "pnpm run \*"/);
   assert.match(implementerRendered, /resource: "pnpm run validate \*"/);
+  assert.match(implementerRendered, /No agregues comentarios al código/);
 
   for (const subagent of SUBAGENTS) {
     const rendered = renderSubagent(subagent);
@@ -155,6 +158,7 @@ test('renderSubagent declara skills, pasos y permisos restrictivos', () => {
   const fixerRendered = renderSubagent(fixer);
   assert.match(fixerRendered, /`failure-triage`/);
   assert.match(fixerRendered, /action: edit\n    resource: "\*"\n    effect: allow/);
+  assert.match(fixerRendered, /No agregues comentarios al código/);
 });
 
 test('installAgent escribe los cuatro subagentes junto al agente', () => {

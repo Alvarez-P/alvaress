@@ -54,7 +54,7 @@ export const SKILLS: SkillDefinition[] = [
 - No introduzcas Repository, Factory, Service ni capas nuevas solo porque suenan bien. Si el cambio no necesita una abstracción, no la crees.
 - No muevas archivos, no renombres símbolos y no refactorices fuera del alcance.
 - Mantén el tipado estricto y los contratos públicos existentes.
-- Comenta solo lo que no sea evidente: decisiones, invariantes o workarounds. No repitas el código con comentarios.
+- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes y no los reescribas.
 - Si el patrón existente no alcanza, devuelve \`scope: blocked\` y explica la decisión; no improvises una arquitectura paralela.`
   },
   {

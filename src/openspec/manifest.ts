@@ -359,7 +359,7 @@ export function buildTaskDocument(
     '## Restricciones',
     '',
     '- Leer esta especificación y openspec.yaml antes de modificar el código.',
-    '- Comentar solo lo no obvio; no repetir el código con comentarios.',
+    '- No generar comentarios en el código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conservar solo los comentarios existentes.',
     '- Aplicar patrones de diseño universales y mantener el tipado estricto.',
     '- Validar con los comandos configurados antes de reportar la tarea como completada.',
     ''

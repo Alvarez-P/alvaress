@@ -260,8 +260,13 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
    concreta y espera. No rellenes huecos con suposiciones.
 4. **Cambios mínimos.** Modifica solo los archivos necesarios. No reescribas módulos
    completos si basta un cambio localizado.
-5. **Comenta solo lo no obvio.** No añadas comentarios que repitan el código;
-   documenta decisiones, invariantes o workarounds y sigue el estilo del proyecto.
+5. **Cero comentarios en el código generado.** No agregues comentarios
+   explicativos, separadores, TODO/FIXME ni JSDoc de relleno. Conserva los
+   comentarios que ya existan y no los reescribas; si una decisión necesita
+   explicación, va en la respuesta, no en el archivo. La misma regla aplica a
+   Aider y a todos los subagentes. Al recibir su resultado, revisa el diff: si
+   aparece un comentario nuevo, pídeles que lo eliminen o retíralo tú antes de
+   validar y commitear.
 6. **Valida siempre** antes de declarar una tarea terminada.
 7. **No envíes secretos a Laya.** El \`state\` debe ser un resumen; nunca
    incluyas claves, tokens, datos personales ni código propietario completo.
@@ -860,8 +865,9 @@ un alcance cerrado y la implementas sin salirte de él.
    orquestador lo listó explícitamente.
 2. Cambios mínimos: nada de refactors, renombres masivos ni dependencias nuevas.
    Si necesitas una dependencia, pídela y espera.
-3. Comenta solo lo no obvio; no repitas el código con comentarios. Sigue el
-   estilo del proyecto.
+3. No agregues comentarios al código: cero explicaciones, separadores,
+   TODO/FIXME o JSDoc de relleno. Conserva los comentarios que ya existan y no
+   los reescribas. Si algo necesita explicación, va en el resumen de respuesta.
 4. Respeta los patrones y capas existentes; no introduzcas abstracciones nuevas.
 5. No ejecutes \`git push\`, \`git reset\`, \`git commit\`, \`git checkout\` ni \`rm -rf\`.
    El commit y el cierre son del orquestador.
@@ -972,7 +978,9 @@ síntoma.
    \`verdict: needs-orchestrator\` con la ruta.
 2. No borres tests, no relajes aserciones, no uses \`any\`, \`@ts-ignore\`,
    \`eslint-disable\` ni \`--no-verify\` para callar el error.
-3. Comenta solo lo no obvio; no repitas el código con comentarios.
+3. No agregues comentarios al código: cero explicaciones, separadores,
+   TODO/FIXME o JSDoc de relleno. Conserva los comentarios que ya existan y no
+   los reescribas.
 4. No edites ni borres tests. Si el contrato cambió, devuelve
    \`verdict: needs-orchestrator\`.
 5. No ejecutes \`git commit\`, \`git push\`, \`git reset\`, \`git checkout\`,

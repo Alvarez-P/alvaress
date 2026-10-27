@@ -130,7 +130,8 @@ test('las skills evitan sobreingeniería y no confunden fallos de herramienta co
   assert.ok(verify !== undefined);
 
   assert.match(patterns.body, /no introduzcas/i);
-  assert.match(patterns.body, /comenta solo/i);
+  assert.match(patterns.body, /no agregues comentarios/i);
+  assert.match(patterns.body, /TODO\/FIXME/);
   assert.doesNotMatch(patterns.body, /altamente escalable/i);
 
   assert.match(triage.body, /needs-orchestrator/);
