@@ -169,7 +169,7 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 - Skills: \`.harness/skills/\` y \`~/.config/opencode/skills/\`
 - Grafo de código: \`graphify-out/graph.json\` y \`graphify-out/GRAPH_REPORT.md\`
 - Configuración: \`~/.alvaressconfig.json\` y \`.alvaressrc.json\`
-- Gestor de paquetes: \`pnpm\` por defecto (configurable con \`packageManager\`)
+- Gestor de paquetes: \`pnpm\` por defecto. Úsalo para instalar dependencias, ejecutar scripts y binarios; \`npm\` solo si el proyecto lo exige y pnpm no está disponible.
 - Ejecuciones: \`.harness/runs/\` (reportes) y \`.laya/last_run.log\` (log del run)
 - Backups: \`.harness/backups/\`
 - Lock de ejecución: \`.harness/lock\` (evita dos runs simultáneos)

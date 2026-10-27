@@ -13,7 +13,7 @@ function result(code = 0): CommandResult {
   return { code, stdout: '', stderr: '' };
 }
 
-test('install --yes instala los componentes requeridos sin Ollama', async () => {
+test('install --yes usa pnpm y no Ollama aunque el proyecto declare npm', async () => {
   const temp = makeTempDir('alvaress-install-yes-');
   try {
     const root = path.join(temp.path, 'project');
@@ -29,6 +29,7 @@ test('install --yes instala los componentes requeridos sin Ollama', async () => 
     const config = mergeConfig(
       {
         obsidianVaultPath: vault,
+        packageManager: 'npm',
         laya: { modelDir: '/models/laya' }
       },
       {}

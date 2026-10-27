@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "src/commands/install.ts": {
-    "mtime": 1792985630.1532292,
-    "seen": 1792985646.0079963,
-    "ast_hash": "adcfb5b861c9a4c035df2a49631681d4",
+    "mtime": 1793059652.9701598,
+    "seen": 1793059793.5876362,
+    "ast_hash": "a844434a4b8d1e317224d642867c3762",
     "semantic_hash": ""
   },
   "src/commands/skills.ts": {
@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "src/skills/installer.ts": {
-    "mtime": 1792982437.7993436,
-    "seen": 1792982725.7294822,
-    "ast_hash": "49739dc78394715adb6dc849ca0518c6",
+    "mtime": 1793059756.6821506,
+    "seen": 1793059793.5876775,
+    "ast_hash": "4e418e72cfc260d50617f81aacf00de2",
     "semantic_hash": ""
   },
   "src/utils/args.ts": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792985502.3692667,
-    "seen": 1792985604.1675832,
-    "ast_hash": "48a40cf9015b5de69a3a79dcfbe72c81",
+    "mtime": 1793059738.2701523,
+    "seen": 1793059793.5877216,
+    "ast_hash": "044b38d6dde8dd144312405e193b25e8",
     "semantic_hash": ""
   },
   "test/aider.test.ts": {
@@ -246,9 +246,9 @@
     "semantic_hash": ""
   },
   "src/agent/installer.ts": {
-    "mtime": 1792985490.4132693,
-    "seen": 1792985604.1673052,
-    "ast_hash": "27432f69ed766a298fb148d4f8b8d682",
+    "mtime": 1793059681.290157,
+    "seen": 1793059793.587628,
+    "ast_hash": "d0ea7b65714912bef2d26bd87dda7fe0",
     "semantic_hash": ""
   },
   "src/commands/agent.ts": {
@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/utils/package-manager.ts": {
-    "mtime": 1792978034.0583699,
-    "seen": 1792982725.7294931,
-    "ast_hash": "021b2f3b39a9a9244c81e6e3576fd7c2",
+    "mtime": 1793059606.726163,
+    "seen": 1793059793.5876873,
+    "ast_hash": "96c872b22f8a10b9d3a93df8e67bc29b",
     "semantic_hash": ""
   },
   "src/utils/redact.ts": {
@@ -354,9 +354,9 @@
     "semantic_hash": ""
   },
   "test/reliability.test.ts": {
-    "mtime": 1792982441.4460077,
-    "seen": 1792982725.7295196,
-    "ast_hash": "eb837b8e2baf6c005eb93cb87dab3744",
+    "mtime": 1793059664.9461586,
+    "seen": 1793059793.5877123,
+    "ast_hash": "c5ff56f443513a086c6dad84346dc5d8",
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
@@ -384,9 +384,9 @@
     "semantic_hash": ""
   },
   "test/install-command.test.ts": {
-    "mtime": 1792982678.2580395,
-    "seen": 1792982725.7295082,
-    "ast_hash": "9baaacf746e95680a2ebd1aac0b75b73",
+    "mtime": 1793059674.5661578,
+    "seen": 1793059793.5877016,
+    "ast_hash": "849ce09aa2aeda533ee43a0b94e5282a",
     "semantic_hash": ""
   },
   "src/utils/pipx.ts": {
@@ -408,21 +408,15 @@
     "semantic_hash": ""
   },
   "assets/alvaress-flow.svg": {
-    "mtime": 1792818690.988749,
-    "seen": 1792881297.0116918,
-    "ast_hash": "79a16e55860727e5ddc8069786963007",
+    "mtime": 1793059595.554164,
+    "seen": 1793059793.587727,
+    "ast_hash": "143f6338f3f44e1172f105bfedd82f02",
     "semantic_hash": ""
   },
   "assets/alvaress-intro.gif": {
     "mtime": 1792881061.7157247,
     "seen": 1792881297.0116932,
     "ast_hash": "0f59525eaf98088a321a01502b13174d",
-    "semantic_hash": ""
-  },
-  "assets/alvaress-logo.svg": {
-    "mtime": 1792881117.2797177,
-    "seen": 1792881297.0116947,
-    "ast_hash": "02ba26279fbdfc88b852f04b464822b7",
     "semantic_hash": ""
   },
   "src/commands/learn.ts": {

@@ -27,7 +27,7 @@ export const SKILLS: SkillDefinition[] = [
     name: 'self-healing-verify',
     description: 'Enseña al agente a auto-corregir errores usando Vite-Plus en local.',
     scope: 'project',
-    body: 'Al finalizar cualquier edición, ejecuta la validación local con Vite-Plus: `vp check` y `vp test`. Si el CLI global no está disponible, usa `pnpm exec vp check` y `pnpm exec vp test` (o el gestor indicado en `packageManager`). Si el exit code es distinto de 0, lee el error real, corrige la causa y vuelve a validar una vez. No reportes la tarea como lista si los comandos fallan ni silencies errores con `--no-verify`, `any` o `@ts-ignore`.'
+    body: 'Al finalizar cualquier edición, ejecuta la validación local con Vite-Plus: `vp check` y `vp test`. Usa pnpm como forma canónica: `pnpm exec vp check` y `pnpm exec vp test`. Solo si el proyecto declara `packageManager: "npm"` y pnpm no está disponible, usa `npx`. Si el exit code es distinto de 0, lee el error real, corrige la causa y vuelve a validar una vez. No reportes la tarea como lista si los comandos fallan ni silencies errores con `--no-verify`, `any` o `@ts-ignore`.'
   },
   {
     name: 'universal-design-patterns',
@@ -154,8 +154,8 @@ No inventes el archivo que falta ni lo edites "solo un poquito".
 
 1. \`vp check\`: formato, lint y tipos.
 2. \`vp test\`: pruebas con Vitest.
-3. Si el CLI global no existe, usa \`pnpm exec vp check\` y \`pnpm exec vp test\`.
-4. Respeta el \`packageManager\` del proyecto si no es pnpm.
+3. Usa pnpm como forma canónica: \`pnpm exec vp check\` y \`pnpm exec vp test\`.
+4. Solo si el proyecto declara \`packageManager: "npm"\` y no hay pnpm, usa \`npx\` como excepción.
 
 Nunca uses modo watch, \`--update\`, \`-u\` ni \`--no-verify\`. No ejecutes auto-fixes que reescriban archivos fuera del alcance.
 

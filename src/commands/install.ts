@@ -28,7 +28,7 @@ import { runCommand } from '../utils/process.js';
 import { commandExists } from '../utils/process.js';
 import {
   packageManagerInstallArgs,
-  resolvePackageManager
+  resolveInstallerPackageManager
 } from '../utils/package-manager.js';
 import {
   ensurePipxPath,
@@ -138,6 +138,12 @@ export async function runInstall(
   ensureHarnessDirs(root);
   let config = runtime.loadConfig(root);
   const paths = runtime.getConfigPaths(root);
+  const manager = resolveInstallerPackageManager(config, runtime.commandExists);
+  if (manager !== 'pnpm') {
+    p.log.warn(
+      `pnpm no está disponible; el instalador usará ${manager}. Para priorizar pnpm: "corepack enable pnpm" o "npm install -g pnpm".`
+    );
+  }
 
   const selected: Component[] = yes
     ? [...REQUIRED_COMPONENTS]
@@ -174,16 +180,16 @@ export async function runInstall(
   }
 
   if (selected.includes('vite-plus')) {
-    await installVitePlus(root, config, runtime);
+    await installVitePlus(root, manager, runtime);
   }
 
   if (selected.includes('validation')) {
-    await installValidationDependencies(root, config, runtime);
+    await installValidationDependencies(root, manager, runtime);
   }
 
   let layaChanged = false;
   if (selected.includes('laya')) {
-    config = await configureLaya(config, yes, runtime, root);
+    config = await configureLaya(config, yes, runtime, root, manager);
     layaChanged = true;
   }
 
@@ -412,7 +418,7 @@ async function installAider(runtime: InstallRuntime, yes: boolean): Promise<void
 
 async function installValidationDependencies(
   root: string,
-  config: HarnessConfig,
+  manager: PackageManager,
   runtime: InstallRuntime
 ): Promise<void> {
   const spinner = p.spinner();
@@ -421,11 +427,10 @@ async function installValidationDependencies(
     spinner.stop('No hay package.json; se omite la instalación de oxlint y TypeScript.');
     return;
   }
-  const manager = resolvePackageManager(config);
   if (!runtime.commandExists(manager)) {
     spinner.error(`${manager} no está disponible.`);
     throw new Error(
-      `Instala ${manager} antes de continuar. alvaress usa pnpm por defecto; puedes cambiarlo con "packageManager" en la configuración.`
+      `Instala pnpm antes de continuar: "corepack enable pnpm" o "npm install -g pnpm". alvaress usa pnpm por defecto.`
     );
   }
   spinner.message(`Instalando oxlint, typescript y @types/node con ${manager}`);
@@ -445,7 +450,7 @@ async function installValidationDependencies(
 
 async function installVitePlus(
   root: string,
-  config: HarnessConfig,
+  manager: PackageManager,
   runtime: InstallRuntime
 ): Promise<void> {
   const spinner = p.spinner();
@@ -460,7 +465,6 @@ async function installVitePlus(
     return;
   }
 
-  const manager = resolvePackageManager(config);
   spinner.message(`Instalando ${VITE_PLUS_PACKAGE} con ${manager}`);
   const result = await runtime.runCommand(
     manager,
@@ -491,7 +495,7 @@ function formatBytes(bytes: number): string {
 
 async function installLayaDependencies(
   root: string,
-  config: HarnessConfig,
+  manager: PackageManager,
   runtime: InstallRuntime
 ): Promise<boolean> {
   if (
@@ -502,12 +506,11 @@ async function installLayaDependencies(
   }
   if (!pathExists(path.join(root, 'package.json'))) {
     p.log.warn(
-      `No hay package.json. Instala ${LAYA_ONNX_RUNTIME_PACKAGE} y ${LAYA_TOKENIZER_PACKAGE} manualmente.`
+      `No hay package.json. Instala ${LAYA_ONNX_RUNTIME_PACKAGE} y ${LAYA_TOKENIZER_PACKAGE} manualmente con pnpm.`
     );
     return false;
   }
 
-  const manager = resolvePackageManager(config);
   const spinner = p.spinner();
   spinner.start(`Instalando el runtime de Laya con ${manager}`);
   const result = await runtime.runCommand(
@@ -600,7 +603,8 @@ async function configureLaya(
   base: HarnessConfig,
   yes: boolean,
   runtime: InstallRuntime,
-  root: string
+  root: string,
+  manager: PackageManager
 ): Promise<HarnessConfig> {
   const current = base.laya ?? {
     enabled: true,
@@ -633,7 +637,7 @@ async function configureLaya(
       ).trim();
 
   const trimmed = modelDir.trim();
-  const depsReady = await installLayaDependencies(root, base, runtime);
+  const depsReady = await installLayaDependencies(root, manager, runtime);
   if (!depsReady) {
     p.log.warn('Laya quedará en heurísticas hasta que instales el runtime.');
   }

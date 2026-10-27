@@ -16,6 +16,7 @@ import { outOfScopeFiles } from '../src/orchestrator/scope.js';
 import { acquireProjectLock, getLockPath, readProjectLock } from '../src/utils/lock.js';
 import {
   defaultValidationCommands,
+  resolveInstallerPackageManager,
   resolvePackageManager
 } from '../src/utils/package-manager.js';
 import { redactSecrets } from '../src/utils/redact.js';
@@ -165,6 +166,16 @@ test('pnpm es el gestor y Vite-Plus manda en la validación por defecto', () => 
     'npx tsc --noEmit'
   ]);
   assert.equal(resolvePackageManager(mergeConfig({ packageManager: 'npm' }, {})), 'npm');
+});
+
+test('el instalador prefiere pnpm aunque el proyecto declare npm', () => {
+  const npmConfig = mergeConfig({ packageManager: 'npm' }, {});
+  assert.equal(
+    resolveInstallerPackageManager(npmConfig, (command) => command === 'pnpm' || command === 'npm'),
+    'pnpm'
+  );
+  assert.equal(resolveInstallerPackageManager(npmConfig, (command) => command === 'npm'), 'npm');
+  assert.equal(resolveInstallerPackageManager(mergeConfig({}, {}), () => false), 'pnpm');
 });
 
 test('installAgent instala los subagentes con modo subagent', () => {

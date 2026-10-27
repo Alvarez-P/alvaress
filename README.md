@@ -1,9 +1,5 @@
 # alvaress
 
-<p align="center">
-  <img src="assets/alvaress-logo.svg" alt="alvaress: SDD harness para OpenCode" width="420">
-</p>
-
 **Tu arnés híbrido SDD + ODD para [OpenCode](https://opencode.ai):** decide en
 local con [Laya](https://github.com/convaiinnovations/laya) (ONNX vendorizado),
 ejecuta con [Aider](https://aider.chat) cuando lo habilitas o con subagentes
@@ -27,10 +23,12 @@ configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission
 - [Cómo funciona, en 5 pasos](#cómo-funciona-en-5-pasos)
 - [Requisitos](#requisitos)
 - [Instalación](#instalación)
+- [El instalador](#el-instalador)
 - [Inicio rápido](#inicio-rápido)
 - [El agente `alvaress`](#el-agente-alvaress)
 - [Aprendizaje continuo](#aprendizaje-continuo)
 - [Comandos](#comandos)
+- [Herramientas de terceros](#herramientas-de-terceros)
 - [Modelo de decisión (Laya)](#modelo-de-decisión-laya)
 - [Artefacto int8](#artefacto-int8)
 - [Configuración](#configuración)
@@ -98,17 +96,27 @@ el único que escribe en la bóveda.
 ## Requisitos
 
 Solo necesitas instalar Node.js 20 o superior y pnpm; el resto lo resuelve
-`alvaress install`.
+`alvaress install`. Si no tienes pnpm, Node 20 trae Corepack:
+
+```bash
+corepack enable pnpm
+# o, si prefieres instalarlo global:
+npm install -g pnpm
+```
 
 | Tú instalas | El instalador resuelve |
 | --- | --- |
 | **Node.js 20 o superior** | Laya + `onnxruntime-node` |
-| **pnpm** (gestor por defecto) | Vite-Plus (`vite-plus`) |
+| **pnpm** (gestor por defecto y recomendado) | Vite-Plus (`vite-plus`) |
 | Git (recomendado) | Graphify (`graphifyy`) |
 | | Obsidian, si se puede instalar |
 | | pipx, si falta |
 | | Aider (`aider-chat`), solo si lo habilitas |
 | | `oxlint`, TypeScript y `@types/node` como fallback |
+
+**Sobre pnpm:** es la vía recomendada para instalar, validar y construir. El
+instalador lo usa para todas las dependencias Node aunque el proyecto declare
+`packageManager: "npm"`; solo cae a npm si pnpm no está en el PATH, y te avisa.
 
 **Sobre pipx:** si falta, el instalador lo instala con el gestor de tu sistema
 (`brew`, `apt-get`, `dnf`, `pacman`, `zypper`, `apk`) o con
@@ -124,7 +132,13 @@ arranca con heurísticas y te avisa en `doctor`.
 
 ## Instalación
 
+La vía recomendada es pnpm:
+
 ```bash
+# 1. Asegura pnpm (Node 20+ incluye Corepack).
+corepack enable pnpm
+
+# 2. Instala alvaress globalmente.
 pnpm add -g alvaress
 ```
 
@@ -133,6 +147,9 @@ También puedes probarlo sin instalación global:
 ```bash
 pnpm dlx alvaress --help
 ```
+
+Si tu proyecto usa npm, `alvaress install` seguirá usando pnpm para sus
+dependencias Node y solo usará npm si pnpm no está disponible.
 
 ### Instalación desatendida
 
@@ -149,6 +166,104 @@ Laya y su modelo, Vite-Plus, Graphify y las dependencias de validación), crea
 el proyecto es un repositorio y no crea `.alvaressrc.json`. Aider solo se
 instala si ya está habilitado en la configuración. Si falta la API key del
 implementador y Aider está habilitado, avisa al terminar.
+
+## El instalador
+
+`alvaress install` es el único paso que instala dependencias del sistema. Lo
+demás trabaja dentro del proyecto y de la caché local. Al terminar te deja un
+agente de OpenCode, sus skills, la configuración y, si el proyecto lo parece, un
+`openspec.yaml` listo para recibir tareas. **Las dependencias Node se instalan
+con pnpm**: es el gestor por defecto del instalador, incluso si el proyecto
+declara npm. npm solo se usa como fallback cuando pnpm no está en el PATH.
+
+### Qué hace, paso a paso
+
+1. **Selecciona componentes.** Sin argumentos muestra un multiselect con los
+   componentes requeridos ya marcados. Con `--yes` instala los requeridos
+   (`agent`, `laya`, `obsidian`, `graphify`, `vite-plus`, `validation`) y no
+   pregunta nada.
+2. **Obsidian.** Detecta si ya está instalado (binario, escritorio, Flatpak,
+   Snap, AppImage, `.app` o Windows) y, si falta, intenta instalarlo. Luego
+   elige o crea la bóveda y la conecta al proyecto.
+3. **Graphify.** Comprueba `graphify`; si falta, instala `graphifyy` con pipx.
+4. **Aider (opcional).** Solo si lo seleccionaste o si ya estaba habilitado en
+   la configuración. Comprueba `aider` e instala `aider-chat` con pipx si hace
+   falta. Si no lo habilitas, el trabajo lo hacen los subagentes.
+5. **Vite-Plus.** Si el proyecto tiene `package.json`, instala `vite-plus` con
+   pnpm como dependencia de desarrollo. `vp check` y `vp test` son la validación
+   oficial.
+6. **Dependencias de validación.** Instala `oxlint`, `typescript` y
+   `@types/node` con pnpm como fallback para proyectos que no usan Vite-Plus.
+7. **Laya.** Instala `onnxruntime-node` y `@huggingface/tokenizers` con pnpm en
+   el proyecto, y descarga el artefacto int8 en la caché global. Verifica tamaño
+   y SHA-256 de cada archivo. Si algo falla, avisa y el arnés sigue con
+   heurísticas; no bloquea la instalación.
+8. **Configuración.** Crea `~/.alvaressconfig.json` si no existe o actualiza
+   Laya y Obsidian. En modo interactivo también puede crear `.alvaressrc.json`
+   con overrides locales.
+9. **Manifiesto.** Si el directorio es un repositorio y no hay `openspec.yaml`,
+   lo crea con la estructura inicial.
+10. **Bóveda.** Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y
+    `openspec.yaml`, y crea o actualiza la nota del proyecto.
+11. **Skills.** Escribe las skills en `.harness/skills/` y crea enlaces en
+    `~/.config/opencode/skills/` y `~/.claude/skills/`.
+12. **Agente.** Instala `alvaress` y sus cuatro subagentes en la configuración
+    global de OpenCode y en `.opencode/agents/` del proyecto.
+
+### Qué descarga y por qué
+
+| Componente | Qué se instala | Dónde queda | Para qué |
+| --- | --- | --- | --- |
+| **Laya int8** | `laya.onnx`, `laya.onnx.data`, `laya_config.json`, `tokenizer/tokenizer.json` y `tokenizer/tokenizer_config.json` | `~/.cache/alvaress/laya-onnx-int8/<revision>/` | Motor de decisión local: ruta ODD/SDD, complejidad, riesgo y triaje. Son ~488 MB; el bundle fp32 equivalente pesa 1.69 GB. |
+| **ONNX Runtime** | `onnxruntime-node` | `node_modules/` del proyecto | Ejecuta el modelo ONNX en CPU, sin servicio remoto ni API key. |
+| **Tokenizers** | `@huggingface/tokenizers` | `node_modules/` del proyecto | Tokeniza el resumen de estado que recibe Laya. |
+| **Vite-Plus** | `vite-plus` | `node_modules/` del proyecto | `vp check` y `vp test`: lint, tipos y pruebas en un solo comando. |
+| **Validación de respaldo** | `oxlint`, `typescript`, `@types/node` | `node_modules/` del proyecto | Validar proyectos que todavía no usan Vite-Plus. |
+| **Graphify** | `graphifyy` (paquete de Python) | Entorno aislado de pipx | Grafo AST del repositorio para localizar código sin leerlo entero. |
+| **Aider (opcional)** | `aider-chat` | Entorno aislado de pipx | Worker multiarchivo cuando `aider.enabled` está activo. |
+| **pipx** | pipx | Sistema o `python3 -m pip install --user pipx` | Instalar Graphify y Aider en entornos aislados sin ensuciar el Python del sistema. |
+| **Obsidian** | Aplicación de escritorio | Sistema (Flatpak, tarball, brew, DMG o winget) | Bóveda ODD y espejo del estado SDD. |
+| **Node.js, pnpm y git** | No se descargan | Tu máquina | Node 20+ y pnpm son requisitos; git es recomendado para el control de alcance y los commits. |
+| **OpenSpec** | No se descarga | `openspec.yaml` del proyecto | alvaress usa el formato de manifiesto y lo genera; no instala un CLI de OpenSpec. |
+
+Las dependencias Node de la tabla se instalan con **pnpm** (`pnpm add -D ...`).
+pipx solo se usa para Graphify y Aider, que son herramientas de Python.
+
+El bundle int8 se baja del release `laya-int8-v1` de `Alvarez-P/alvaress`. Los
+assets van planos porque GitHub no admite `/` en sus nombres; el instalador los
+coloca en `tokenizer/` al guardarlos. El manifiesto `laya_int8.json` se escribe
+al final y es la fuente de verdad para `verifyBundle` y `doctor`. Si ya existe
+uno válido, no se sobrescribe.
+
+### Qué escribe
+
+- `~/.alvaressconfig.json` y, si aceptas, `.alvaressrc.json`.
+- `openspec.yaml`, `.harness/tasks/`, `.harness/skills/`, `.harness/runs/` y
+  `.harness/backups/`.
+- `.opencode/agents/alvaress.md` y los cuatro subagentes, más su copia global en
+  `~/.config/opencode/agents/`.
+- Enlaces de skills en `~/.config/opencode/skills/` y `~/.claude/skills/`.
+- La estructura `Harness/` de la bóveda Obsidian con sus enlaces y la nota del
+  proyecto.
+- La caché del modelo int8 y su `laya_int8.json`.
+
+### Qué no hace
+
+- No clona repositorios de terceros: el motor de Laya va vendorizado en el
+  paquete y el modelo se descarga como asset del release.
+- No descarga el modelo en cada `run`; solo `alvaress install` lo hace. Si
+  falta, el run usa heurísticas.
+- No instala el CLI de OpenSpec ni reemplaza tu agente por defecto.
+- No crea `.alvaressrc.json` con `--yes` ni sobrescribe un manifiesto int8
+  válido.
+- No hace `git commit` ni `git push` durante la instalación.
+
+Para comprobar cómo quedó todo:
+
+```bash
+alvaress doctor
+alvaress doctor --json
+```
 
 ## Inicio rápido
 
@@ -177,44 +292,95 @@ Aider o editará directamente, validará y actualizará el estado de la tarea.
 
 ## El agente `alvaress`
 
+### Qué se instala
+
 El instalador escribe el agente en dos sitios:
 
 - **Global:** `~/.config/opencode/agents/alvaress.md`
 - **Proyecto:** `.opencode/agents/alvaress.md`
 
 Es un agente `primary`, seleccionable con **Tab** en OpenCode o con
-`opencode run --agent alvaress`. No cambia tu agente por defecto.
+`opencode run --agent alvaress`. No cambia tu agente por defecto. En la misma
+carpeta instala los cuatro subagentes `subagent`.
 
-Además instala cuatro subagentes `subagent` en la misma carpeta:
+### Cómo trabaja: estados
 
-| Subagente | Para qué sirve | Límite |
+`alvaress run` recorre una máquina de estados estricta. El agente no improvisa:
+lee la fuente, cierra el alcance y solo termina cuando la validación pasa.
+
+| Estado | Qué pasa | Quién actúa |
 | --- | --- | --- |
-| `alvaress-explorer` | Solo lectura: localiza código y contexto y propone un alcance cerrado. | No edita ni escribe en la bóveda. |
-| `alvaress-implementer` | Implementa una micro-tarea ODD o una tarea SDD dentro del alcance. | Sin git, sin cierre, sin dependencias nuevas. |
-| `alvaress-verifier` | Ejecuta Vite-Plus y devuelve el error exacto. | No edita archivos. |
-| `alvaress-fixer` | Repara un fallo trivial, máximo dos intentos. | No toca tests ni git; HALT si es nuclear. |
+| `Exploring` | Detecta ODD o SDD, lee la nota o `openspec.yaml`, consulta Graphify y cierra archivos, criterios y comandos de validación. | Orquestador y `alvaress-explorer` |
+| `Working` | Implementa el cambio. Si Aider está habilitado, lo usa; si no, delega en `alvaress-implementer`. | Aider o `alvaress-implementer` |
+| `Checking` | Ejecuta `vp check` y `vp test` (o los comandos de la tarea) y guarda stdout/stderr en `.laya/last_run.log`. | Orquestador o `alvaress-verifier` |
+| `Fixing` | Si la validación falla, repara la causa y vuelve a validar. Máximo dos intentos. | `alvaress-fixer` o Aider |
+| `Ready` | Marca la tarea `Done` o el checklist ODD, escribe el reporte y la nota, y hace un commit solo con los archivos del run. | Orquestador |
+| `Halted` | Fallo nuclear, de alcance o de herramienta. No hay commit ni `[x]`; deja `.laya/HALT.json` y el log. | Orquestador |
 
-Cada subagente declara sus skills obligatorias, un límite de pasos y permisos
-propios. Los cuatro tienen la bóveda Obsidian como solo lectura, no pueden lanzar
-otros subagentes ni consultar la web, y no pueden hacer `git push`,
-`git reset`, `git commit` ni `rm -rf`. El orquestador es el único que ejecuta
-`alvaress apply`, `alvaress verify`, `alvaress obsidian note`, `alvaress archive`
-y `alvaress learn add`.
+Se detiene en `Halted` cuando el fixer devuelve `nuclear`, el mismo error
+aparece dos veces, el diff se sale del alcance, falta una herramienta requerida,
+el worker agota el timeout o una reparación deja el diff vacío. En `Halted` no
+insiste: libera el lock, conserva el log y espera una decisión humana.
 
-Su prompt incluye:
+### Herramientas que usa
 
-- el flujo híbrido SDD/ODD: entender → decidir → ejecutar → validar → cerrar;
-- el uso de Laya en los puntos clave (máximo 3 llamadas por solicitud);
-- la política de ejecución: Aider si está activo o subagentes especializados si
-  no lo está; edición directa para cambios triviales;
-- la prohibición de enviar secretos o código completo a Laya;
-- reglas de eficiencia de tokens: Graphify antes de `grep`/`read`, lecturas
-  localizadas y resúmenes en lugar de logs completos;
-- aprendizaje continuo: consulta el playbook global al empezar y solo guarda lo
-  que realmente marque diferencia al cerrar;
-- una personalidad amigable, con modismos mexicanos ligeros y ocasionales, y
-  respuestas cortas por defecto: estado, cambios principales y validación. El
-  detalle solo se explica si lo pides.
+| Herramienta | Para qué la usa el agente |
+| --- | --- |
+| **Graphify** | `graphify query`, `explain` y `path` antes de `grep`/`read`: localiza código con el grafo AST y gasta menos contexto. |
+| **Laya** | Decidir ODD/SDD, estimar complejidad, clasificar riesgo y triar fallos. El agente no llama al modelo directamente: lo hace `alvaress run`. |
+| **Aider** | Worker opcional para tareas SDD, cambios multiarchivo y lotes. Se activa con `aider.enabled`. |
+| **Subagentes** | Reparto acotado cuando Aider no está: explorar, implementar, verificar y reparar. |
+| **Vite-Plus** | `vp check` y `vp test` como validación oficial antes de cerrar. |
+| **OpenSpec** | Leer `openspec.yaml`, la tarea concreta y sus dependencias; en ODD, la nota de Obsidian manda. |
+| **Obsidian** | Recuperar contexto y reflejar el estado. La bóveda es espejo de solo lectura para los subagentes; solo el orquestador escribe con `alvaress obsidian note`. |
+| **CLI `alvaress`** | Ejecutar `run`, `apply`, `verify`, `doctor`, `report`, `restore`, `archive`, `learn` y `obsidian`. |
+| **Aprendizajes** | Buscar en `~/.alvaress/memory/` al empezar y guardar como máximo tres al cerrar, solo si aportan valor. |
+
+El prompt también fija la eficiencia de tokens: Graphify antes de leer archivos,
+lecturas por rango, resúmenes en vez de logs completos y `alvaress -i` solo
+cuando hace falta el detalle.
+
+### Permisos
+
+El agente `primary` puede leer, buscar, editar y usar skills. El shell tiene una
+allowlist: `alvaress`, `graphify`, `aider`, `git status/diff/log/show`,
+`pnpm test/run/exec/dlx`, `vp`, `npx vp`, `npm test/run`, `npx oxlint/tsc`,
+`rg`, `grep`, `sed -n`, `find` y `ls`. Todo lo demás pide confirmación.
+
+Están denegados de forma explícita:
+
+- `git push`, `git reset --hard` y `rm -rf`;
+- que los subagentes lancen otros subagentes o consulten la web;
+- `execute` y `question` en los subagentes;
+- la lectura de `.env`, `.pem`, `.key`, `.p12`, `id_rsa` e `id_ed25519`;
+- escribir en la bóveda Obsidian desde un subagente.
+
+El orquestador es el único que ejecuta `alvaress apply`, `alvaress verify`,
+`alvaress obsidian note`, `alvaress archive` y `alvaress learn add`.
+
+### Subagentes
+
+| Subagente | Estado | Para qué sirve | Límite | Pasos |
+| --- | --- | --- | --- | ---: |
+| `alvaress-explorer` | `Exploring` | Solo lectura: localiza código, lee la nota y propone un alcance cerrado. | No edita, no decide, no escribe en la bóveda. | 12 |
+| `alvaress-implementer` | `Working` | Implementa una micro-tarea ODD o una tarea SDD dentro del alcance. | Sin git, sin cierre, sin dependencias nuevas. | 30 |
+| `alvaress-verifier` | `Checking` | Ejecuta Vite-Plus y devuelve el error exacto. | No edita archivos ni toca git. | 12 |
+| `alvaress-fixer` | `Fixing` | Repara un fallo trivial, máximo dos intentos. | No toca tests ni git; devuelve `nuclear` si no es trivial. | 20 |
+
+Cada subagente declara sus skills obligatorias y sus permisos propios. La
+bóveda Obsidian es de solo lectura para los cuatro. El orquestador no delega la
+decisión, el commit, el `[x]` de Obsidian ni los aprendizajes.
+
+### Contrato de respuesta
+
+Por defecto responde corto, en español y sin emojis: una línea de estado, los
+cambios principales, la validación en una línea y el siguiente paso solo si hay
+algo pendiente. Usa modismos mexicanos ligeros y ocasionales, nunca en código,
+commits ni documentación. Si pides detalle, entonces sí explica a fondo.
+
+Cada run deja además un reporte JSON en `.harness/runs/<runId>-run.json` y el
+log completo en `.laya/last_run.log`. `alvaress -i` abre el log; `alvaress report
+show <id>` abre el reporte.
 
 Puedes ver o reinstalar el agente sin ejecutar el instalador interactivo:
 
@@ -293,6 +459,41 @@ con `ALVARESS_MEMORY_DIR`.
 | `alvaress config [show\|paths]` | Muestra la configuración resuelta (con secretos enmascarados) o las rutas de configuración. |
 
 Códigos de salida: `0` éxito, `1` error o tarea fallida, `130` operación cancelada.
+
+## Herramientas de terceros
+
+alvaress orquesta herramientas que ya existen; no las reimplementa. **pnpm es el
+gestor por defecto para todo lo que sea Node**: dependencias del proyecto,
+scripts y ejecución de binarios. Estas son las utilidades que usa y cómo se
+obtienen.
+
+| Herramienta | Qué aporta | Cómo se obtiene |
+| --- | --- | --- |
+| [Laya](https://github.com/convaiinnovations/laya) / [`@receptron/laya`](https://github.com/receptron/laya) | Motor de decisión local: ruta ODD/SDD, complejidad, riesgo y triaje. | Motor vendorizado en `src/decision/vendor/laya`; pesos ONNX desde el release `laya-int8-v1`. |
+| [ONNX Runtime](https://onnxruntime.ai) | Ejecuta el modelo de Laya en CPU, sin servicio remoto. | `pnpm add -D onnxruntime-node` (lo hace `alvaress install`). |
+| [Hugging Face Tokenizers](https://github.com/huggingface/tokenizers) | Tokeniza el resumen de estado que recibe Laya. | `pnpm add -D @huggingface/tokenizers` (lo hace `alvaress install`). |
+| [Vite-Plus](https://vite.plus) | `vp check` y `vp test`: lint, tipos y pruebas. | `pnpm add -D vite-plus` (lo hace `alvaress install`). |
+| [oxlint](https://oxc.rs) y [TypeScript](https://www.typescriptlang.org) | Validación de respaldo para proyectos sin Vite-Plus. | `pnpm add -D oxlint typescript @types/node` (lo hace `alvaress install`). |
+| [Graphify](https://github.com/Graphify-Labs/graphify) | Grafo AST del repositorio para localizar código sin leerlo entero. | `pipx install graphifyy` (lo hace `alvaress install`). |
+| [Aider](https://aider.chat) | Worker opcional para tareas SDD y cambios multiarchivo. | `pipx install aider-chat`, solo si habilitas `aider.enabled`. |
+| [Obsidian](https://obsidian.md) | Bóveda ODD y espejo del estado SDD. | Aplicación del sistema; el instalador intenta instalarla. |
+| [OpenSpec](https://github.com/Fission-AI/OpenSpec) | Formato de manifiesto y tareas SDD. | No se instala: alvaress usa el formato y crea `openspec.yaml`. |
+| [OpenCode](https://opencode.ai) | Runtime donde viven el agente y los subagentes. | Lo instalas tú; alvaress añade el agente y sus skills. |
+| [pipx](https://pipx.pypa.io) | Instala Graphify y Aider en entornos Python aislados. | Gestor del sistema o `python3 -m pip install --user pipx`. |
+| [`svg-diagram`](https://github.com/bybit-exchange/svg-diagram) | Convenciones y linter del diagrama de este README. | Skill local en `.agents/skills/svg-diagram`; no se instala en tu proyecto. |
+
+### En el propio paquete
+
+La CLI usa `@clack/prompts` para la interacción y `yaml` para el manifiesto. En
+desarrollo se usan `oxlint`, `typescript`, `tsx`, `node:test`, `husky`,
+`lint-staged` y `commitlint`. Todo se instala y se ejecuta con pnpm:
+
+```bash
+pnpm install
+pnpm run validate
+pnpm test
+pnpm run build
+```
 
 ## Modelo de decisión (Laya)
 
@@ -385,6 +586,11 @@ La configuración se resuelve con precedencia **local sobre global**:
 Los campos escalares del archivo local sustituyen a los globales; los objetos
 `env` se fusionan (el local gana en claves repetidas). Si un campo no existe en
 ninguno de los dos, se aplica el valor por defecto.
+
+`packageManager` decide cómo se ejecutan los comandos de validación y los
+scripts del proyecto (`pnpm` por defecto). El instalador no lo usa para elegir
+el gestor de sus propias dependencias: ahí pnpm tiene prioridad y npm solo entra
+como fallback si pnpm falta.
 
 ```json
 {
@@ -696,9 +902,7 @@ alvaress obsidian note --from-run latest --task TASK-01
 El diagrama de este README se dibujó con la skill
 [`svg-diagram`](https://github.com/bybit-exchange/svg-diagram), incluida solo
 para este proyecto en `.agents/skills/svg-diagram`. El SVG vive en
-`assets/alvaress-flow.svg`.
-
-El logo está en `assets/alvaress-logo.svg` y la animación del nombre en
+`assets/alvaress-flow.svg` y la animación del nombre en
 `assets/alvaress-intro.gif`.
 
 Si cambias el flujo, actualiza el SVG y valida que siga el estilo de la casa:
@@ -739,7 +943,10 @@ pnpm run commitlint --from HEAD~3 --to HEAD
 
 ## Desarrollo
 
+Todo el desarrollo se hace con pnpm. Si clonas el repositorio y no lo tienes:
+
 ```bash
+corepack enable pnpm
 pnpm install
 pnpm run validate   # lint + typecheck de src y test
 pnpm test           # build + pruebas con node:test y tsx
@@ -781,7 +988,7 @@ src/
 ├── obsidian/        conexión con la bóveda
 └── utils/           args, errores, FS, lock, gestor de paquetes, pipx, redacción, logger y procesos
 test/                pruebas con node:test
-assets/              logo, animación y diagramas SVG del README
+assets/              animación y diagramas SVG del README
 .agents/skills/      skills locales del proyecto (svg-diagram)
 docs/spec.md         prompt original de generación del proyecto
 ```

@@ -8,6 +8,25 @@ export function resolvePackageManager(config: HarnessConfig): PackageManager {
   return config.packageManager ?? DEFAULT_PACKAGE_MANAGER;
 }
 
+/**
+ * Gestor que usa el instalador para las dependencias Node.
+ *
+ * pnpm manda: se usa siempre que esté disponible, aunque el proyecto declare
+ * npm. npm queda como fallback cuando pnpm no está en el PATH.
+ */
+export function resolveInstallerPackageManager(
+  config: HarnessConfig,
+  hasCommand: (command: string) => boolean = commandExists
+): PackageManager {
+  if (hasCommand('pnpm')) {
+    return 'pnpm';
+  }
+  if (hasCommand('npm')) {
+    return 'npm';
+  }
+  return config.packageManager ?? DEFAULT_PACKAGE_MANAGER;
+}
+
 export function packageManagerAvailable(manager: PackageManager): boolean {
   return commandExists(manager);
 }
