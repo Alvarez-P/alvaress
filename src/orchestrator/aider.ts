@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { HarnessConfig } from '../config/loader.js';
+import { aiderEnvFor, aiderEnvKey } from '../config/models.js';
 import { ensureDir } from '../utils/fs.js';
 import type { CommandResult } from '../utils/process.js';
 
@@ -33,7 +34,7 @@ const SAFE_ENV_KEYS = [
   'XDG_DATA_HOME'
 ];
 
-const SECRET_ENV_PATTERN = /(?:ALVARESS|NPM_TOKEN|NODE_AUTH_TOKEN|GITHUB_TOKEN|AWS_SECRET|OPENAI_API_KEY|DEEPSEEK_API_KEY)/i;
+const SECRET_ENV_PATTERN = /(?:^ALVARESS|NPM_TOKEN|NODE_AUTH_TOKEN|GITHUB_TOKEN|GH_TOKEN|AWS_SECRET|AWS_SESSION_TOKEN)/i;
 
 function baseEnvironment(inheritEnv: boolean): NodeJS.ProcessEnv {
   if (!inheritEnv) {
@@ -48,7 +49,7 @@ function baseEnvironment(inheritEnv: boolean): NodeJS.ProcessEnv {
   }
   const result: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(result)) {
-    if (SECRET_ENV_PATTERN.test(key) && key !== 'DEEPSEEK_API_KEY' && key !== 'OPENAI_API_KEY') {
+    if (SECRET_ENV_PATTERN.test(key)) {
       delete result[key];
     }
   }
@@ -57,11 +58,16 @@ function baseEnvironment(inheritEnv: boolean): NodeJS.ProcessEnv {
 
 export function buildAiderEnv(config: HarnessConfig, inheritEnv?: boolean): NodeJS.ProcessEnv {
   const implementer = config.models.aiderImplementer;
+  const providerKey = aiderEnvKey(implementer.modelName);
+  const providerEnv = aiderEnvFor(implementer.modelName, implementer.apiKey);
+  const customEndpointEnv =
+    implementer.apiBase && implementer.apiKey && providerKey !== 'OPENAI_API_KEY'
+      ? { OPENAI_API_KEY: implementer.apiKey }
+      : {};
   return {
     ...baseEnvironment(inheritEnv ?? config.aider?.inheritEnv ?? true),
-    ...(implementer.apiKey
-      ? { DEEPSEEK_API_KEY: implementer.apiKey, OPENAI_API_KEY: implementer.apiKey }
-      : {}),
+    ...providerEnv,
+    ...customEndpointEnv,
     ...(implementer.apiBase ? { OPENAI_API_BASE: implementer.apiBase } : {}),
     ...implementer.env
   };

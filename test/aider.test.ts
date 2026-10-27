@@ -57,6 +57,39 @@ test('buildAiderEnv no define claves vacías', () => {
   assert.equal(env.OPENAI_API_BASE, process.env.OPENAI_API_BASE);
 });
 
+test('buildAiderEnv mapea la clave al proveedor del modelo', () => {
+  const anthropic = buildAiderEnv(
+    config({
+      models: {
+        ...mergeConfig({}, {}).models,
+        aiderImplementer: {
+          modelName: 'anthropic/claude-sonnet-4',
+          apiKey: 'sk-ant',
+          apiBase: '',
+          env: {}
+        }
+      }
+    })
+  );
+  assert.equal(anthropic.ANTHROPIC_API_KEY, 'sk-ant');
+  assert.equal(anthropic.OPENAI_API_KEY, process.env.OPENAI_API_KEY);
+
+  const gemini = buildAiderEnv(
+    config({
+      models: {
+        ...mergeConfig({}, {}).models,
+        aiderImplementer: {
+          modelName: 'gemini/gemini-2.5-pro',
+          apiKey: 'sk-gem',
+          apiBase: '',
+          env: {}
+        }
+      }
+    })
+  );
+  assert.equal(gemini.GEMINI_API_KEY, 'sk-gem');
+});
+
 test('buildAiderArgs incluye modelo, mensaje y archivos', () => {
   const args = buildAiderArgs('deepseek/deepseek-chat', {
     message: 'Implementa la tarea',

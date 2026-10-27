@@ -142,35 +142,38 @@ para sus dependencias Node y solo usará npm si pnpm no está en el PATH.
 
 ### Instalación desatendida
 
-Para CI o para dejar el equipo listo sin preguntas:
+Para dejar el equipo listo sin preguntas:
 
 ```bash
 alvaress install --yes
 ```
 
-`--yes` selecciona los componentes requeridos, usa la configuración existente o
-los valores por defecto y no pregunta nada. Instala lo que falte, crea
-`openspec.yaml` si el proyecto es un repositorio y no crea `.alvaressrc.json`.
-Aider solo se instala si ya está habilitado en la configuración.
+`--yes` instala el set completo (agente, Laya, Obsidian, Graphify, Vite-Plus y
+validación), usa la configuración existente o los valores por defecto y no
+pregunta nada. Instala lo que falte, crea `openspec.yaml` si el proyecto es un
+repositorio y no crea `.alvaressrc.json`. Aider solo se instala si ya está
+habilitado en la configuración.
 
 ### Qué hace el instalador
 
 1. Selecciona componentes (agente, Laya, Obsidian, Graphify, Vite-Plus y
    validación; Aider es opcional).
-2. Detecta o instala Obsidian y conecta la bóveda.
-3. Comprueba Graphify; si falta, instala `graphifyy` con pipx.
-4. Instala Aider solo si lo seleccionaste o ya estaba habilitado.
-5. Instala Vite-Plus y las dependencias de validación con pnpm.
-6. Instala `onnxruntime-node` y `@huggingface/tokenizers`, y descarga el
-   artefacto int8 de Laya en la caché global. Verifica tamaño y SHA-256.
-7. Crea o actualiza `~/.alvaressconfig.json` y, si aceptas, `.alvaressrc.json`.
-8. Pregunta si quieres un solo modelo para orquestador, subagentes y Aider, o
-   uno por rol, y guarda `models.*`.
-9. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
-10. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
-11. Escribe las skills en `.harness/skills/` y sus enlaces globales.
-12. Instala el agente `alvaress` y sus cuatro subagentes en OpenCode con el
-    modelo elegido en su frontmatter.
+2. Pregunta lo que necesita decisión humana antes del trabajo pesado: bóveda,
+   ruta del modelo de Laya y modelos de orquestador, subagentes y Aider.
+3. Guarda `~/.alvaressconfig.json` para no perder tus elecciones si algo falla.
+4. Instala en paralelo Obsidian, Graphify, Aider, las dependencias Node y el
+   bundle int8 de Laya. Las dependencias Node van en una sola llamada a pnpm;
+   los archivos pequeños del bundle se bajan en paralelo y el progreso es
+   agregado.
+5. Crea o actualiza `.alvaressrc.json` si aceptas overrides locales.
+6. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
+7. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
+8. Escribe las skills en `.harness/skills/` y sus enlaces globales.
+9. Instala el agente `alvaress` y sus cuatro subagentes en OpenCode con el
+   modelo elegido en su frontmatter.
+
+Al final el instalador resume proyecto, rutas, configuración y los modelos
+efectivos, para que no tengas que abrir el JSON.
 
 Comprueba cómo quedó todo con:
 
@@ -182,17 +185,18 @@ alvaress doctor --json
 ## Inicio rápido
 
 ```bash
-# 1. Instalador: agente, skills, componentes y configuración.
+# 1. Instalador: agente, skills, componentes, modelos y configuración.
 alvaress install
 
-# 2. Prepara el proyecto: manifiesto, tareas, skills y agente local.
-alvaress init
-
-# 3. Abre OpenCode y selecciona el agente alvaress.
+# 2. Abre OpenCode y selecciona el agente alvaress.
 opencode
 #    Pulsa Tab hasta ver "alvaress" o ejecuta:
 opencode run --agent alvaress "Implementa la tarea TASK-01 siguiendo la spec"
 ```
+
+`alvaress init` sigue existiendo para reparar o reinstalar en un proyecto que ya
+tenía el arnés: crea `.harness/`, `openspec.yaml`, skills y agente local sin
+volver a descargar componentes. No hace falta en una instalación nueva.
 
 Dentro de OpenCode, basta con pedirle:
 
@@ -214,12 +218,13 @@ Aider o editará directamente, validará y actualizará el estado de la tarea.
 | `alvaress apply [TASK...]` | Ejecuta tareas pendientes (o las indicadas) con Aider. | `--dry-run`, `--force`, `--update-graph`, `--no-lock` |
 | `alvaress verify <TASK_ID>` | Ejecuta la validación de la tarea y, si falla, pide reparación automática. | — |
 | `alvaress archive <SPEC_ID>` | Archiva una spec con todas sus tareas en `Done`. Antes crea un backup. | — |
-| `alvaress doctor` | Diagnóstico de Node, configuración, gestor, git, Laya, Vite-Plus, Aider, Graphify, Obsidian, manifiesto, grafo y locks. | `--json` |
+| `alvaress doctor` | Diagnóstico de Node, configuración, modelos, frontmatter del agente, gestor, git, Laya, Vite-Plus, Aider, Graphify, Obsidian, manifiesto, grafo y locks. | `--json` |
 | `alvaress report [latest\|list\|show <id>]` | Muestra los reportes de `.harness/runs/`. | — |
 | `alvaress restore [--list\|latest\|<id>]` | Lista o restaura `openspec.yaml` desde `.harness/backups/`. | `--list` |
 | `alvaress skills` | Reinstala las skills del proyecto y sus enlaces globales. | `--no-link` |
 | `alvaress learn <subcomando>` | Guarda, busca y reutiliza aprendizajes globales y del proyecto. | `add`, `list`, `search`, `show`, `use`, `promote`, `prune`, `playbook` |
 | `alvaress agent [install\|show]` | Instala el agente y sus subagentes, o imprime el prompt del orquestador. | `--no-global`, `--no-project` |
+| `alvaress models [show\|set\|configure]` | Muestra o cambia los modelos de orquestador, subagentes y Aider sin reinstalar. | `--all`, `--orchestrator`, `--subagents`, `--aider`, `--no-install` |
 | `alvaress obsidian [status\|sync\|note]` | Consulta o actualiza la bóveda y la nota del proyecto. | `--summary`, `--task`, `--from-run`, `--validation`, `--risk`, `--next` |
 | `alvaress config [show\|paths]` | Muestra la configuración resuelta (secretos enmascarados) o sus rutas. | — |
 | `alvaress --help` / `--version` | Ayuda y versión. | — |
@@ -241,6 +246,10 @@ cancelada.
 | `alvaress learn playbook` | Regenera `PLAYBOOK.md`; el del proyecto incluye lo global relevante. |
 | `alvaress agent install` | Instala el agente y sus subagentes; `--no-global` y `--no-project` limitan las ubicaciones. |
 | `alvaress agent show` | Imprime el prompt del orquestador. |
+| `alvaress models show` | Muestra los modelos efectivos de orquestador, subagentes y Aider. |
+| `alvaress models set --all <provider/model>` | Cambia los tres roles de una vez y reinstala el frontmatter. |
+| `alvaress models set --orchestrator <m> --subagents <m> --aider <m>` | Cambia roles concretos; `--no-install` solo guarda la configuración. |
+| `alvaress models configure` | Flujo interactivo para elegir un modelo o uno por rol. |
 | `alvaress obsidian status` | Muestra la bóveda, la nota y los enlaces. |
 | `alvaress obsidian sync` | Crea o repara `Harness/`, la nota y los enlaces. |
 | `alvaress obsidian note` | Añade una entrada de cierre; exige `--summary` o `--from-run`. |
@@ -361,19 +370,43 @@ o `PASS`.
 | `models.orchestrator.modelName` | `string` | vacío = heredar el de OpenCode | Modelo `provider/model` del agente orquestador. Se escribe en el frontmatter del agente instalado. |
 | `models.subagents.modelName` | `string` | vacío = heredar el del orquestador | Modelo `provider/model` de los cuatro subagentes. Se escribe en cada frontmatter. |
 | `models.aiderImplementer.modelName` | `string` | `"deepseek/deepseek-chat"` | Modelo del implementador para Aider. |
-| `models.aiderImplementer.apiKey` | `string` | vacío | Se expone a Aider como `DEEPSEEK_API_KEY` y `OPENAI_API_KEY`. Admite `${VAR}`. |
-| `models.aiderImplementer.apiBase` | `string` | vacío | Se expone como `OPENAI_API_BASE`. Útil para endpoints compatibles con OpenAI. |
+| `models.aiderImplementer.apiKey` | `string` | vacío | Se expone a Aider con la variable del proveedor del modelo (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, etc.). Admite `${VAR}`. |
+| `models.aiderImplementer.apiBase` | `string` | vacío | Se expone como `OPENAI_API_BASE`. Útil para endpoints compatibles con OpenAI; en ese caso la clave también se publica como `OPENAI_API_KEY`. |
 | `models.aiderImplementer.env` | `Record<string, string>` | `{}` | Variables adicionales para Aider. Se fusionan con las globales y el local gana. |
 | `validation.maxAttempts` | `integer >= 1` | `3` | Intentos de reparación en `apply` y `verify`. `run` usa su propio límite de dos reparaciones. |
 | `validation.commands` | `string[]` | `pnpm exec vp check`, `pnpm exec vp test` | Comandos globales de validación. Una tarea puede sustituirlos con su propio `validation`. |
 | `validation.requireCommands` | `boolean` | `true` | Si es `true`, no tener comandos de validación es un fallo. Si es `false`, se avisa y se continúa. |
+
+Aider recibe la credencial según el proveedor del `modelName`:
+
+| Prefijo del modelo | Variable para Aider |
+| --- | --- |
+| `openai/*` | `OPENAI_API_KEY` |
+| `deepseek/*` | `DEEPSEEK_API_KEY` |
+| `anthropic/*` | `ANTHROPIC_API_KEY` |
+| `gemini/*`, `google/*` | `GEMINI_API_KEY` |
+| `openrouter/*` | `OPENROUTER_API_KEY` |
+| `mistral/*`, `groq/*`, `xai/*` | `MISTRAL_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY` |
+| proveedor desconocido o endpoint custom | `OPENAI_API_KEY` (+ `OPENAI_API_BASE`) |
+
+`google/*` se traduce a `gemini/*` al escribir el modelo de Aider, porque OpenCode
+y Aider no usan el mismo prefijo. Si heredas el entorno, las claves de proveedor
+que ya tengas en el shell se conservan; solo se eliminan secretos de alvaress,
+npm, GitHub y AWS.
 
 ### Valores por defecto y ejemplos
 
 ```bash
 alvaress config show    # configuración resuelta, secretos enmascarados
 alvaress config paths   # rutas global y local
+alvaress models show    # modelos efectivos
+alvaress models set --all openai/gpt-5
+alvaress models set --orchestrator openai/gpt-5 --subagents openai/gpt-5-mini --aider deepseek/deepseek-chat
 ```
+
+`models set` guarda en la configuración global y reinstala el frontmatter del
+agente y sus subagentes. Con `--no-install` solo guarda; con `--no-global` o
+`--no-project` limita dónde se reescribe el frontmatter.
 
 Si no defines `laya.modelDir`, alvaress usa la caché global
 `~/.cache/alvaress/laya-onnx-int8/<revision>`. Si existe un bundle fp32 de una

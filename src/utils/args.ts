@@ -18,7 +18,8 @@ const BOOLEAN_FLAGS = new Set([
   'no-learn',
   'inspect-last-run',
   'yes',
-  'json'
+  'json',
+  'no-install'
 ]);
 
 export function parseArgs(args: string[]): ParsedArgs {

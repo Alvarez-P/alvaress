@@ -260,7 +260,8 @@ test('doctor detecta configuración, gestor y grafo', () => {
       commandExists: () => true,
       graphStatus: { exists: true, path: path.join(root, 'graphify-out', 'graph.json'), stale: false },
       layaAvailable: true,
-      vitePlusAvailable: true
+      vitePlusAvailable: true,
+      agentDirs: []
     });
     const byName = new Map(checks.map((entry) => [entry.name, entry]));
     assert.equal(byName.get('node')?.status, 'ok');
@@ -276,12 +277,113 @@ test('doctor detecta configuración, gestor y grafo', () => {
       config: mergeConfig({ obsidianVaultPath: '' }, {}),
       layaAvailable: true,
       vitePlusAvailable: true,
+      agentDirs: [],
       stdout: (line) => lines.push(line)
     });
     assert.equal(code, 0);
     assert.match(lines.join('\n'), /"checks"/);
   } finally {
     cleanup(root);
+  }
+});
+
+test('doctor valida modelos y frontmatter del agente', () => {
+  const temp = makeTempDir('alvaress-doctor-models-');
+  try {
+    const root = path.join(temp.path, 'project');
+    const agentsDir = path.join(temp.path, 'agents');
+    fs.mkdirSync(root, { recursive: true });
+    writeJson(path.join(root, 'package.json'), { name: 'demo-app' });
+    writeFile(
+      path.join(root, 'openspec.yaml'),
+      'specification: "1.0.0"\nproject: demo-app\nspecs: []\n'
+    );
+    const config = mergeConfig(
+      {
+        obsidianVaultPath: '',
+        models: {
+          orchestrator: { modelName: 'openai/gpt-5' },
+          subagents: { modelName: 'openai/gpt-5-mini' },
+          aiderImplementer: { modelName: 'deepseek/deepseek-chat' }
+        },
+        validation: { maxAttempts: 1, commands: ['true'] }
+      },
+      {}
+    );
+    installAgent(root, {
+      globalDir: agentsDir,
+      projectDir: path.join(root, '.opencode', 'agents'),
+      models: {
+        orchestrator: 'openai/gpt-5',
+        subagents: 'openai/gpt-5-mini'
+      }
+    });
+
+    const checks = runDoctor(root, {
+      config,
+      commandExists: () => true,
+      graphStatus: {
+        exists: true,
+        path: path.join(root, 'graphify-out', 'graph.json'),
+        stale: false
+      },
+      layaAvailable: true,
+      vitePlusAvailable: true,
+      agentDirs: [{ scope: 'global', directory: agentsDir }]
+    });
+    const byName = new Map(checks.map((entry) => [entry.name, entry]));
+    assert.equal(byName.get('models')?.status, 'ok');
+    assert.equal(byName.get('agent')?.status, 'ok');
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('doctor marca modelos sin provider/model y frontmatter desactualizado', () => {
+  const temp = makeTempDir('alvaress-doctor-models-invalid-');
+  try {
+    const root = path.join(temp.path, 'project');
+    const agentsDir = path.join(temp.path, 'agents');
+    fs.mkdirSync(root, { recursive: true });
+    writeJson(path.join(root, 'package.json'), { name: 'demo-app' });
+    writeFile(
+      path.join(root, 'openspec.yaml'),
+      'specification: "1.0.0"\nproject: demo-app\nspecs: []\n'
+    );
+    const config = mergeConfig(
+      {
+        obsidianVaultPath: '',
+        models: {
+          orchestrator: { modelName: 'gpt-5' },
+          subagents: { modelName: 'gpt-5-mini' }
+        },
+        validation: { maxAttempts: 1, commands: ['true'] }
+      },
+      {}
+    );
+    installAgent(root, {
+      globalDir: agentsDir,
+      project: false,
+      models: { orchestrator: 'openai/gpt-5', subagents: 'openai/gpt-5-mini' }
+    });
+
+    const checks = runDoctor(root, {
+      config,
+      commandExists: () => true,
+      graphStatus: {
+        exists: true,
+        path: path.join(root, 'graphify-out', 'graph.json'),
+        stale: false
+      },
+      layaAvailable: true,
+      vitePlusAvailable: true,
+      agentDirs: [{ scope: 'global', directory: agentsDir }]
+    });
+    const byName = new Map(checks.map((entry) => [entry.name, entry]));
+    assert.equal(byName.get('models')?.status, 'error');
+    assert.equal(byName.get('agent')?.status, 'warn');
+  } finally {
+    temp.cleanup();
   }
 });
 
@@ -298,7 +400,8 @@ test('doctor avisa cuando Laya o Vite-Plus faltan sin romper el diagnóstico', (
       commandExists: () => true,
       graphStatus: { exists: true, path: path.join(root, 'graphify-out', 'graph.json'), stale: false },
       layaAvailable: false,
-      vitePlusAvailable: false
+      vitePlusAvailable: false,
+      agentDirs: []
     });
     const byName = new Map(checks.map((entry) => [entry.name, entry]));
     assert.equal(byName.get('laya')?.status, 'warn');

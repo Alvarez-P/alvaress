@@ -247,6 +247,10 @@ export type BundleProgress = (event: {
   file: string;
   received: number;
   total: number | null;
+  /** Bytes recibidos de todos los archivos pendientes. */
+  overallReceived?: number;
+  /** Bytes totales que faltan por descargar. */
+  overallTotal?: number;
 }) => void;
 
 export interface EnsureBundleOptions {
@@ -298,27 +302,29 @@ export async function verifyBundle(
   dir: string,
   options: { deep?: boolean } = {}
 ): Promise<VerifyBundleResult> {
-  const missing: string[] = [];
-  const corrupt: string[] = [];
   const files = bundleFilesFor(dir);
+  const results = await Promise.all(
+    files.map(async (file) => {
+      const filePath = path.join(dir, file.path);
+      const size = await fileSize(filePath);
+      if (size === null) {
+        return { path: file.path, state: 'missing' as const };
+      }
+      if (size !== file.bytes) {
+        return { path: file.path, state: 'corrupt' as const };
+      }
+      if (options.deep === true && (await sha256File(filePath)) !== file.sha256) {
+        return { path: file.path, state: 'corrupt' as const };
+      }
+      return { path: file.path, state: 'ok' as const };
+    })
+  );
 
-  for (const file of files) {
-    const filePath = path.join(dir, file.path);
-    const size = await fileSize(filePath);
-    if (size === null) {
-      missing.push(file.path);
-      continue;
-    }
-    if (size !== file.bytes) {
-      corrupt.push(file.path);
-      continue;
-    }
-    if (options.deep === true && (await sha256File(filePath)) !== file.sha256) {
-      corrupt.push(file.path);
-    }
-  }
-
-  return { ok: missing.length === 0 && corrupt.length === 0, missing, corrupt };
+  return {
+    ok: results.every((result) => result.state === 'ok'),
+    missing: results.filter((result) => result.state === 'missing').map((result) => result.path),
+    corrupt: results.filter((result) => result.state === 'corrupt').map((result) => result.path)
+  };
 }
 
 function sameBundleFiles(
@@ -361,12 +367,17 @@ export async function ensureBundle(options: EnsureBundleOptions): Promise<string
 
   await mkdir(dir, { recursive: true });
 
-  for (const file of files) {
-    const dest = path.join(dir, file.path);
-    if ((await fileSize(dest)) === file.bytes) {
-      continue;
-    }
+  const sizes = await Promise.all(
+    files.map(async (file) => ({ file, size: await fileSize(path.join(dir, file.path)) }))
+  );
+  const pending = sizes
+    .filter(({ file, size }) => size !== file.bytes)
+    .map(({ file }) => file);
+  const overallTotal = pending.reduce((total, file) => total + file.bytes, 0);
+  let overallReceived = 0;
 
+  const download = async (file: BundleFile): Promise<void> => {
+    const dest = path.join(dir, file.path);
     const url = resolveUrl(file);
     const response = await doFetch(url, { redirect: 'follow' });
     if (!response.ok || response.body === null) {
@@ -384,7 +395,14 @@ export async function ensureBundle(options: EnsureBundleOptions): Promise<string
     body.on('data', (chunk: Buffer) => {
       hash.update(chunk);
       received += chunk.length;
-      options.onProgress?.({ file: file.path, received, total: file.bytes });
+      overallReceived += chunk.length;
+      options.onProgress?.({
+        file: file.path,
+        received,
+        total: file.bytes,
+        overallReceived,
+        overallTotal
+      });
     });
 
     try {
@@ -401,7 +419,19 @@ export async function ensureBundle(options: EnsureBundleOptions): Promise<string
       await unlink(tmp).catch(() => undefined);
       throw error;
     }
-  }
+  };
+
+  const queue = [...pending];
+  const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
+    for (;;) {
+      const file = queue.shift();
+      if (file === undefined) {
+        return;
+      }
+      await download(file);
+    }
+  });
+  await Promise.all(workers);
 
   if (options.writeManifest !== false) {
     const existing = readBundleManifest(dir);

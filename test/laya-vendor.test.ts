@@ -218,6 +218,50 @@ test('ensureBundle descarga, verifica y escribe el manifiesto', async () => {
   }
 });
 
+test('ensureBundle reporta progreso agregado y descarga en paralelo', async () => {
+  const temp = makeTempDir('laya-progress-');
+  try {
+    const contents = new Map([
+      ['laya_config.json', 'config'],
+      ['tokenizer/tokenizer.json', 'tokens']
+    ]);
+    const files = [...contents].map(([filePath, content]) => ({
+      path: filePath,
+      asset: path.basename(filePath),
+      bytes: Buffer.byteLength(content),
+      sha256: createHash('sha256').update(content).digest('hex')
+    }));
+
+    let active = 0;
+    let maxActive = 0;
+    const fetchImpl = (async (input: string | URL | Request) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      active -= 1;
+      const url = String(input);
+      const asset = decodeURIComponent(new URL(url).pathname.split('/').at(-1) ?? '');
+      const content = contents.get(asset) ?? contents.get(`tokenizer/${asset}`);
+      return new Response(content ?? '', { status: content === undefined ? 404 : 200 });
+    }) as typeof fetch;
+
+    const events: Array<{ overallReceived?: number; overallTotal?: number }> = [];
+    await ensureBundle({
+      dir: temp.path,
+      files,
+      fetchImpl,
+      onProgress: (event) => events.push(event)
+    });
+
+    assert.ok(maxActive >= 2, `descargas concurrentes: ${maxActive}`);
+    assert.ok(events.length > 0);
+    assert.equal(events.at(-1)?.overallReceived, 12);
+    assert.equal(events.at(-1)?.overallTotal, 12);
+  } finally {
+    temp.cleanup();
+  }
+});
+
 test('verifyBundle detecta archivos faltantes y corruptos por tamaño', async () => {
   const temp = makeTempDir('laya-bundle-');
   try {

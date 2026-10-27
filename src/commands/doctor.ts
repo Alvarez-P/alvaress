@@ -1,8 +1,12 @@
 import path from 'node:path';
-import { statSync } from 'node:fs';
-import { loadConfig } from '../config/loader.js';
+import { readFileSync, statSync } from 'node:fs';
+import { agentFilePath, subagentFilePath, SUBAGENTS } from '../agent/installer.js';
+import { loadConfig, readConfigFile } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
+import { isModelReference } from '../config/models.js';
 import {
+  getGlobalOpencodeAgentsDir,
+  getProjectOpencodeAgentsDir,
   LAYA_FP32_MODEL_CACHE_ROOT,
   LAYA_INT8_MODEL_CACHE_ROOT,
   LAYA_ONNX_RUNTIME_PACKAGE,
@@ -33,6 +37,7 @@ export interface DoctorDeps {
   graphStatus?: ReturnType<typeof getGraphStatus>;
   layaAvailable?: boolean;
   vitePlusAvailable?: boolean;
+  agentDirs?: Array<{ scope: string; directory: string }>;
 }
 
 /** Comprobación barata: presencia y tamaño de cada archivo del bundle. */
@@ -58,6 +63,27 @@ function check(
   return { name, status, detail };
 }
 
+function modelLabel(value: string, fallback: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function frontmatterModel(file: string): string | undefined {
+  let content: string;
+  try {
+    content = readFileSync(file, 'utf8');
+  } catch {
+    return undefined;
+  }
+  if (!content.startsWith('---')) {
+    return undefined;
+  }
+  const end = content.indexOf('\n---', 3);
+  const frontmatter = end === -1 ? content : content.slice(0, end);
+  const match = /^model:\s*(.+)$/m.exec(frontmatter);
+  return match?.[1]?.trim();
+}
+
 export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): DoctorCheck[] {
   const checks: DoctorCheck[] = [];
   const hasCommand = deps.commandExists ?? commandExists;
@@ -75,6 +101,94 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
     checks.push(check('config', 'ok', 'Configuración cargada correctamente.'));
   } catch (error) {
     checks.push(check('config', 'error', error instanceof Error ? error.message : String(error)));
+  }
+
+  if (config !== undefined) {
+    const invalid = [
+      ['orchestrator', config.models.orchestrator.modelName],
+      ['subagents', config.models.subagents.modelName]
+    ]
+      .filter(([, value]) => !isModelReference(value))
+      .map(([name]) => name);
+    checks.push(
+      invalid.length === 0
+        ? check(
+            'models',
+            'ok',
+            `Orquestador: ${modelLabel(config.models.orchestrator.modelName, 'hereda')} · ` +
+              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')} · ` +
+              `Aider: ${config.models.aiderImplementer.modelName}`
+          )
+        : check(
+            'models',
+            'error',
+            `Formato inválido en ${invalid.join(', ')}; usa provider/model.`
+          )
+    );
+
+    const agentDirs =
+      deps.agentDirs ??
+      [
+        { scope: 'global', directory: getGlobalOpencodeAgentsDir() },
+        { scope: 'proyecto', directory: getProjectOpencodeAgentsDir(root) }
+      ];
+    const present = agentDirs.filter(({ directory }) => pathExists(agentFilePath(directory)));
+    if (present.length === 0) {
+      checks.push(
+        check('agent', 'warn', 'No se encontró el agente alvaress. Ejecuta "alvaress agent install".')
+      );
+    } else {
+      const mismatches: string[] = [];
+      for (const { scope, directory } of present) {
+        const model = frontmatterModel(agentFilePath(directory));
+        if ((model ?? '') !== config.models.orchestrator.modelName.trim()) {
+          mismatches.push(`${scope}: ${model ?? 'sin modelo'}`);
+        }
+        for (const subagent of SUBAGENTS) {
+          const file = subagentFilePath(directory, subagent.name);
+          if (!pathExists(file)) {
+            mismatches.push(`${scope}/${subagent.name}: falta`);
+            continue;
+          }
+          const subagentModel = frontmatterModel(file);
+          if ((subagentModel ?? '') !== config.models.subagents.modelName.trim()) {
+            mismatches.push(`${scope}/${subagent.name}: ${subagentModel ?? 'sin modelo'}`);
+          }
+        }
+      }
+      checks.push(
+        mismatches.length === 0
+          ? check(
+              'agent',
+              'ok',
+              `Agente y subagentes coherentes en ${present.map(({ scope }) => scope).join(' y ')}.`
+            )
+          : check(
+              'agent',
+              'warn',
+              `El frontmatter no coincide con la config (${mismatches.join(', ')}). Ejecuta "alvaress agent install".`
+            )
+      );
+    }
+
+    try {
+      const localConfig = readConfigFile(path.join(root, '.alvaressrc.json'));
+      const hasLocalModels =
+        localConfig.models?.orchestrator !== undefined ||
+        localConfig.models?.subagents !== undefined ||
+        localConfig.models?.aiderImplementer !== undefined;
+      if (hasLocalModels) {
+        checks.push(
+          check(
+            'models-local',
+            'warn',
+            `El proyecto define modelos en .alvaressrc.json; ganan sobre los globales.`
+          )
+        );
+      }
+    } catch {
+      // El check "config" ya reporta los errores del archivo local.
+    }
   }
 
   const packageManager = config === undefined ? 'pnpm' : resolvePackageManager(config);
@@ -285,6 +399,7 @@ export interface DoctorCommandDeps {
   config?: HarnessConfig;
   layaAvailable?: boolean;
   vitePlusAvailable?: boolean;
+  agentDirs?: Array<{ scope: string; directory: string }>;
   stdout?: (line: string) => void;
 }
 
@@ -298,7 +413,8 @@ export function runDoctorCommand(
   const checks = runDoctor(root, {
     config: deps.config,
     layaAvailable: deps.layaAvailable,
-    vitePlusAvailable: deps.vitePlusAvailable
+    vitePlusAvailable: deps.vitePlusAvailable,
+    agentDirs: deps.agentDirs
   });
 
   if (json) {

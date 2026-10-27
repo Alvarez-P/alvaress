@@ -2,8 +2,14 @@ import path from 'node:path';
 import { unlink } from 'node:fs/promises';
 import * as p from '@clack/prompts';
 import { installAgent } from '../agent/installer.js';
-import { loadConfig, getConfigPaths, saveGlobalConfig } from '../config/loader.js';
-import type { HarnessConfig, HarnessConfigFile, PackageManager } from '../config/loader.js';
+import { loadConfig, getConfigPaths, readConfigFile, saveGlobalConfig } from '../config/loader.js';
+import type {
+  HarnessConfig,
+  HarnessConfigFile,
+  ModelProviderConfig,
+  PackageManager
+} from '../config/loader.js';
+import { aiderEnvFor, aiderModelFor, validateModelReference } from '../config/models.js';
 import {
   COMMAND_SEPARATOR,
   DEFAULT_LAYA_TIMEOUT_MS,
@@ -126,6 +132,24 @@ export interface InstallOptions {
   runtime?: Partial<InstallRuntime>;
 }
 
+interface ComponentResult {
+  info?: string[];
+  warn?: string[];
+}
+
+interface LayaPlan {
+  config: HarnessConfig;
+  enabled: boolean;
+  download: boolean;
+  cacheDir: string;
+  corrupt: string[];
+}
+
+interface NodePlan {
+  packages: string[];
+  labels: string[];
+}
+
 export async function runInstall(
   root: string = process.cwd(),
   options: InstallOptions = {}
@@ -138,10 +162,17 @@ export async function runInstall(
   ensureHarnessDirs(root);
   let config = runtime.loadConfig(root);
   const paths = runtime.getConfigPaths(root);
-  const manager = resolveInstallerPackageManager(config, runtime.commandExists);
-  if (manager !== 'pnpm') {
+  const hadGlobalConfig = pathExists(paths.global);
+  let configDirty = !hadGlobalConfig;
+
+  const localModels = readConfigFile(paths.local).models;
+  if (
+    localModels?.orchestrator !== undefined ||
+    localModels?.subagents !== undefined ||
+    localModels?.aiderImplementer !== undefined
+  ) {
     p.log.warn(
-      `pnpm no está disponible; el instalador usará ${manager}. Para priorizar pnpm: "corepack enable pnpm" o "npm install -g pnpm".`
+      'Este proyecto define modelos en .alvaressrc.json; ganan sobre los globales que guarde el instalador.'
     );
   }
 
@@ -161,47 +192,135 @@ export async function runInstall(
   }
 
   let obsidianVaultPath: string | undefined;
-  let obsidianChanged = false;
   if (selected.includes('obsidian')) {
-    await ensureObsidianInstalled(runtime);
     obsidianVaultPath = await configureObsidian(config.obsidianVaultPath, yes);
     if (obsidianVaultPath !== config.obsidianVaultPath) {
       config = { ...config, obsidianVaultPath };
-      obsidianChanged = true;
+      configDirty = true;
     }
   }
 
-  if (selected.includes('graphify')) {
-    await installGraphify(runtime, yes);
-  }
-
-  if (selected.includes('aider') || config.aider?.enabled === true) {
-    await installAider(runtime, yes);
-  }
-
-  if (selected.includes('vite-plus')) {
-    await installVitePlus(root, manager, runtime);
-  }
-
-  if (selected.includes('validation')) {
-    await installValidationDependencies(root, manager, runtime);
-  }
-
-  let layaChanged = false;
+  let layaPlan: LayaPlan | undefined;
   if (selected.includes('laya')) {
-    config = await configureLaya(config, yes, runtime, root, manager);
-    layaChanged = true;
+    layaPlan = await promptLaya(config, yes, root);
+    config = layaPlan.config;
+    configDirty = true;
   }
 
-  if (!pathExists(paths.global)) {
+  if (!yes) {
+    const configureModels = unwrap(
+      await p.confirm({
+        message: '¿Configurar los modelos de orquestador, subagentes y Aider ahora?',
+        initialValue: true
+      })
+    );
+    if (configureModels) {
+      config = await promptModels(config, {
+        askAiderCredentials: selected.includes('aider') || config.aider?.enabled === true
+      });
+      configDirty = true;
+    }
+  }
+
+  if (!hadGlobalConfig) {
     config = yes ? config : await promptFullConfig(config);
+    configDirty = true;
+  }
+
+  if (configDirty) {
     runtime.saveGlobalConfig(config);
-    p.log.success(`Configuración global creada en ${paths.global}`);
-  } else if (layaChanged || obsidianChanged) {
-    runtime.saveGlobalConfig(config);
-    p.log.success('Configuración global actualizada.');
+    p.log.success(
+      hadGlobalConfig
+        ? 'Configuración global actualizada.'
+        : `Configuración global creada en ${paths.global}`
+    );
   } else {
     p.log.info(`Configuración global detectada en ${paths.global}`);
+  }
+
+  const manager = resolveInstallerPackageManager(config, runtime.commandExists);
+  if (manager !== 'pnpm') {
+    p.log.warn(
+      `pnpm no está disponible; el instalador usará ${manager}. Para priorizar pnpm: "corepack enable pnpm" o "npm install -g pnpm".`
+    );
+  }
+
+  const aiderSelected = selected.includes('aider') || config.aider?.enabled === true;
+  const needsPipx = selected.includes('graphify') || aiderSelected;
+  const pipxReady = needsPipx ? await ensurePipx(runtime, yes) : false;
+
+  const nodePlan = planNodeDependencies(root, runtime, {
+    vitePlus: selected.includes('vite-plus'),
+    validation: selected.includes('validation'),
+    laya: layaPlan?.enabled === true
+  });
+
+  if (nodePlan.packages.length > 0 && !runtime.commandExists(manager)) {
+    throw new Error(
+      `Instala ${manager} antes de continuar: "corepack enable pnpm" o "npm install -g pnpm". alvaress usa pnpm por defecto.`
+    );
+  }
+
+  const spinner = p.spinner();
+  const status = new Map<string, string>();
+  const update = (key: string, value: string): void => {
+    status.set(key, `${key}: ${value}`);
+    spinner.message([...status.values()].join(' · '));
+  };
+  spinner.start('Instalando componentes en paralelo');
+
+  const tasks: Array<Promise<ComponentResult | undefined>> = [];
+  if (selected.includes('obsidian')) {
+    tasks.push(installObsidianComponent(runtime, update));
+  }
+  if (selected.includes('graphify')) {
+    tasks.push(installGraphify(runtime, pipxReady, update));
+  }
+  if (aiderSelected) {
+    tasks.push(installAider(runtime, pipxReady, update));
+  }
+  if (nodePlan.packages.length > 0) {
+    tasks.push(installNodeDependencies(root, manager, runtime, nodePlan, update));
+  } else if (
+    selected.includes('vite-plus') ||
+    selected.includes('validation') ||
+    layaPlan?.enabled === true
+  ) {
+    update('Node', 'sin cambios');
+  }
+  const layaRuntimeReady =
+    runtime.moduleAvailable(LAYA_ONNX_RUNTIME_PACKAGE, root) &&
+    runtime.moduleAvailable(LAYA_TOKENIZER_PACKAGE, root);
+  const canInstallLayaDeps = pathExists(path.join(root, 'package.json'));
+  if (layaPlan?.download === true) {
+    if (layaRuntimeReady || canInstallLayaDeps) {
+      tasks.push(downloadLayaBundle(layaPlan.cacheDir, layaPlan.corrupt, runtime, update));
+    } else {
+      update('Laya', 'omitido');
+      tasks.push(
+        Promise.resolve({
+          warn: [
+            `No hay package.json para instalar el runtime de Laya; se omite la descarga del modelo (${formatBytes(BUNDLE_BYTES)}).`
+          ]
+        })
+      );
+    }
+  }
+
+  const results = await Promise.allSettled(tasks);
+  spinner.stop('Componentes listos.');
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      p.log.warn(errorMessage(result.reason));
+      continue;
+    }
+    for (const line of result.value?.info ?? []) {
+      p.log.info(line);
+    }
+    for (const line of result.value?.warn ?? []) {
+      p.log.warn(line);
+    }
   }
 
   if (!yes && isRepository(root) && !pathExists(paths.local)) {
@@ -252,22 +371,6 @@ export async function runInstall(
   const linked = report.links.length - skipped.length;
   p.log.info(`Enlaces globales de skills actualizados: ${linked}`);
 
-  if (!yes) {
-    const configureModels = unwrap(
-      await p.confirm({
-        message: '¿Configurar los modelos de orquestador, subagentes y Aider ahora?',
-        initialValue: true
-      })
-    );
-    if (configureModels) {
-      config = await promptModels(config, {
-        askAiderCredentials: selected.includes('aider') || config.aider?.enabled === true
-      });
-      runtime.saveGlobalConfig(config);
-      p.log.success(`Modelos guardados en ${paths.global}`);
-    }
-  }
-
   if (selected.includes('agent')) {
     const agent = runtime.installAgent(root, {
       global: true,
@@ -289,10 +392,12 @@ export async function runInstall(
   const implementer = config.models.aiderImplementer;
   const hasImplementerKey =
     (implementer.apiKey ?? '').length > 0 ||
-    Object.values(implementer.env ?? {}).some((value) => value.length > 0);
+    Object.entries(implementer.env ?? {}).some(
+      ([key, value]) => /KEY|TOKEN|SECRET/i.test(key) && value.length > 0
+    );
   if (config.aider?.enabled === true && yes && !hasImplementerKey) {
     p.log.warn(
-      'Aider está habilitado pero no hay API key del implementador. Añádela en ~/.alvaressconfig.json o define DEEPSEEK_API_KEY.'
+      'Aider está habilitado pero no hay API key del implementador. Añádela en ~/.alvaressconfig.json o define la variable del proveedor.'
     );
   }
 
@@ -301,6 +406,13 @@ export async function runInstall(
       `Proyecto: ${inferProjectName(root)}`,
       `Directorio: ${path.join(root, HARNESS_DIR)}`,
       `Tareas: ${path.join(root, HARNESS_DIR, 'tasks')}`,
+      `Config: ${paths.global}`,
+      `Orquestador: ${describeModel(config.models.orchestrator.modelName, 'hereda el de OpenCode')}`,
+      `Subagentes: ${describeModel(config.models.subagents.modelName, 'heredan el del orquestador')}`,
+      `Aider: ${config.models.aiderImplementer.modelName}`,
+      ...(selected.includes('agent')
+        ? []
+        : ['Modelos guardados; ejecuta "alvaress agent install" para aplicarlos al frontmatter.']),
       'Siguiente paso: ejecuta "alvaress run \\"tu petición\\"" o define tareas en openspec.yaml y usa "alvaress apply".'
     ].join('\n'),
     'alvaress listo'
@@ -309,24 +421,31 @@ export async function runInstall(
   p.outro('Instalación completada.');
 }
 
-async function ensureObsidianInstalled(runtime: InstallRuntime): Promise<void> {
+async function installObsidianComponent(
+  runtime: InstallRuntime,
+  update: (key: string, value: string) => void
+): Promise<ComponentResult> {
+  update('Obsidian', 'comprobando');
   const status = runtime.detectObsidian();
   if (status.installed) {
-    p.log.success(`Obsidian detectado (${status.method ?? 'instalado'}).`);
-    return;
+    update('Obsidian', 'listo');
+    return { info: [`Obsidian detectado (${status.method ?? 'instalado'}).`] };
   }
 
-  const spinner = p.spinner();
-  spinner.start('Obsidian no está instalado. Instalando Obsidian y sus dependencias');
+  update('Obsidian', 'instalando');
   const result = await runtime.installObsidian();
   if (result.installed) {
-    spinner.stop(result.message);
-    return;
+    update('Obsidian', 'listo');
+    return { info: [result.message] };
   }
 
-  spinner.stop('No se pudo instalar Obsidian automáticamente.');
-  p.log.warn(result.message);
-  p.log.info('La bóveda se creará igualmente; puedes instalar Obsidian después desde https://obsidian.md/download.');
+  update('Obsidian', 'omitido');
+  return {
+    warn: [
+      result.message,
+      'La bóveda se creará igualmente; puedes instalar Obsidian después desde https://obsidian.md/download.'
+    ]
+  };
 }
 
 async function configureObsidian(currentVault: string, yes: boolean): Promise<string> {
@@ -394,116 +513,141 @@ async function ensurePipx(runtime: InstallRuntime, yes: boolean): Promise<boolea
   return false;
 }
 
-async function installGraphify(runtime: InstallRuntime, yes: boolean): Promise<void> {
-  const spinner = p.spinner();
-  spinner.start('Comprobando Graphify');
+async function installGraphify(
+  runtime: InstallRuntime,
+  pipxReady: boolean,
+  update: (key: string, value: string) => void
+): Promise<ComponentResult> {
+  update('Graphify', 'comprobando');
   if (runtime.commandExists('graphify')) {
-    spinner.stop('Graphify ya está instalado.');
-    return;
+    update('Graphify', 'listo');
+    return { info: ['Graphify ya está instalado.'] };
   }
-  spinner.stop('Graphify no está instalado.');
-  if (!(await ensurePipx(runtime, yes))) {
-    return;
+  if (!pipxReady) {
+    update('Graphify', 'omitido');
+    return { warn: ['Sin pipx no se puede instalar Graphify.'] };
   }
-  const installSpinner = p.spinner();
-  installSpinner.start('Instalando graphify con pipx');
+
+  update('Graphify', 'instalando');
   const result = await runtime.runCommand('pipx', ['install', 'graphifyy']);
   if (result.code !== 0) {
-    installSpinner.error('No se pudo instalar Graphify.');
-    p.log.warn(`pipx install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
-    return;
+    update('Graphify', 'falló');
+    return {
+      warn: [
+        `pipx install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
+      ]
+    };
   }
-  installSpinner.stop('Graphify instalado correctamente.');
+  update('Graphify', 'listo');
+  return { info: ['Graphify instalado correctamente.'] };
 }
 
-async function installAider(runtime: InstallRuntime, yes: boolean): Promise<void> {
-  const spinner = p.spinner();
-  spinner.start('Comprobando Aider');
+async function installAider(
+  runtime: InstallRuntime,
+  pipxReady: boolean,
+  update: (key: string, value: string) => void
+): Promise<ComponentResult> {
+  update('Aider', 'comprobando');
   const version = await runtime.runCommand('aider', ['--version']);
   if (version.code === 0) {
-    spinner.stop(`Aider ya está instalado: ${version.stdout.trim() || 'versión desconocida'}`);
-    return;
+    update('Aider', 'listo');
+    return { info: [`Aider ya está instalado: ${version.stdout.trim() || 'versión desconocida'}`] };
   }
-  spinner.stop('Aider no está instalado.');
-  if (!(await ensurePipx(runtime, yes))) {
-    return;
+  if (!pipxReady) {
+    update('Aider', 'omitido');
+    return { warn: ['Sin pipx no se puede instalar Aider.'] };
   }
-  const installSpinner = p.spinner();
-  installSpinner.start('Instalando aider-chat con pipx');
+
+  update('Aider', 'instalando');
   const result = await runtime.runCommand('pipx', ['install', 'aider-chat']);
   if (result.code !== 0) {
-    installSpinner.error('No se pudo instalar Aider.');
-    p.log.warn(`pipx install aider-chat falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`);
-    return;
+    update('Aider', 'falló');
+    return {
+      warn: [
+        `pipx install aider-chat falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
+      ]
+    };
   }
-  installSpinner.stop('Aider instalado correctamente.');
+  update('Aider', 'listo');
+  return { info: ['Aider instalado correctamente.'] };
 }
 
-async function installValidationDependencies(
+function planNodeDependencies(
+  root: string,
+  runtime: InstallRuntime,
+  needs: { vitePlus: boolean; validation: boolean; laya: boolean }
+): NodePlan {
+  const packages = new Set<string>();
+  const labels: string[] = [];
+
+  if (
+    needs.vitePlus &&
+    !runtime.commandExists('vp') &&
+    !runtime.moduleAvailable(VITE_PLUS_PACKAGE, root)
+  ) {
+    packages.add(VITE_PLUS_PACKAGE);
+    labels.push('Vite-Plus');
+  }
+
+  if (needs.validation && !validationReady(root, runtime)) {
+    for (const dependency of ['oxlint', 'typescript', '@types/node']) {
+      packages.add(dependency);
+    }
+    labels.push('validación');
+  }
+
+  if (
+    needs.laya &&
+    (!runtime.moduleAvailable(LAYA_ONNX_RUNTIME_PACKAGE, root) ||
+      !runtime.moduleAvailable(LAYA_TOKENIZER_PACKAGE, root))
+  ) {
+    packages.add(LAYA_ONNX_RUNTIME_PACKAGE);
+    packages.add(LAYA_TOKENIZER_PACKAGE);
+    labels.push('Laya');
+  }
+
+  return { packages: [...packages], labels };
+}
+
+function validationReady(root: string, runtime: InstallRuntime): boolean {
+  return runtime.moduleAvailable('oxlint', root) && runtime.moduleAvailable('typescript', root);
+}
+
+async function installNodeDependencies(
   root: string,
   manager: PackageManager,
-  runtime: InstallRuntime
-): Promise<void> {
-  const spinner = p.spinner();
-  spinner.start('Comprobando dependencias de validación');
+  runtime: InstallRuntime,
+  plan: NodePlan,
+  update: (key: string, value: string) => void
+): Promise<ComponentResult> {
   if (!pathExists(path.join(root, 'package.json'))) {
-    spinner.stop('No hay package.json; se omite la instalación de oxlint y TypeScript.');
-    return;
+    update('Node', 'omitido');
+    return {
+      warn: [
+        `No hay package.json; se omiten ${plan.labels.join(', ')}. Instálalos manualmente con ${manager}.`
+      ]
+    };
   }
-  if (!runtime.commandExists(manager)) {
-    spinner.error(`${manager} no está disponible.`);
-    throw new Error(
-      `Instala pnpm antes de continuar: "corepack enable pnpm" o "npm install -g pnpm". alvaress usa pnpm por defecto.`
-    );
-  }
-  spinner.message(`Instalando oxlint, typescript y @types/node con ${manager}`);
+
+  update('Node', `instalando ${plan.labels.join(', ')}`);
   const result = await runtime.runCommand(
     manager,
-    packageManagerInstallArgs(manager, ['oxlint', 'typescript', '@types/node']),
+    packageManagerInstallArgs(manager, plan.packages),
     { cwd: root }
   );
   if (result.code !== 0) {
-    spinner.error('No se pudieron instalar las dependencias de validación.');
-    throw new Error(
-      `${manager} falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
-    );
-  }
-  spinner.stop('Dependencias de validación instaladas.');
-}
-
-async function installVitePlus(
-  root: string,
-  manager: PackageManager,
-  runtime: InstallRuntime
-): Promise<void> {
-  const spinner = p.spinner();
-  spinner.start('Comprobando Vite-Plus');
-  if (runtime.commandExists('vp') || runtime.moduleAvailable(VITE_PLUS_PACKAGE, root)) {
-    spinner.stop('Vite-Plus ya está disponible.');
-    return;
-  }
-  if (!pathExists(path.join(root, 'package.json'))) {
-    spinner.stop('No hay package.json; se omite Vite-Plus.');
-    p.log.warn(`Vite-Plus es requerido. Instálalo con "pnpm add -D ${VITE_PLUS_PACKAGE}".`);
-    return;
+    update('Node', 'falló');
+    return {
+      warn: [
+        `${manager} falló al instalar ${plan.packages.join(', ')}: ${
+          result.stderr.trim() || result.stdout.trim() || result.error
+        }`
+      ]
+    };
   }
 
-  spinner.message(`Instalando ${VITE_PLUS_PACKAGE} con ${manager}`);
-  const result = await runtime.runCommand(
-    manager,
-    packageManagerInstallArgs(manager, [VITE_PLUS_PACKAGE]),
-    { cwd: root }
-  );
-  if (result.code !== 0) {
-    spinner.stop('No se pudo instalar Vite-Plus automáticamente.');
-    p.log.warn(
-      result.stderr.trim() ||
-        result.stdout.trim() ||
-        `Ejecuta "${manager} add -D ${VITE_PLUS_PACKAGE}" manualmente.`
-    );
-    return;
-  }
-  spinner.stop('Vite-Plus instalado.');
+  update('Node', 'listo');
+  return { info: [`Dependencias Node instaladas: ${plan.packages.join(', ')}.`] };
 }
 
 function formatBytes(bytes: number): string {
@@ -516,119 +660,56 @@ function formatBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-async function installLayaDependencies(
-  root: string,
-  manager: PackageManager,
-  runtime: InstallRuntime
-): Promise<boolean> {
-  if (
-    runtime.moduleAvailable(LAYA_ONNX_RUNTIME_PACKAGE, root) &&
-    runtime.moduleAvailable(LAYA_TOKENIZER_PACKAGE, root)
-  ) {
-    return true;
-  }
-  if (!pathExists(path.join(root, 'package.json'))) {
-    p.log.warn(
-      `No hay package.json. Instala ${LAYA_ONNX_RUNTIME_PACKAGE} y ${LAYA_TOKENIZER_PACKAGE} manualmente con pnpm.`
-    );
-    return false;
-  }
-
-  const spinner = p.spinner();
-  spinner.start(`Instalando el runtime de Laya con ${manager}`);
-  const result = await runtime.runCommand(
-    manager,
-    packageManagerInstallArgs(manager, [LAYA_ONNX_RUNTIME_PACKAGE, LAYA_TOKENIZER_PACKAGE]),
-    { cwd: root }
-  );
-  if (result.code !== 0) {
-    spinner.stop('No se pudo instalar el runtime de Laya.');
-    p.log.warn(
-      result.stderr.trim() ||
-        result.stdout.trim() ||
-        `Ejecuta "${manager} add -D ${LAYA_ONNX_RUNTIME_PACKAGE} ${LAYA_TOKENIZER_PACKAGE}" manualmente.`
-    );
-    return false;
-  }
-  spinner.stop('Runtime de Laya instalado.');
-  return true;
-}
-
 async function downloadLayaBundle(
   dir: string,
-  yes: boolean,
-  runtime: InstallRuntime
-): Promise<boolean> {
-  // En el instalador se audita el hash completo; en cada `run` basta el tamaño.
-  const check = await verifyBundle(dir, { deep: true });
-  if (check.ok) {
-    p.log.success(`Modelo de Laya listo en ${dir}.`);
-    return true;
-  }
-
-  if (!yes) {
-    const proceed = unwrap(
-      await p.confirm({
-        message: `¿Descargar el modelo de Laya int8 (${formatBytes(BUNDLE_BYTES)}) en ${dir}?`,
-        initialValue: true
-      })
-    );
-    if (!proceed) {
-      p.log.warn('Modelo de Laya omitido; alvaress usará heurísticas hasta que se descargue.');
-      return false;
-    }
-  }
-
+  corrupt: string[],
+  runtime: InstallRuntime,
+  update: (key: string, value: string) => void
+): Promise<ComponentResult> {
   // Un archivo corrupto con el tamaño correcto no se re-descargaría: bórralo.
-  await Promise.all(
-    check.corrupt.map((file) => unlink(path.join(dir, file)).catch(() => undefined))
-  );
+  await Promise.all(corrupt.map((file) => unlink(path.join(dir, file)).catch(() => undefined)));
 
-  const spinner = p.spinner();
-  spinner.start(`Descargando el modelo de Laya int8 (${formatBytes(BUNDLE_BYTES)})`);
-  let lastFile = '';
+  update('Laya', `0% (${formatBytes(BUNDLE_BYTES)})`);
   let lastPercent = -1;
-
   try {
     await runtime.ensureLayaBundle({
       dir,
-      onProgress: ({ file, received, total }) => {
-        const percent = total === null ? 0 : Math.floor((received / total) * 100);
-        if (file !== lastFile || percent !== lastPercent) {
-          lastFile = file;
+      onProgress: ({ received, total, overallReceived, overallTotal }) => {
+        const done = overallReceived ?? received;
+        const goal = overallTotal ?? total ?? 0;
+        const percent = goal === 0 ? 0 : Math.floor((done / goal) * 100);
+        if (percent !== lastPercent) {
           lastPercent = percent;
-          spinner.message(
-            `${file} ${percent}% (${formatBytes(received)} de ${formatBytes(total ?? 0)})`
-          );
+          update('Laya', `${percent}% (${formatBytes(done)} de ${formatBytes(goal)})`);
         }
       }
     });
   } catch (error) {
-    spinner.stop('No se pudo descargar el modelo de Laya.');
-    p.log.warn(errorMessage(error));
-    return false;
+    update('Laya', 'falló');
+    return { warn: [errorMessage(error)] };
   }
 
-  const finalCheck = await verifyBundle(dir, { deep: true });
+  // Cada archivo descargado ya se verificó por SHA-256; el chequeo previo fue
+  // profundo, así que aquí basta confirmar tamaños y que no falte nada.
+  const finalCheck = await verifyBundle(dir);
   if (!finalCheck.ok) {
-    spinner.stop('El modelo de Laya quedó incompleto.');
-    p.log.warn(
-      `Archivos con problemas: ${[...finalCheck.missing, ...finalCheck.corrupt].join(', ')}.`
-    );
-    return false;
+    update('Laya', 'incompleto');
+    return {
+      warn: [
+        `El modelo de Laya quedó incompleto (${[...finalCheck.missing, ...finalCheck.corrupt].join(', ')}).`
+      ]
+    };
   }
 
-  spinner.stop(`Modelo de Laya listo en ${dir}.`);
-  return true;
+  update('Laya', 'listo');
+  return { info: [`Modelo de Laya listo en ${dir}.`] };
 }
 
-async function configureLaya(
+async function promptLaya(
   base: HarnessConfig,
   yes: boolean,
-  runtime: InstallRuntime,
-  root: string,
-  manager: PackageManager
-): Promise<HarnessConfig> {
+  root: string
+): Promise<LayaPlan> {
   const current = base.laya ?? {
     enabled: true,
     device: 'cpu' as const,
@@ -643,10 +724,17 @@ async function configureLaya(
           initialValue: current.enabled
         })
       );
+  const cacheDir = path.join(LAYA_INT8_MODEL_CACHE_ROOT, BUNDLE_REVISION);
 
   if (!enabled) {
     p.log.warn('Laya desactivado; alvaress usará heurísticas locales.');
-    return { ...base, laya: { ...current, enabled: false } };
+    return {
+      config: { ...base, laya: { ...current, enabled: false } },
+      enabled: false,
+      download: false,
+      cacheDir,
+      corrupt: []
+    };
   }
 
   const modelDir = yes
@@ -660,11 +748,6 @@ async function configureLaya(
       ).trim();
 
   const trimmed = modelDir.trim();
-  const depsReady = await installLayaDependencies(root, manager, runtime);
-  if (!depsReady) {
-    p.log.warn('Laya quedará en heurísticas hasta que instales el runtime.');
-  }
-
   if (trimmed.length > 0) {
     const resolved = path.resolve(root, expandHome(trimmed));
     const result = await verifyBundle(resolved);
@@ -676,14 +759,46 @@ async function configureLaya(
         `El bundle de ${resolved} está incompleto (${problems.join(', ')}). Ejecuta "alvaress doctor" para revisarlo.`
       );
     }
-    return { ...base, laya: { ...current, enabled: true, modelDir: trimmed } };
+    return {
+      config: { ...base, laya: { ...current, enabled: true, modelDir: trimmed } },
+      enabled: true,
+      download: false,
+      cacheDir,
+      corrupt: []
+    };
   }
 
-  if (depsReady) {
-    await downloadLayaBundle(path.join(LAYA_INT8_MODEL_CACHE_ROOT, BUNDLE_REVISION), yes, runtime);
+  const check = await verifyBundle(cacheDir, { deep: true });
+  if (check.ok) {
+    p.log.success(`Modelo de Laya listo en ${cacheDir}.`);
+    return {
+      config: { ...base, laya: { ...current, enabled: true, modelDir: undefined } },
+      enabled: true,
+      download: false,
+      cacheDir,
+      corrupt: []
+    };
   }
 
-  return { ...base, laya: { ...current, enabled: true, modelDir: undefined } };
+  const download = yes
+    ? true
+    : unwrap(
+        await p.confirm({
+          message: `¿Descargar el modelo de Laya int8 (${formatBytes(BUNDLE_BYTES)}) en ${cacheDir}?`,
+          initialValue: true
+        })
+      );
+  if (!download) {
+    p.log.warn('Modelo de Laya omitido; alvaress usará heurísticas hasta que se descargue.');
+  }
+
+  return {
+    config: { ...base, laya: { ...current, enabled: true, modelDir: undefined } },
+    enabled: true,
+    download,
+    cacheDir,
+    corrupt: check.corrupt
+  };
 }
 
 async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
@@ -705,24 +820,29 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
 }
 
 async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigFile> {
-  const vaultPath = await askRequired('Ruta de la bóveda Obsidian (local)', base.obsidianVaultPath);
+  const vaultPath = await askText(
+    'Ruta de la bóveda Obsidian (local; vacío = usar la global)',
+    ''
+  );
   const layaModelDir = await askText(
-    'Directorio local del modelo de Laya (vacío = caché gestionada)',
-    base.laya?.modelDir ?? ''
+    'Directorio local del modelo de Laya (vacío = usar el global)',
+    ''
   );
   const maxAttempts = await askMaxAttempts(base.validation.maxAttempts);
   const commands = await askValidationCommands(base.validation.commands);
   const packageManager = await askPackageManager(base.packageManager ?? DEFAULT_PACKAGE_MANAGER);
 
   return {
-    obsidianVaultPath: path.resolve(expandHome(vaultPath)),
+    ...(vaultPath.trim().length > 0
+      ? { obsidianVaultPath: path.resolve(expandHome(vaultPath)) }
+      : {}),
     packageManager,
-    laya: { modelDir: layaModelDir.trim() },
+    ...(layaModelDir.trim().length > 0 ? { laya: { modelDir: layaModelDir.trim() } } : {}),
     validation: { maxAttempts, commands }
   };
 }
 
-async function promptModels(
+export async function promptModels(
   base: HarnessConfig,
   options: { askAiderCredentials: boolean }
 ): Promise<HarnessConfig> {
@@ -745,85 +865,134 @@ async function promptModels(
     })
   );
 
-  if (mode === 'single') {
-    const model = await askRequired(
-      'Modelo para orquestador, subagentes y Aider',
-      base.models.aiderImplementer.modelName
+  const credentials = async (): Promise<{ apiKey?: string; apiBase: string }> => {
+    if (!options.askAiderCredentials) {
+      return { apiBase: base.models.aiderImplementer.apiBase ?? '' };
+    }
+    const apiBase = await askText(
+      'API base para Aider (vacío = la del proveedor)',
+      base.models.aiderImplementer.apiBase ?? ''
     );
-    const apiBase = options.askAiderCredentials
-      ? await askText(
-          'API base para Aider (vacío = la del proveedor)',
-          base.models.aiderImplementer.apiBase ?? ''
-        )
-      : base.models.aiderImplementer.apiBase ?? '';
-    const apiKey = options.askAiderCredentials
-      ? await askSecret(
-          base.models.aiderImplementer.apiKey
-            ? 'API key para Aider (Enter conserva la actual)'
-            : 'API key para Aider (Enter para vacío)'
-        )
-      : undefined;
+    const apiKey = await askSecret(
+      base.models.aiderImplementer.apiKey
+        ? 'API key para Aider (Enter conserva la actual)'
+        : 'API key para Aider (Enter para vacío)'
+    );
+    return { apiKey, apiBase };
+  };
+
+  if (mode === 'single') {
+    const model = await askModel(
+      'Modelo para orquestador y subagentes (Aider usará el mismo o su equivalente)',
+      base.models.orchestrator.modelName ||
+        base.models.subagents.modelName ||
+        base.models.aiderImplementer.modelName,
+      { required: true }
+    );
+    const aiderModel = aiderModelFor(model);
+    if (aiderModel !== model) {
+      p.log.info(`Aider usará ${aiderModel} en lugar de ${model}.`);
+    }
+    const { apiKey, apiBase } = await credentials();
 
     return {
       ...base,
       models: {
         orchestrator: { modelName: model },
         subagents: { modelName: model },
-        aiderImplementer: {
-          modelName: model,
-          apiKey: apiKey ?? base.models.aiderImplementer.apiKey ?? '',
-          apiBase,
-          env: {
-            ...base.models.aiderImplementer.env,
-            ...(apiKey ? { DEEPSEEK_API_KEY: apiKey } : {})
-          }
-        }
+        aiderImplementer: buildAiderConfig(base, aiderModel, apiKey, apiBase)
       }
     };
   }
 
-  const orchestrator = await askText(
+  const orchestrator = await askModel(
     'Modelo del orquestador (vacío = heredar el de OpenCode)',
-    base.models.orchestrator.modelName
+    base.models.orchestrator.modelName,
+    { required: false }
   );
-  const subagents = await askText(
+  const subagents = await askModel(
     'Modelo de los subagentes (vacío = heredar el del orquestador)',
-    base.models.subagents.modelName
+    base.models.subagents.modelName,
+    { required: false }
   );
   const implementer = await askRequired(
-    'Modelo de Aider',
+    'Modelo de Aider (provider/model recomendado)',
     base.models.aiderImplementer.modelName
   );
-  const apiBase = options.askAiderCredentials
-    ? await askText(
-        'API base para Aider (vacío = la del proveedor)',
-        base.models.aiderImplementer.apiBase ?? ''
-      )
-    : base.models.aiderImplementer.apiBase ?? '';
-  const apiKey = options.askAiderCredentials
-    ? await askSecret(
-        base.models.aiderImplementer.apiKey
-          ? 'API key para Aider (Enter conserva la actual)'
-          : 'API key para Aider (Enter para vacío)'
-      )
-    : undefined;
+  const aiderModel = aiderModelFor(implementer);
+  if (aiderModel !== implementer) {
+    p.log.info(`Aider usará ${aiderModel} en lugar de ${implementer}.`);
+  }
+  const { apiKey, apiBase } = await credentials();
 
   return {
     ...base,
     models: {
       orchestrator: { modelName: orchestrator },
       subagents: { modelName: subagents },
-      aiderImplementer: {
-        modelName: implementer,
-        apiKey: apiKey ?? base.models.aiderImplementer.apiKey ?? '',
-        apiBase,
-        env: {
-          ...base.models.aiderImplementer.env,
-          ...(apiKey ? { DEEPSEEK_API_KEY: apiKey } : {})
-        }
-      }
+      aiderImplementer: buildAiderConfig(base, aiderModel, apiKey, apiBase)
     }
   };
+}
+
+function buildAiderConfig(
+  base: HarnessConfig,
+  modelName: string,
+  apiKey: string | undefined,
+  apiBase: string
+): ModelProviderConfig {
+  return {
+    modelName,
+    apiKey: apiKey ?? base.models.aiderImplementer.apiKey ?? '',
+    apiBase,
+    env: {
+      ...base.models.aiderImplementer.env,
+      ...(apiKey ? aiderEnvFor(modelName, apiKey) : {})
+    }
+  };
+}
+
+async function askModel(
+  message: string,
+  defaultValue: string,
+  options: { required: boolean }
+): Promise<string> {
+  const value = unwrap(
+    await p.text({
+      message,
+      placeholder:
+        defaultValue.length > 0 ? defaultValue : options.required ? 'provider/model' : 'heredar',
+      defaultValue,
+      validate: (input) => {
+        const trimmed = (input ?? '').trim();
+        if (!options.required && isInheritInput(trimmed)) {
+          return undefined;
+        }
+        if (trimmed.length === 0) {
+          if (options.required && defaultValue.trim().length === 0) {
+            return 'Este valor es obligatorio.';
+          }
+          return validateModelReference(defaultValue.trim());
+        }
+        return validateModelReference(trimmed);
+      }
+    })
+  );
+  const trimmed = value.trim();
+  if (!options.required && isInheritInput(trimmed)) {
+    return '';
+  }
+  return trimmed.length > 0 ? trimmed : defaultValue.trim();
+}
+
+function isInheritInput(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return value === '-' || normalized === 'heredar' || normalized === 'inherit';
+}
+
+function describeModel(value: string, fallback: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
 }
 
 export function validateWithDefault(

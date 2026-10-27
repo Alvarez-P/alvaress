@@ -14,6 +14,7 @@ import {
 import { ConfigError } from '../utils/errors.js';
 import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
 import { defaultValidationCommands } from '../utils/package-manager.js';
+import { isModelReference } from './models.js';
 
 export type PackageManager = 'pnpm' | 'npm';
 export type ScopeMode = 'strict' | 'warn' | 'off';
@@ -141,6 +142,11 @@ function assertModelSelection(value: unknown, field: string, source: string): vo
     throw new ConfigError(`El campo "${field}" debe ser un objeto en ${source}.`);
   }
   assertString(value.modelName, `${field}.modelName`, source);
+  if (typeof value.modelName === 'string' && !isModelReference(value.modelName)) {
+    throw new ConfigError(
+      `El campo "${field}.modelName" debe usar el formato provider/model en ${source}.`
+    );
+  }
 }
 
 function assertModel(value: unknown, field: string, source: string): void {
@@ -393,6 +399,11 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
 export function loadConfig(root: string = process.cwd()): HarnessConfig {
   const paths = getConfigPaths(root);
   return mergeConfig(readConfigFile(paths.global), readConfigFile(paths.local));
+}
+
+/** Configuración global sin los overrides del proyecto. */
+export function loadGlobalConfig(): HarnessConfig {
+  return mergeConfig(readConfigFile(GLOBAL_CONFIG_PATH), {});
 }
 
 export function toConfigFile(config: HarnessConfig): HarnessConfigFile {

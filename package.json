@@ -1,6 +1,6 @@
 {
   "name": "alvaress",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Arnés híbrido SDD/ODD con Laya local (ONNX), Vite-Plus, Aider opcional, OpenSpec, Obsidian y Graphify para OpenCode y Claude",
   "author": "alvaress contributors",
   "type": "module",

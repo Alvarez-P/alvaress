@@ -6,6 +6,7 @@ import { runDoctorCommand } from './commands/doctor.js';
 import { runInit } from './commands/init.js';
 import { runInstall } from './commands/install.js';
 import { runLearnCommand } from './commands/learn.js';
+import { runModelsCommand } from './commands/models.js';
 import { runObsidianCommand } from './commands/obsidian.js';
 import { runReportCommand } from './commands/report.js';
 import { runHarnessCommand } from './commands/run.js';
@@ -36,6 +37,7 @@ Uso:
   alvaress skills [--no-link]         Reinstala las skills del proyecto y sus enlaces globales.
   alvaress learn [add|list|search|...]  Guarda y reutiliza aprendizajes globales y del proyecto.
   alvaress agent [install|show]       Instala o muestra el agente orquestador alvaress y sus subagentes.
+  alvaress models [show|set|configure]  Muestra o cambia los modelos de orquestador, subagentes y Aider.
   alvaress obsidian [status|sync|note]  Consulta o actualiza la bóveda Obsidian.
   alvaress doctor [--json]            Diagnóstico previo: configuración, herramientas, grafo y lock.
   alvaress report [latest|list|show]  Reportes de ejecución de .harness/runs.
@@ -57,6 +59,8 @@ Ejemplos:
   alvaress learn search "migraciones"
   alvaress learn add solution "Validar migraciones en seco" --tag pnpm --tag db
   alvaress agent install
+  alvaress models set --all openai/gpt-5
+  alvaress models set --orchestrator openai/gpt-5 --subagents openai/gpt-5-mini
 `;
 
 export async function runCli(argv: string[]): Promise<void> {
@@ -185,6 +189,10 @@ export async function runCli(argv: string[]): Promise<void> {
     }
     case 'agent': {
       runAgentCommand(rest, process.cwd());
+      return;
+    }
+    case 'models': {
+      await runModelsCommand(rest, process.cwd());
       return;
     }
     case 'obsidian': {

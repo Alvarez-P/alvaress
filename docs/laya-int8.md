@@ -40,7 +40,8 @@ uv venv --python 3.12 ~/.cache/alvaress/quant-venv
 uv pip install --python ~/.cache/alvaress/quant-venv/bin/python onnx onnxruntime numpy onnx-ir
 ```
 
-El bundle fp32 de origen es el que descarga `alvaress install`:
+El bundle fp32 de origen es la base para cuantizar; `alvaress install` descarga
+el artefacto int8 resultante:
 
 ```bash
 ~/.cache/alvaress/quant-venv/bin/python scripts/quantize-laya.py \

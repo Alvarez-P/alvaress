@@ -85,8 +85,13 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
 
     assert.equal(pipxCalls, 1);
     assert.ok(calls.includes('pipx install graphifyy'));
-    assert.ok(calls.includes('pnpm add -D vite-plus'));
-    assert.ok(calls.includes('pnpm add -D oxlint typescript @types/node'));
+    assert.ok(
+      calls.includes(
+        'pnpm add -D vite-plus oxlint typescript @types/node onnxruntime-node @huggingface/tokenizers'
+      ),
+      calls.join('\n')
+    );
+    assert.equal(calls.filter((call) => call.startsWith('pnpm add -D ')).length, 1);
     assert.equal(calls.some((call) => call.includes('aider')), false);
     assert.equal(saved?.laya?.enabled, true);
     assert.equal(saved?.laya?.modelDir, '/models/laya');
@@ -142,9 +147,12 @@ test('install --yes instala el runtime de Laya cuando no hay modelDir', async ()
     await runInstall(root, { yes: true, runtime });
 
     assert.ok(
-      calls.includes('pnpm add -D onnxruntime-node @huggingface/tokenizers'),
+      calls.includes(
+        'pnpm add -D vite-plus oxlint typescript @types/node onnxruntime-node @huggingface/tokenizers'
+      ),
       calls.join('\n')
     );
+    assert.equal(calls.filter((call) => call.startsWith('pnpm add -D ')).length, 1);
     assert.equal(saved?.laya?.enabled, true);
     assert.equal(saved?.laya?.modelDir, undefined);
   } finally {
