@@ -95,6 +95,7 @@ export interface Exploration {
 export interface WorkPlan {
   runId: string;
   mode: RunMode;
+  complexity?: Complexity;
   request: string;
   taskId?: string;
   source: string;

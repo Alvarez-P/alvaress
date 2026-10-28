@@ -16,7 +16,8 @@ import type {
 import { buildCommitMessage, commitRun } from '../src/orchestrator/commit.js';
 import { listAllReports, readAnyReport } from '../src/orchestrator/report.js';
 import { CommandValidator } from '../src/orchestrator/validator.js';
-import { loadConfig } from '../src/config/loader.js';
+import { loadConfig, mergeConfig } from '../src/config/loader.js';
+import { SubagentWorker } from '../src/orchestrator/workers.js';
 import {
   baseConfig,
   makeTempDir,
@@ -386,8 +387,81 @@ test('SubagentWorker invoca opencode con el subagente y detecta el diff', async 
 
   assert.equal(code, 0);
   const args = fs.readFileSync(log, 'utf-8');
-  assert.match(args, /run --agent alvaress-implementer --auto/);
+  assert.match(args, /run --agent alvaress-implementer-lite --auto/);
   assert.equal(fs.readFileSync(path.join(fixture.root, 'src', 'a.ts'), 'utf-8'), 'export const a = 5;\n');
+});
+
+test('SubagentWorker pasa el modelo y reutiliza la sesión del run', async () => {
+  const temp = makeTempDir('alvaress-subagent-session-');
+  try {
+    const root = path.join(temp.path, 'project');
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+    writeFile(path.join(root, 'src', 'a.ts'), 'export const a = 1;\n');
+    const bin = path.join(temp.path, 'bin');
+    const log = path.join(temp.path, 'opencode.log');
+    fs.mkdirSync(bin, { recursive: true });
+    writeExecutable(
+      path.join(bin, 'opencode'),
+      [
+        '#!/bin/sh',
+        `printf '%s\\n' "$*" >> '${log}'`,
+        `n=$(cat '${temp.path}/n' 2>/dev/null || echo 0)`,
+        `n=$((n+1)); printf '%s' "$n" > '${temp.path}/n'`,
+        `printf 'export const a = %s;\\n' "$n" > '${root}/src/a.ts'`,
+        'exit 0',
+        ''
+      ].join('\n')
+    );
+
+    const config = mergeConfig(
+      { models: { subagents: { modelName: 'openai/gpt-5-mini' } } },
+      {}
+    );
+    const worker = new SubagentWorker({
+      root,
+      config,
+      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` }
+    });
+
+    const plan: WorkPlan = {
+      runId: 'run-20261027120000-abc123',
+      mode: 'odd',
+      complexity: 'small',
+      request: 'cambia el helper',
+      source: 'nota',
+      acceptance: ['compila'],
+      files: ['src/a.ts'],
+      validation: ['true'],
+      learnings: []
+    };
+
+    await worker.work(plan);
+    await worker.work({ ...plan, complexity: 'medium' });
+    await worker.fix({
+      runId: plan.runId,
+      attempt: 1,
+      files: ['src/a.ts'],
+      failure: { ok: false, commands: [{ command: 'true', code: 1 }], warnings: [] },
+      error: 'falló'
+    });
+
+    const lines = fs
+      .readFileSync(log, 'utf-8')
+      .split('\n')
+      .filter((line) => line.startsWith('run '));
+    assert.equal(lines.length, 3);
+    assert.match(lines[0] ?? '', /--agent alvaress-implementer-lite/);
+    assert.match(lines[1] ?? '', /--agent alvaress-implementer /);
+    assert.match(lines[2] ?? '', /--agent alvaress-fixer/);
+    for (const line of lines) {
+      assert.match(line, /--model openai\/gpt-5-mini/);
+    }
+    const sessions = lines.map((line) => /--session (\S+)/.exec(line)?.[1]);
+    assert.equal(sessions[0], sessions[1]);
+    assert.equal(sessions[1], sessions[2]);
+  } finally {
+    temp.cleanup();
+  }
 });
 
 test('CommandValidator recoge warnings y se detiene en el primer fallo', async () => {

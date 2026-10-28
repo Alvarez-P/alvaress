@@ -170,7 +170,7 @@ instala si ya está habilitado en la configuración.
 6. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
 7. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
 8. Escribe las skills en `.harness/skills/` y sus enlaces globales.
-9. Instala el agente `alvaress` y sus cuatro subagentes en OpenCode con el
+9. Instala el agente `alvaress` y sus cinco subagentes en OpenCode con el
    modelo elegido en su frontmatter.
 
 Al final el instalador resume proyecto, rutas, configuración y los modelos
@@ -369,7 +369,7 @@ o `PASS`.
 | `aider.extraArgs` | `string[]` | `[]` | Argumentos extra para Aider. |
 | `aider.inheritEnv` | `boolean` | `true` | Hereda el entorno. En `false`, solo pasa las variables permitidas y las de `env`. |
 | `models.orchestrator.modelName` | `string` | vacío = heredar el de OpenCode | Modelo `provider/model` del agente orquestador. Se escribe en el frontmatter del agente instalado. |
-| `models.subagents.modelName` | `string` | vacío = heredar el del orquestador | Modelo `provider/model` de los cuatro subagentes. Se escribe en cada frontmatter. |
+| `models.subagents.modelName` | `string` | vacío = heredar el del orquestador | Modelo `provider/model` de los cinco subagentes. Se escribe en cada frontmatter. |
 | `models.aiderImplementer.modelName` | `string` | `"deepseek/deepseek-chat"` | Modelo del implementador para Aider. |
 | `models.aiderImplementer.apiKey` | `string` | vacío | Se expone a Aider con la variable del proveedor del modelo (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, etc.). Admite `${VAR}`. |
 | `models.aiderImplementer.apiBase` | `string` | vacío | Se expone como `OPENAI_API_BASE`. Útil para endpoints compatibles con OpenAI; en ese caso la clave también se publica como `OPENAI_API_KEY`. |
@@ -470,11 +470,12 @@ Es un agente `primary`, seleccionable con **Tab** en OpenCode o con
 | --- | --- | --- | --- | ---: |
 | `alvaress-explorer` | `Exploring` | Solo lectura: localiza código, lee la nota y propone un alcance cerrado. | No edita, no decide, no escribe en la bóveda. | 12 |
 | `alvaress-implementer` | `Working` | Implementa una micro-tarea ODD o una tarea SDD dentro del alcance. | Sin git, sin cierre, sin dependencias nuevas. | 30 |
+| `alvaress-implementer-lite` | `Working` | Cambios triviales o pequeños: edita sin explorar y sin validar. | Sin shell, sin git, sin dependencias nuevas. | 10 |
 | `alvaress-verifier` | `Checking` | Ejecuta Vite-Plus y devuelve el error exacto. | No edita archivos ni toca git. | 12 |
 | `alvaress-fixer` | `Fixing` | Repara un fallo trivial, máximo dos intentos. | No toca tests ni git; devuelve `nuclear` si no es trivial. | 20 |
 
 El orquestador no delega la decisión, el commit, el cierre de Obsidian ni los
-aprendizajes. La bóveda es de solo lectura para los cuatro subagentes.
+aprendizajes. La bóveda es de solo lectura para los cinco subagentes.
 
 Aider y los subagentes tienen prohibido agregar comentarios al código: ni
 explicaciones, ni separadores, ni `TODO`/`FIXME`, ni JSDoc de relleno. Conservan

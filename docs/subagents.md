@@ -28,6 +28,7 @@ está desactivado. La máquina de estados no cambia: solo cambia el `Worker`.
 export interface WorkPlan {
   runId: string;
   mode: 'odd' | 'sdd';
+  complexity?: 'trivial' | 'small' | 'medium' | 'large';
   taskId?: string;
   request: string;
   source: string;
@@ -70,8 +71,10 @@ export interface Worker {
 ```
 
 `SubagentWorker` no implementa el subagente: lo invoca con
-`opencode run --agent <subagente> --auto --format json` y le pasa el `WorkPlan`
-serializado en el mensaje. No interpreta la respuesta del subagente: compara el
+`opencode run --agent <subagente> --auto --format json --session <run>` y le
+pasa el `WorkPlan` serializado en el mensaje. Si
+`models.subagents.modelName` no está vacío, añade `--model`; la misma sesión se
+reutiliza entre implementación y reparación. No interpreta la respuesta del subagente: compara el
 workspace antes y después con snapshots SHA-1 y deriva `changes` y `risks` de ese
 diff. El subagente devuelve un resumen corto para el log, pero la fuente de verdad
 del resultado es el diff.
@@ -82,6 +85,7 @@ del resultado es el diff.
 | --- | --- | --- | --- |
 | `alvaress-explorer` | `Exploring` | Localizar código, leer la nota y proponer alcance cerrado. | Editar, escribir en la bóveda, decidir. |
 | `alvaress-implementer` | `Working` | Implementar una micro-tarea ODD o una tarea SDD acotada. | Salir del alcance, git, commit, dependencias nuevas. |
+| `alvaress-implementer-lite` | `Working` | Cambios triviales o pequeños: edita sin explorar y sin validar. | Shell, git, commit, dependencias nuevas. |
 | `alvaress-verifier` | `Checking` | Ejecutar `vp check`/`vp test` y devolver el error exacto. | Editar, corregir, tocar git. |
 | `alvaress-fixer` | `Fixing` | Reparar un fallo trivial, máximo 2 intentos. | Ampliar alcance, borrar tests, silenciar errores. |
 
@@ -99,6 +103,7 @@ el diff y rechaza cualquier comentario nuevo antes de validar y commitear.
 | --- | --- |
 | `alvaress-explorer` | `consult-graphify-ast`, `obsidian-sdd`, `bounded-scope` |
 | `alvaress-implementer` | `read-spec-first`, `universal-design-patterns`, `bounded-scope`, `self-healing-verify` |
+| `alvaress-implementer-lite` | `read-spec-first`, `bounded-scope` |
 | `alvaress-verifier` | `vite-plus-verify`, `bounded-scope` |
 | `alvaress-fixer` | `failure-triage`, `self-healing-verify`, `bounded-scope` |
 
@@ -109,7 +114,7 @@ correspondiente; si están vacíos, OpenCode hereda el modelo de la sesión.
 
 ## Seguridad y permisos
 
-Los cuatro perfiles comparten estas medidas:
+Los cinco perfiles comparten estas medidas:
 
 - `subagent: "*"` denegado: no pueden crear más subagentes.
 - `webfetch` y `websearch` denegados: no hay salida de datos ni dependencia de red.
@@ -196,6 +201,10 @@ En `Halted` no hay commit, no se marca `[x]`, se libera el lock y se escribe
 
 ## Eficiencia
 
+- Una sesión OpenCode por run: implementación y reparación comparten prompt y
+  archivos leídos en vez de recargarlos.
+- Complejidad `trivial` o `small` usa `alvaress-implementer-lite`: sin shell, sin
+  validación y con dos skills; el orquestador valida al final.
 - Una micro-tarea por subagente; nunca el proyecto completo.
 - El explorer devuelve un alcance; el implementer no reexplora.
 - El verifier devuelve el error exacto; el fixer no repite la validación completa

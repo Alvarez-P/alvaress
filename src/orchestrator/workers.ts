@@ -19,7 +19,19 @@ import type { RunLog } from './run-log.js';
 
 const DEFAULT_WORKER_TIMEOUT_MS = 10 * 60 * 1000;
 const IMPLEMENTER_AGENT = 'alvaress-implementer';
+const IMPLEMENTER_LITE_AGENT = 'alvaress-implementer-lite';
 const FIXER_AGENT = 'alvaress-fixer';
+
+/** Sesión estable por run para reutilizar prompt, skills y archivos leídos. */
+export function subagentSessionId(runId: string): string {
+  return `ses_alvaress${runId.replace(/[^a-zA-Z0-9]/g, '')}`;
+}
+
+function implementerAgent(complexity: WorkPlan['complexity']): string {
+  return complexity === 'trivial' || complexity === 'small'
+    ? IMPLEMENTER_LITE_AGENT
+    : IMPLEMENTER_AGENT;
+}
 
 export interface WorkerOptions {
   root: string;
@@ -37,6 +49,7 @@ export function buildWorkMessage(plan: WorkPlan): string {
     'Implementa el cambio solicitado por el arnés alvaress.',
     '',
     `Modo: ${plan.mode}`,
+    ...(plan.complexity !== undefined ? [`Complejidad: ${plan.complexity}`] : []),
     `Run: ${plan.runId}`,
     ...(plan.taskId !== undefined ? [`Tarea: ${plan.taskId}`] : []),
     `Fuente: ${plan.source}`,
@@ -213,12 +226,18 @@ export class SubagentWorker implements Worker {
   }
 
   async work(plan: WorkPlan): Promise<WorkResult> {
-    return this.invoke(IMPLEMENTER_AGENT, buildWorkMessage(plan), plan.files, 'subagente');
+    return this.invoke(
+      implementerAgent(plan.complexity),
+      buildWorkMessage(plan),
+      plan.files,
+      'subagente',
+      plan.runId
+    );
   }
 
   async fix(input: FixInput): Promise<FixResult> {
     const before = snapshotWorkspace(this.root, input.files);
-    const run = await this.runOpenCode(FIXER_AGENT, buildFixMessage(input));
+    const run = await this.runOpenCode(FIXER_AGENT, buildFixMessage(input), input.runId);
     const after = snapshotWorkspace(this.root, input.files);
     const changes = diffSnapshots(before, after, 'El subagente');
     const risks = scopeRisks(input.files, changes, this.config.scope ?? 'warn');
@@ -230,10 +249,11 @@ export class SubagentWorker implements Worker {
     agent: string,
     message: string,
     files: string[],
-    label: string
+    label: string,
+    runId: string
   ): Promise<WorkResult> {
     const before = snapshotWorkspace(this.root, files);
-    const run = await this.runOpenCode(agent, message);
+    const run = await this.runOpenCode(agent, message, runId);
     const after = snapshotWorkspace(this.root, files);
     const changes = diffSnapshots(before, after, 'El subagente');
     const risks: Risk[] = scopeRisks(files, changes, this.config.scope ?? 'warn');
@@ -250,10 +270,29 @@ export class SubagentWorker implements Worker {
     return { status: 'done', changes, risks };
   }
 
-  private async runOpenCode(agent: string, message: string): Promise<CommandResult> {
+  private async runOpenCode(
+    agent: string,
+    message: string,
+    runId: string
+  ): Promise<CommandResult> {
+    const model = this.config.models.subagents.modelName.trim();
+    const session = subagentSessionId(runId);
     const result = await runCommand(
       'opencode',
-      ['run', '--agent', agent, '--auto', '--format', 'json', message],
+      [
+        'run',
+        '--agent',
+        agent,
+        '--auto',
+        '--format',
+        'json',
+        ...(model.length > 0 ? ['--model', model] : []),
+        '--session',
+        session,
+        '--title',
+        `alvaress ${runId}`,
+        message
+      ],
       {
         cwd: this.root,
         env: this.env ?? process.env,
@@ -261,7 +300,10 @@ export class SubagentWorker implements Worker {
         maxBuffer: 4 * 1024 * 1024
       }
     );
-    this.log?.command(`opencode run --agent ${agent}`, result);
+    this.log?.command(
+      `opencode run --agent ${agent}${model.length > 0 ? ` --model ${model}` : ''} --session ${session}`,
+      result
+    );
     return result;
   }
 }

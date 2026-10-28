@@ -130,12 +130,13 @@ test('installAgent permite desactivar ubicaciones', () => {
   }
 });
 
-test('define los cuatro subagentes del modo sin Aider', () => {
+test('define los cinco subagentes del modo sin Aider', () => {
   assert.deepEqual(
     SUBAGENTS.map((subagent) => subagent.name),
     [
       'alvaress-explorer',
       'alvaress-implementer',
+      'alvaress-implementer-lite',
       'alvaress-verifier',
       'alvaress-fixer'
     ]
@@ -160,13 +161,21 @@ test('define los cuatro subagentes del modo sin Aider', () => {
 test('renderSubagent declara skills, pasos y permisos restrictivos', () => {
   const explorer = SUBAGENTS.find((subagent) => subagent.name === 'alvaress-explorer');
   const implementer = SUBAGENTS.find((subagent) => subagent.name === 'alvaress-implementer');
+  const lite = SUBAGENTS.find((subagent) => subagent.name === 'alvaress-implementer-lite');
   const verifier = SUBAGENTS.find((subagent) => subagent.name === 'alvaress-verifier');
   const fixer = SUBAGENTS.find((subagent) => subagent.name === 'alvaress-fixer');
 
   assert.ok(explorer !== undefined);
   assert.ok(implementer !== undefined);
+  assert.ok(lite !== undefined);
   assert.ok(verifier !== undefined);
   assert.ok(fixer !== undefined);
+
+  const liteRendered = renderSubagent(lite);
+  assert.match(liteRendered, /steps: 10/);
+  assert.match(liteRendered, /action: edit\n    resource: "\*"\n    effect: allow/);
+  assert.doesNotMatch(liteRendered, /resource: "vp check \*"/);
+  assert.doesNotMatch(liteRendered, /`universal-design-patterns`/);
 
   const explorerRendered = renderSubagent(explorer);
   assert.match(explorerRendered, /steps: 12/);

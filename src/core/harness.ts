@@ -291,6 +291,7 @@ export class HarnessCore {
     return {
       runId,
       mode: route.mode,
+      complexity: route.complexity,
       request: request.request,
       ...(request.taskId !== undefined || exploration.taskId !== undefined
         ? { taskId: request.taskId ?? exploration.taskId }
