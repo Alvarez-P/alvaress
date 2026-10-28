@@ -39,11 +39,11 @@ test('renderSkill genera frontmatter YAML y cuerpo literal', () => {
       'description: Obliga al agente a leer la nota ODD o la especificación SDD antes de programar.',
       'scope: project',
       '---',
-      'Antes de modificar o proponer cualquier cambio, lee la fuente del modo: en ODD, la nota de Obsidian y el alcance acordado; en SDD, `openspec.yaml` y `.harness/tasks/TASK_ID.md`. No improvises.',
+      'Lee la fuente antes de editar: en ODD la nota de Obsidian y el alcance acordado; en SDD `openspec.yaml` y `.harness/tasks/TASK_ID.md`. Si el orquestador ya incluyó el contenido en el mensaje, no lo releas.',
       '',
-      '- Resume los criterios de aceptación en 1-3 líneas; no copies la especificación completa.',
-      '- Si la fuente no existe, está incompleta o contradice la solicitud, devuelve `scope: blocked` con lo que falta. No rellenes huecos con suposiciones.',
-      '- Lee solo la fuente, los archivos del alcance y el contexto que ya te pasó el orquestador. No explores el proyecto entero.',
+      '- Resume los criterios de aceptación en 1-3 líneas.',
+      '- Si la fuente falta, está incompleta o contradice la solicitud, devuelve `scope: blocked`. No supongas.',
+      '- Lee solo la fuente y los archivos del alcance.',
       ''
     ].join('\n')
   );
@@ -103,14 +103,13 @@ test('installSkills omite enlaces cuando el destino es real', () => {
   }
 });
 
-test('la skill obsidian-sdd define las fases y la política de subagentes', () => {
+test('la skill obsidian-sdd separa la política de subagentes y orquestador', () => {
   const skill = SKILLS.find((entry) => entry.name === 'obsidian-sdd');
   assert.ok(skill !== undefined);
 
-  for (const phase of ['Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5']) {
-    assert.match(skill.body, new RegExp(phase));
-  }
-  assert.match(skill.body, /solo el orquestador/i);
+  assert.match(skill.body, /## Para subagentes/);
+  assert.match(skill.body, /## Para el orquestador/);
+  assert.match(skill.body, /el cierre es del orquestador/i);
   assert.match(skill.body, /solo lectura/i);
   assert.match(skill.body, /alvaress obsidian note/);
   assert.match(skill.body, /openspec\.yaml/);

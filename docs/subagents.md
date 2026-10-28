@@ -72,12 +72,13 @@ export interface Worker {
 
 `SubagentWorker` no implementa el subagente: lo invoca con
 `opencode run --agent <subagente> --auto --format json --session <run>` y le
-pasa el `WorkPlan` serializado en el mensaje. Si
-`models.subagents.modelName` no está vacío, añade `--model`; la misma sesión se
-reutiliza entre implementación y reparación. No interpreta la respuesta del subagente: compara el
-workspace antes y después con snapshots SHA-1 y deriva `changes` y `risks` de ese
-diff. El subagente devuelve un resumen corto para el log, pero la fuente de verdad
-del resultado es el diff.
+pasa el `WorkPlan` serializado en el mensaje, junto con la fuente y los archivos
+pequeños del alcance (≤8 KB por archivo, ≤16 KB en total) para ahorrar la
+llamada de lectura. Si `models.subagents.modelName` no está vacío, añade
+`--model`; la misma sesión se reutiliza entre implementación y reparación. No
+interpreta la respuesta del subagente: compara el workspace antes y después con
+snapshots SHA-1 y deriva `changes` y `risks` de ese diff. El subagente devuelve
+un resumen corto para el log, pero la fuente de verdad del resultado es el diff.
 
 ## Reparto de subagentes
 
@@ -99,7 +100,7 @@ el diff y rechaza cualquier comentario nuevo antes de validar y commitear.
 
 ## Skills por subagente
 
-| Subagente | Skills obligatorias |
+| Subagente | Skills disponibles |
 | --- | --- |
 | `alvaress-explorer` | `consult-graphify-ast`, `obsidian-sdd`, `bounded-scope` |
 | `alvaress-implementer` | `read-spec-first`, `universal-design-patterns`, `bounded-scope`, `self-healing-verify` |
@@ -108,9 +109,11 @@ el diff y rechaza cualquier comentario nuevo antes de validar y commitear.
 | `alvaress-fixer` | `failure-triage`, `self-healing-verify`, `bounded-scope` |
 
 El frontmatter de cada subagente limita la acción `skill` a esa lista: cualquier
-otra skill se deniega. Cuando `models.orchestrator` o `models.subagents` están
-configurados, el instalador escribe `model: provider/model` en el frontmatter
-correspondiente; si están vacíos, OpenCode hereda el modelo de la sesión.
+otra skill se deniega. No es obligatorio cargarlas: el mensaje del worker ya
+incluye el contrato y el contexto de los archivos pequeños. Cuando
+`models.orchestrator` o `models.subagents` están configurados, el instalador
+escribe `model: provider/model` en el frontmatter correspondiente; si están
+vacíos, OpenCode hereda el modelo de la sesión.
 
 ## Seguridad y permisos
 
@@ -203,11 +206,15 @@ En `Halted` no hay commit, no se marca `[x]`, se libera el lock y se escribe
 
 - Una sesión OpenCode por run: implementación y reparación comparten prompt y
   archivos leídos en vez de recargarlos.
+- El mensaje del worker incluye la fuente y los archivos pequeños del alcance, y
+  deja la validación al orquestador. Así el subagente pasa de tres llamadas
+  (leer, editar, cerrar) a dos (editar, cerrar).
 - Complejidad `trivial` o `small` usa `alvaress-implementer-lite`: sin shell, sin
-  validación y con dos skills; el orquestador valida al final.
+  validación y sin carga obligatoria de skills; el orquestador valida al final.
 - Una micro-tarea por subagente; nunca el proyecto completo.
 - El explorer devuelve un alcance; el implementer no reexplora.
 - El verifier devuelve el error exacto; el fixer no repite la validación completa
   si ya la tiene.
 - Nada de logs completos en la respuesta: el orquestador usa `alvaress -i`.
-- Los subagentes leen Graphify antes de `grep`/`read`.
+- Los subagentes consultan Graphify con `--budget 1200` antes de `grep`/`read` y
+  no leen `GRAPH_REPORT.md`.

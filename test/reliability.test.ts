@@ -191,7 +191,7 @@ test('installAgent instala los subagentes con modo subagent', () => {
       const content = fs.readFileSync(file, 'utf-8');
       assert.match(content, /mode: subagent/);
       assert.match(content, /steps: \d+/);
-      assert.match(content, /## Skills obligatorias/);
+      assert.match(content, /## Skills disponibles/);
     }
     for (const name of ['alvaress-explorer', 'alvaress-verifier']) {
       const content = fs.readFileSync(path.join(directory, `${name}.md`), 'utf-8');

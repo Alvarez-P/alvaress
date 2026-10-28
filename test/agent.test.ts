@@ -179,7 +179,7 @@ test('renderSubagent declara skills, pasos y permisos restrictivos', () => {
 
   const explorerRendered = renderSubagent(explorer);
   assert.match(explorerRendered, /steps: 12/);
-  assert.match(explorerRendered, /## Skills obligatorias/);
+  assert.match(explorerRendered, /## Skills disponibles/);
   assert.match(explorerRendered, /`consult-graphify-ast`/);
   assert.match(explorerRendered, /action: edit\n    resource: "\*"\n    effect: deny/);
   assert.match(explorerRendered, /action: external_directory\n    resource: "\*"\n    effect: allow/);
@@ -196,6 +196,8 @@ test('renderSubagent declara skills, pasos y permisos restrictivos', () => {
   assert.doesNotMatch(implementerRendered, /resource: "git commit \*"/);
   assert.doesNotMatch(implementerRendered, /resource: "pnpm run \*"/);
   assert.match(implementerRendered, /resource: "pnpm run validate \*"/);
+  assert.match(implementerRendered, /resource: "node --test \*"/);
+  assert.match(implementerRendered, /no lo reintentes/i);
   assert.match(implementerRendered, /No agregues comentarios al código/);
 
   for (const subagent of SUBAGENTS) {

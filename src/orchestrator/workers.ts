@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import type { HarnessConfig } from '../config/loader.js';
 import type {
@@ -18,6 +19,8 @@ import { diffSnapshots, scopeRisks, snapshotWorkspace } from './diff.js';
 import type { RunLog } from './run-log.js';
 
 const DEFAULT_WORKER_TIMEOUT_MS = 10 * 60 * 1000;
+const MAX_INLINE_FILE_BYTES = 8_000;
+const MAX_INLINE_TOTAL_BYTES = 16_000;
 const IMPLEMENTER_AGENT = 'alvaress-implementer';
 const IMPLEMENTER_LITE_AGENT = 'alvaress-implementer-lite';
 const FIXER_AGENT = 'alvaress-fixer';
@@ -44,7 +47,60 @@ function list(items: string[]): string {
   return items.length > 0 ? items.map((item) => `- ${item}`).join('\n') : '- (sin elementos)';
 }
 
-export function buildWorkMessage(plan: WorkPlan): string {
+export interface WorkMessageOptions {
+  root?: string;
+  inlineContext?: boolean;
+}
+
+/**
+ * Incluye el contenido de los archivos del alcance para que el subagente no
+ * gaste una llamada leyéndolos. Solo aplica a archivos pequeños: si el archivo
+ * supera el límite, el agente lo leerá con la herramienta `read`.
+ */
+function inlineSections(root: string, files: string[]): string[] {
+  const base = path.resolve(root);
+  const sections: string[] = [];
+  const seen = new Set<string>();
+  let total = 0;
+
+  for (const file of files) {
+    const full = path.resolve(base, file);
+    if (full !== base && !full.startsWith(`${base}${path.sep}`)) {
+      continue;
+    }
+    if (seen.has(full)) {
+      continue;
+    }
+    seen.add(full);
+
+    try {
+      const stats = fs.lstatSync(full);
+      if (!stats.isFile() || stats.size > MAX_INLINE_FILE_BYTES) {
+        continue;
+      }
+      if (total + stats.size > MAX_INLINE_TOTAL_BYTES) {
+        continue;
+      }
+      const content = fs.readFileSync(full, 'utf-8').trimEnd();
+      if (content.includes('\0')) {
+        continue;
+      }
+      sections.push(`### ${file}\n\`\`\`\n${content}\n\`\`\``);
+      total += stats.size;
+    } catch {
+      // El archivo aún no existe o no se puede leer: el agente lo resolverá.
+    }
+  }
+
+  return sections;
+}
+
+export function buildWorkMessage(plan: WorkPlan, options: WorkMessageOptions = {}): string {
+  const inline =
+    options.inlineContext === true && options.root !== undefined
+      ? inlineSections(options.root, [plan.source, ...plan.files])
+      : [];
+
   return [
     'Implementa el cambio solicitado por el arnés alvaress.',
     '',
@@ -63,9 +119,12 @@ export function buildWorkMessage(plan: WorkPlan): string {
     'Archivos permitidos (alcance cerrado):',
     list(plan.files),
     '',
-    'Validación obligatoria:',
+    'Validación final (la ejecuta el orquestador; no la ejecutes tú):',
     list(plan.validation),
     '',
+    ...(inline.length > 0
+      ? ['Contexto ya leído por el orquestador (no lo releas):', ...inline, '']
+      : []),
     'Aprendizajes relevantes:',
     list(plan.learnings.map((learning) => `${learning.id}: ${learning.title}`)),
     '',
@@ -73,6 +132,8 @@ export function buildWorkMessage(plan: WorkPlan): string {
     '- No toques archivos fuera del alcance permitido.',
     '- No ejecutes git commit ni git push.',
     '- No escribas en la bóveda Obsidian.',
+    '- No ejecutes la validación ni comandos de test; el orquestador la ejecutará al terminar.',
+    '- Si una herramienta o comando te devuelve un error de permisos, no lo reintentes: usa otra vía o devuelve el bloqueo.',
     '- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.',
     '- Devuelve un resumen breve de los archivos modificados.'
   ].join('\n');
@@ -101,7 +162,8 @@ export function buildFixMessage(input: FixInput): string {
     '- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.',
     '- No toques tests ni archivos fuera del alcance salvo que el error lo exija.',
     '- No ejecutes git commit ni git push.',
-    '- No escribas en la bóveda Obsidian.'
+    '- No escribas en la bóveda Obsidian.',
+    '- Si una herramienta o comando te devuelve un error de permisos, no lo reintentes: usa otra vía o devuelve el bloqueo.'
   ].join('\n');
 }
 
@@ -228,7 +290,7 @@ export class SubagentWorker implements Worker {
   async work(plan: WorkPlan): Promise<WorkResult> {
     return this.invoke(
       implementerAgent(plan.complexity),
-      buildWorkMessage(plan),
+      buildWorkMessage(plan, { root: this.root, inlineContext: true }),
       plan.files,
       'subagente',
       plan.runId
