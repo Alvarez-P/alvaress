@@ -1,7 +1,10 @@
-# Subagentes y worker sin Aider
+# Subagentes y worker de código
 
-Este documento define cómo el arnés híbrido SDD/ODD ejecuta cambios cuando Aider
-está desactivado. La máquina de estados no cambia: solo cambia el `Worker`.
+Este documento define cómo el arnés híbrido SDD/ODD ejecuta cambios con el
+worker de subagentes, que es el modo por defecto. La máquina de estados no
+cambia: solo cambia el `Worker`. El diseño toma como referencia el ciclo de
+Aider (alcance cerrado, edición por diff y reparación con el error exacto), pero
+Aider no es una dependencia y `alvaress install` no lo instala.
 
 ## Selección del worker
 
@@ -14,10 +17,10 @@ está desactivado. La máquina de estados no cambia: solo cambia el `Worker`.
 }
 ```
 
-- `aider.enabled` distinto de `false` → `AiderWorker`: `alvaress apply` y
-  `alvaress verify`.
-- `aider.enabled: false` → `SubagentWorker`: `alvaress-implementer` y
-  `alvaress-fixer`.
+- `aider.enabled: false` (por defecto) → `SubagentWorker`:
+  `alvaress-implementer` y `alvaress-fixer`.
+- `aider.enabled` distinto de `false` → `AiderWorker` legacy: `alvaress apply` y
+  `alvaress verify`. Requiere instalar Aider aparte.
 - El orquestador decide, cierra el alcance, hace el commit, marca Obsidian y
   escribe aprendizajes en el store (global o proyecto) que Laya determine en
   ambos modos.
@@ -218,3 +221,9 @@ En `Halted` no hay commit, no se marca `[x]`, se libera el lock y se escribe
 - Nada de logs completos en la respuesta: el orquestador usa `alvaress -i`.
 - Los subagentes consultan Graphify con `--budget 1200` antes de `grep`/`read` y
   no leen `GRAPH_REPORT.md`.
+
+La comparación medida frente a Aider (mismo `WorkPlan`, mismo modelo, fixtures
+`small` y `medium`) está en el
+[README](../README.md#inspiración-y-benchmark-frente-a-aider): paridad funcional,
+entre 2,3 y 2,5 veces más velocidad y más tokens de entrada porque el subagente
+necesita una llamada de edición y otra de cierre.

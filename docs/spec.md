@@ -3,14 +3,15 @@
 > **Nota histórica.** Este documento es el prompt original con el que se generó el
 > proyecto. La arquitectura vigente es un arnés híbrido **SDD + ODD** que usa
 > `Laya` como motor de decisión local, [Vite-Plus](https://vite.plus) para
-> validar y **Aider opcional** (subagentes de OpenCode cuando está desactivado).
+> validar y **subagentes de código** por defecto (Aider queda como worker legacy
+> opcional, no como dependencia).
 > Los ejemplos de configuración que aparecen más abajo son históricos y pueden
 > no coincidir con el esquema actual. Consulta el [README](../README.md) y
 > [docs/subagents.md](./subagents.md) para la referencia viva.
 
 Actúa como un Ingeniero de Software Principal experto en Herramientas de CLI Core y Automatización de Agentes de IA. Tu objetivo es generar el código fuente completo en TypeScript (compatible con Node.js/Bun) para una herramienta CLI open-source llamada `alvaress`.
 
-Esta herramienta automatiza el ciclo de desarrollo híbrido **SDD + ODD** bajo el estándar OpenSpec, integrando Obsidian como frontend, Graphify como mapa de código, `Laya` como motor de decisión local, Vite-Plus como compuerta de validación y Aider (opcional) o subagentes especializados como ejecutores.
+Esta herramienta automatiza el ciclo de desarrollo híbrido **SDD + ODD** bajo el estándar OpenSpec, integrando Obsidian como frontend, Graphify como mapa de código, `Laya` como motor de decisión local, Vite-Plus como compuerta de validación y subagentes especializados como ejecutores (con Aider como baseline legacy opcional).
 
 ---
 
@@ -135,8 +136,8 @@ export function loadConfig(): HarnessConfig {
 ## 3. MÓDULO INTERACTIVO DE INSTALACIÓN E INICIALIZACIÓN (TUI)
 Escribe el código para `src/commands/install.ts` utilizando la librería `@clack/prompts`. Debe mostrar un menú de selección múltiple interactivo:
 - "🧠 Obsidian (Conexión de Bóveda y Estructura)" -> Al finalizar, inicializa el directorio `.harness/tasks/` en el proyecto y solicita la ruta de Obsidian para crear los enlaces simbólicos.
-- "📊 Graphify (Mapeo AST local)" -> Comprueba si existe en el PATH con `which graphify`. Si no, ejecuta `pipx install graphify` mediante un subproceso visual controlado por un `spinner()`.
-- "🤖 Aider-Chat (Agente de código local)" -> Comprueba `aider --version`. Si no existe, ejecuta `pipx install aider-chat`.
+- "📊 Graphify (Mapeo AST local)" -> Comprueba si existe en el PATH con `which graphify`. Si no, ejecuta `uv tool install graphifyy` mediante un subproceso visual controlado por un `spinner()`.
+- "🤖 Aider-Chat (worker legacy opcional)" -> No se instala; el flujo normal usa subagentes de OpenCode.
 - "⚡ Oxlint & TSC (Validación local)" -> Lanza de manera automática `npm install -D oxlint typescript @types/node` en el repositorio objetivo.
 
 Al terminar de instalar las dependencias de sistema, si no existe el archivo global `~/.alvaressconfig.json`, el script debe estructurarlo de manera interactiva pidiendo los nombres de los modelos locales o externos y guardando el JSON de forma limpia. Si se ejecuta dentro de un repositorio de código, debe ofrecer la creación del archivo local `.alvaressrc.json` para definir *overrides*.
