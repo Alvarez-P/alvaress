@@ -104,10 +104,15 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
   }
 
   if (config !== undefined) {
-    const invalid = [
+    const legacyAider = config.aider?.enabled === true;
+    const models: Array<[string, string]> = [
       ['orchestrator', config.models.orchestrator.modelName],
       ['subagents', config.models.subagents.modelName]
-    ]
+    ];
+    if (legacyAider) {
+      models.push(['aiderImplementer', config.models.aiderImplementer.modelName]);
+    }
+    const invalid = models
       .filter(([, value]) => !isModelReference(value))
       .map(([name]) => name);
     checks.push(
@@ -117,7 +122,7 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
             'ok',
             `Orquestador: ${modelLabel(config.models.orchestrator.modelName, 'hereda')} · ` +
               `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')}` +
-              (config.aider?.enabled === true
+              (legacyAider
                 ? ` · Aider legacy: ${config.models.aiderImplementer.modelName}`
                 : '')
           )

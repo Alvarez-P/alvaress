@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "src/commands/doctor.ts": {
-    "mtime": 1793154916.0475,
-    "seen": 1793155776.9361231,
-    "ast_hash": "2be23845816da5ba771f07c11e75f274",
+    "mtime": 1793156221.3193884,
+    "seen": 1793156417.9802363,
+    "ast_hash": "f6be97e6f42a41f56b3ad2a25807d833",
     "semantic_hash": ""
   },
   "src/commands/report.ts": {
@@ -354,9 +354,9 @@
     "semantic_hash": ""
   },
   "test/reliability.test.ts": {
-    "mtime": 1793153085.1116595,
-    "seen": 1793154045.3802476,
-    "ast_hash": "76db8128e667b79236f0ad14c74bbebe",
+    "mtime": 1793156327.0513797,
+    "seen": 1793156417.980334,
+    "ast_hash": "a1723694526962871d47f8490792476e",
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
