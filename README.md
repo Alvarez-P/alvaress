@@ -148,23 +148,24 @@ Para dejar el equipo listo sin preguntas:
 alvaress install --yes
 ```
 
-`--yes` instala el set completo (agente, Laya, Obsidian, Graphify, Vite-Plus y
+`--yes` instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y
 validación), usa la configuración existente o los valores por defecto y no
 pregunta nada. Instala lo que falte, crea `openspec.yaml` si el proyecto es un
-repositorio y no crea `.alvaressrc.json`. Aider solo se instala si ya está
-habilitado en la configuración.
+repositorio y no crea `.alvaressrc.json`. **Aider es el único opcional:** solo se
+instala si ya está habilitado en la configuración.
 
 ### Qué hace el instalador
 
-1. Selecciona componentes (agente, Laya, Obsidian, Graphify, Vite-Plus y
-   validación; Aider es opcional).
+1. Instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y
+   validación) y pregunta solo si quieres Aider como worker opcional.
 2. Pregunta lo que necesita decisión humana antes del trabajo pesado: bóveda,
-   ruta del modelo de Laya y modelos de orquestador, subagentes y Aider.
+   ruta del modelo de Laya y modelos de orquestador, subagentes y Aider. Si
+   eliges Aider, también su credencial.
 3. Guarda `~/.alvaressconfig.json` para no perder tus elecciones si algo falla.
-4. Instala en paralelo Obsidian, Graphify, Aider, las dependencias Node y el
-   bundle int8 de Laya. Las dependencias Node van en una sola llamada a pnpm;
-   los archivos pequeños del bundle se bajan en paralelo y el progreso es
-   agregado.
+4. Instala en paralelo Obsidian, Graphify, Aider (si lo elegiste), las
+   dependencias Node y el bundle int8 de Laya. Las dependencias Node van en una
+   sola llamada a pnpm; los archivos pequeños del bundle se bajan en paralelo y
+   el progreso es agregado.
 5. Crea o actualiza `.alvaressrc.json` si aceptas overrides locales.
 6. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
 7. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
@@ -213,7 +214,7 @@ Aider o editará directamente, validará y actualizará el estado de la tarea.
 | --- | --- | --- |
 | `alvaress run "<petición>"` | Ejecuta el arnés de principio a fin: explora, decide, trabaja, valida y cierra. | `--task`, `--files`, `--mode odd\|sdd\|auto`, `--dry-run`, `--no-commit`, `--no-learn`, `--force` |
 | `alvaress -i` / `--inspect-last-run` | Muestra el log completo del último run (`.laya/last_run.log`). | — |
-| `alvaress install` | Instala agente, Laya, Obsidian, Graphify, Vite-Plus y dependencias. | `--yes`, `-y` |
+| `alvaress install` | Instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y validación); Aider es opcional. | `--yes`, `-y` |
 | `alvaress init` | Crea `.harness/`, `openspec.yaml`, skills y agente del proyecto. | `--no-link` |
 | `alvaress apply [TASK...]` | Ejecuta tareas pendientes (o las indicadas) con Aider. | `--dry-run`, `--force`, `--update-graph`, `--no-lock` |
 | `alvaress verify <TASK_ID>` | Ejecuta la validación de la tarea y, si falla, pide reparación automática. | — |
@@ -426,9 +427,9 @@ modelo, el run sigue con heurísticas y `doctor` lo indica.
 | **Hugging Face Tokenizers** | Tokeniza el resumen de estado que recibe Laya. | `pnpm add -D @huggingface/tokenizers` (lo hace `alvaress install`). |
 | **Vite-Plus** | `vp check` y `vp test`: lint, tipos y pruebas en un solo comando. | `pnpm add -D vite-plus` (lo hace `alvaress install`). |
 | **oxlint + TypeScript** | Validación de respaldo para proyectos sin Vite-Plus. | `pnpm add -D oxlint typescript @types/node` (lo hace `alvaress install`). |
-| **Graphify** | Grafo AST del repositorio para localizar código sin leerlo entero. | `pipx install graphifyy` (lo hace `alvaress install`). |
-| **Aider (opcional)** | Worker multiarchivo cuando `aider.enabled` está activo. | `pipx install aider-chat`, solo si lo habilitas. |
-| **Obsidian (opcional)** | Nota ODD y espejo del estado SDD. | Aplicación del sistema; el instalador intenta instalarla. |
+| **Graphify** | Grafo AST del repositorio para localizar código sin leerlo entero. Lo usa el agente OpenCode y los subagentes; Aider tiene su propio repo map y el CLI `run` no lo consulta. | `pipx install graphifyy` (lo hace `alvaress install`). |
+| **Aider (opcional)** | Worker multiarchivo cuando `aider.enabled` está activo. Es el único componente opcional del instalador. | `pipx install aider-chat`, solo si lo habilitas. |
+| **Obsidian** | Nota ODD y espejo del estado SDD. | El instalador intenta instalarla; si falla, la bóveda se crea igual. |
 | **pipx** | Instala Graphify y Aider en entornos Python aislados. | Gestor del sistema o `python3 -m pip install --user pipx`. |
 | **OpenSpec** | Formato de manifiesto y tareas SDD. | No se instala: alvaress usa el formato y crea `openspec.yaml`. |
 
@@ -438,6 +439,22 @@ Aider, que son herramientas de Python. El bundle int8 se baja del release
 admite `/` en sus nombres y el instalador los coloca en `tokenizer/` al
 guardarlos. El manifiesto `laya_int8.json` se escribe al final y es la fuente de
 verdad para `verifyBundle` y `doctor`.
+
+En la instalación, **Aider es el único opcional**. El resto se instala siempre
+para que el arnés tenga un camino completo: agente y skills, decisión local,
+notas, navegación de código y validación.
+
+### Qué usa cada path
+
+| Path | Navegación de código | Fuente de la tarea | Validación |
+| --- | --- | --- | --- |
+| `alvaress run` por CLI | Aider (si está habilitado) o subagentes; el CLI no consulta Graphify | `openspec.yaml` o nota ODD | Vite-Plus |
+| Agente OpenCode | Graphify | Nota ODD o spec | Vite-Plus |
+| Aider | Su repo map efímero | Mensaje del run | No valida |
+
+Graphify y el repo map de Aider no compiten: uno explora antes de editar y el
+otro lo genera Aider para decidir qué archivos tocar. Aider no recibe el grafo
+de Graphify.
 
 ## Agente, subagentes y skills
 

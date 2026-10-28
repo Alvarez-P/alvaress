@@ -44,55 +44,19 @@ import {
 } from '../utils/pipx.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
-const COMPONENT_VALUES = ['agent', 'laya', 'obsidian', 'graphify', 'vite-plus', 'aider', 'validation'] as const;
+const COMPONENT_VALUES = ['agent', 'laya', 'obsidian', 'graphify', 'vite-plus', 'validation'] as const;
 type Component = (typeof COMPONENT_VALUES)[number];
 
-const REQUIRED_COMPONENTS: Component[] = [
-  'agent',
-  'laya',
-  'obsidian',
-  'graphify',
-  'vite-plus',
-  'validation'
-];
+const REQUIRED_COMPONENTS: Component[] = [...COMPONENT_VALUES];
 
-const COMPONENTS: Array<{ value: Component; label: string; hint: string }> = [
-  {
-    value: 'agent',
-    label: '🧭 Agente alvaress (OpenCode)',
-    hint: 'instala el orquestador global y en el proyecto'
-  },
-  {
-    value: 'laya',
-    label: '🧠 Laya (motor de decisión local)',
-    hint: 'routing ODD/SDD, riesgo y triaje de fallos en local'
-  },
-  {
-    value: 'obsidian',
-    label: '🗂️ Obsidian (Aplicación, Bóveda y Estructura)',
-    hint: 'detecta o instala Obsidian y conecta la bóveda'
-  },
-  {
-    value: 'graphify',
-    label: '📊 Graphify (Mapeo AST local)',
-    hint: 'instala graphify con pipx si falta'
-  },
-  {
-    value: 'vite-plus',
-    label: '⚡ Vite-Plus (vp check / vp test)',
-    hint: 'instala vite-plus en el proyecto'
-  },
-  {
-    value: 'aider',
-    label: '🤖 Aider-Chat (opcional)',
-    hint: 'si no se instala, el trabajo lo hacen los subagentes'
-  },
-  {
-    value: 'validation',
-    label: '🧪 Oxlint & TSC (fallback de validación)',
-    hint: 'pnpm add -D oxlint typescript @types/node'
-  }
-];
+const FIXED_COMPONENT_SUMMARY = [
+  '🧭 Agente alvaress · orquestador y subagentes en OpenCode',
+  '🧠 Laya · decisión local, riesgo y triaje',
+  '🗂️ Obsidian · notas ODD y reporte de cierre',
+  '📊 Graphify · navegación del agente',
+  '⚡ Vite-Plus · vp check / vp test',
+  '🧪 Validación · oxlint, TypeScript y tipos de Node'
+].join('\n');
 
 export interface InstallRuntime {
   commandExists: typeof commandExists;
@@ -176,19 +140,24 @@ export async function runInstall(
     );
   }
 
-  const selected: Component[] = yes
-    ? [...REQUIRED_COMPONENTS]
-    : unwrap(
-        await p.multiselect<Component>({
-          message: 'Selecciona los componentes a instalar',
-          options: COMPONENTS,
-          initialValues: [...REQUIRED_COMPONENTS],
-          required: false
+  const selected: Component[] = [...REQUIRED_COMPONENTS];
+  let aiderSelected = config.aider?.enabled === true;
+
+  if (!yes) {
+    p.note(FIXED_COMPONENT_SUMMARY, 'Se instalarán siempre');
+    if (!aiderSelected) {
+      aiderSelected = unwrap(
+        await p.confirm({
+          message:
+            '¿Instalar y habilitar Aider como worker opcional? Si no, trabajan los subagentes.',
+          initialValue: false
         })
       );
-
-  if (selected.length === 0) {
-    p.log.warn('No seleccionaste componentes de sistema. Se configurará el proyecto igualmente.');
+      if (aiderSelected) {
+        config = { ...config, aider: { ...config.aider, enabled: true } };
+        configDirty = true;
+      }
+    }
   }
 
   let obsidianVaultPath: string | undefined;
@@ -216,7 +185,7 @@ export async function runInstall(
     );
     if (configureModels) {
       config = await promptModels(config, {
-        askAiderCredentials: selected.includes('aider') || config.aider?.enabled === true
+        askAiderCredentials: aiderSelected
       });
       configDirty = true;
     }
@@ -245,7 +214,6 @@ export async function runInstall(
     );
   }
 
-  const aiderSelected = selected.includes('aider') || config.aider?.enabled === true;
   const needsPipx = selected.includes('graphify') || aiderSelected;
   const pipxReady = needsPipx ? await ensurePipx(runtime, yes) : false;
 
@@ -409,7 +377,11 @@ export async function runInstall(
       `Config: ${paths.global}`,
       `Orquestador: ${describeModel(config.models.orchestrator.modelName, 'hereda el de OpenCode')}`,
       `Subagentes: ${describeModel(config.models.subagents.modelName, 'heredan el del orquestador')}`,
-      `Aider: ${config.models.aiderImplementer.modelName}`,
+      `Aider: ${
+        aiderSelected
+          ? config.models.aiderImplementer.modelName
+          : 'no instalado; trabajan los subagentes'
+      }`,
       ...(selected.includes('agent')
         ? []
         : ['Modelos guardados; ejecuta "alvaress agent install" para aplicarlos al frontmatter.']),

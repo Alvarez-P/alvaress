@@ -93,6 +93,7 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
     );
     assert.equal(calls.filter((call) => call.startsWith('pnpm add -D ')).length, 1);
     assert.equal(calls.some((call) => call.includes('aider')), false);
+    assert.equal(saved?.aider?.enabled, false);
     assert.equal(saved?.laya?.enabled, true);
     assert.equal(saved?.laya?.modelDir, '/models/laya');
     assert.equal(saved?.obsidianVaultPath, vault);
