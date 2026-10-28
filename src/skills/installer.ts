@@ -199,7 +199,7 @@ Si un test falla porque el contrato cambió, no lo edites: devuelve \`needs-orch
 - Migración, cambio de esquema o dependencia nueva.
 - El alcance no alcanza o el error está en un archivo no asignado.
 - El mismo error ya se repitió en dos intentos.
-- Falla una herramienta necesaria (Vite-Plus, \`opencode\`/Aider). Que Laya no esté disponible no es nuclear: el arnés cae a heurísticas. Que Obsidian falte tampoco: se continúa sin bóveda.
+- Falla una herramienta necesaria (Vite-Plus u \`opencode\`). Que Laya no esté disponible no es nuclear: el arnés cae a heurísticas. Que Obsidian falte tampoco: se continúa sin bóveda. Aider es legacy y no es una dependencia.
 - No hay causa clara y el siguiente intento sería a ciegas.
 
 ## Límites

@@ -116,8 +116,10 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
             'models',
             'ok',
             `Orquestador: ${modelLabel(config.models.orchestrator.modelName, 'hereda')} · ` +
-              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')} · ` +
-              `Aider: ${config.models.aiderImplementer.modelName}`
+              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')}` +
+              (config.aider?.enabled === true
+                ? ` · Aider legacy: ${config.models.aiderImplementer.modelName}`
+                : '')
           )
         : check(
             'models',
@@ -265,17 +267,25 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
         )
   );
 
-  for (const tool of ['aider', 'graphify']) {
-    const optional = tool === 'aider' && config?.aider?.enabled !== true;
+  checks.push(
+    hasCommand('graphify')
+      ? check('graphify', 'ok', 'graphify disponible.')
+      : check(
+          'graphify',
+          'warn',
+          'Graphify no está instalado; ejecuta "alvaress install" o "uv tool install graphifyy".'
+        )
+  );
+
+  // Aider es legacy: solo se revisa si alguien lo habilitó explícitamente.
+  if (config?.aider?.enabled === true) {
     checks.push(
-      hasCommand(tool)
-        ? check(tool, 'ok', `${tool} disponible.`)
+      hasCommand('aider')
+        ? check('aider', 'ok', 'Aider legacy disponible.')
         : check(
-            tool,
+            'aider',
             'warn',
-            optional
-              ? 'Aider no está instalado; el modo sin Aider usará subagentes especializados.'
-              : `${tool} no está instalado; el flujo continuará con menos automatización.`
+            'Aider legacy está habilitado pero no está instalado; instálalo aparte o usa aider.enabled=false.'
           )
     );
   }

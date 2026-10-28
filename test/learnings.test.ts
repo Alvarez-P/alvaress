@@ -186,8 +186,8 @@ test('learn promote copia el aprendizaje del proyecto al global', async () => {
     const created = addLearning(
       {
         kind: 'solution',
-        title: 'Reintentar pipx tras un fallo de red',
-        body: 'Repetir pipx install graphifyy cuando la descarga falla por timeout.'
+        title: 'Reintentar uv tras un fallo de red',
+        body: 'Repetir uv tool install graphifyy cuando la descarga falla por timeout.'
       },
       stores.project
     );

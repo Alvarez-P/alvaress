@@ -34,7 +34,7 @@ function modelLine(model: string | undefined): string {
 
 export function renderAgent(model?: string): string {
   return `---
-description: Orquestador híbrido SDD/ODD de alvaress. Decide con Laya, usa Aider o subagentes y valida con Vite-Plus.
+description: Orquestador híbrido SDD/ODD de alvaress. Decide con Laya, delega en subagentes de código y valida con Vite-Plus.
 mode: primary
 ${modelLine(model)}permissions:
   - action: read
@@ -272,8 +272,8 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 5. **Cero comentarios en el código generado.** No agregues comentarios
    explicativos, separadores, TODO/FIXME ni JSDoc de relleno. Conserva los
    comentarios que ya existan y no los reescribas; si una decisión necesita
-   explicación, va en la respuesta, no en el archivo. La misma regla aplica a
-   Aider y a todos los subagentes. Al recibir su resultado, revisa el diff: si
+   explicación, va en la respuesta, no en el archivo. La misma regla aplica al
+   worker legacy de Aider y a todos los subagentes. Al recibir su resultado, revisa el diff: si
    aparece un comentario nuevo, pídeles que lo eliminen o retíralo tú antes de
    validar y commitear.
 6. **Valida siempre** antes de declarar una tarea terminada.
@@ -316,7 +316,7 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 - Motor de decisión: \`Laya\` local (ONNX); bundle int8 en \`~/.cache/alvaress/laya-onnx-int8\`
 - HALT del último run: \`.laya/HALT.json\`
 - Validador local: Vite-Plus (\`vp check\` y \`vp test\`)
-- Aider (opcional): se activa con \`aider.enabled\`; si no, se usan subagentes
+- Worker por defecto: subagentes de código. Aider legacy solo si \`aider.enabled\` y está instalado aparte
 - Aprendizajes globales: \`~/.alvaress/memory/learnings.json\` (fuente) y
   \`~/.alvaress/memory/PLAYBOOK.md\` (resumen). Transversales a proyectos.
 - Aprendizajes del proyecto: \`.harness/memory/learnings.json\` y
@@ -389,8 +389,8 @@ antes de lanzar el run. Sin fuente no hay alcance cerrado.
 
 ### Fase 3 · Trabajo fino y subagentes
 
-\`alvaress run\` ya orquesta el worker (Aider o subagentes). Usa los subagentes
-directamente solo cuando necesites una pieza pequeña fuera de un run:
+\`alvaress run\` ya orquesta el worker de subagentes. Úsalos directamente solo
+cuando necesites una pieza pequeña fuera de un run:
 
 - **Explorar**: \`alvaress-explorer\` localiza código, lee la fuente y propone un
   alcance cerrado.
@@ -400,8 +400,8 @@ directamente solo cuando necesites una pieza pequeña fuera de un run:
   error exacto.
 - **Reparar**: \`alvaress-fixer\` corrige un fallo trivial, máximo dos intentos.
 
-Si necesitas ejecutar tareas SDD existentes con Aider, usa \`alvaress apply\`.
-Con Aider desactivado, no uses \`apply\`: delega en los subagentes.
+\`alvaress apply\` solo existe para el worker legacy de Aider. En el modo por
+defecto no lo uses: delega en los subagentes.
 
 ### Fase 4 · Validar
 
@@ -511,12 +511,12 @@ Los stores son locales y no se sincronizan con ningún servicio. \`alvaress lear
 list\` y \`alvaress learn search\` son de solo lectura; los subagentes pueden usarlos,
 pero solo tú escribes aprendizajes.
 
-## Subagentes y modo sin Aider
+## Subagentes y worker de código
 
-Aider es opcional. Si \`aider.enabled\` no es \`false\`, usa \`alvaress apply\` y
-\`alvaress verify\`. Si es \`false\`, no lances Aider: delega en los subagentes
-especializados. En ambos modos tú decides, cierras el alcance, haces el commit y
-actualizas Obsidian.
+El worker por defecto son los subagentes. Aider solo se usa si
+\`aider.enabled\` no es \`false\` y está instalado aparte; no es una dependencia.
+En ambos modos tú decides, cierras el alcance, haces el commit y actualizas
+Obsidian.
 
 | Subagente | Cuándo usarlo | Límite |
 | --- | --- | --- |
@@ -552,21 +552,20 @@ Reglas de delegación:
 - Solo tú ejecutas \`alvaress apply\`, \`alvaress verify\`, \`alvaress obsidian note\`,
   \`alvaress archive\` y \`alvaress learn add\`.
 
-## Aider opcional y modo sin Aider
+## Worker legacy de Aider (opcional)
 
-- **Con Aider** (\`aider.enabled\` distinto de \`false\`): \`alvaress apply\` es la
-  vía para tareas SDD existentes, cambios multi-archivo y lotes. Aider recibe el
-  mensaje de la tarea, los archivos asignados y \`CLAUDE.md\`. \`alvaress verify\`
-  lo usa para reparar fallos.
-- **Sin Aider** (\`aider.enabled: false\`): usa \`alvaress-implementer\` para la
-  micro-tarea y \`alvaress-fixer\` para el fallo. Tú mantienes el bucle
+- **Modo por defecto** (\`aider.enabled: false\`): usa \`alvaress-implementer\` para
+  la micro-tarea y \`alvaress-fixer\` para el fallo. Tú mantienes el bucle
   \`Exploring → Working → Checking → Fixing → Ready|Halted\`.
+- **Con Aider legacy** (\`aider.enabled\` distinto de \`false\` y binario instalado
+  aparte): \`alvaress apply\` es la vía para tareas SDD existentes, cambios
+  multi-archivo y lotes. \`alvaress verify\` lo usa para reparar fallos.
 - En ambos modos, un cambio trivial y localizado lo puedes editar tú mismo si no
   compensa delegar.
 - Nunca lances \`aider\` en modo interactivo ni le pases mensajes improvisados si
   existe una tarea SDD.
-- Si Aider falla por configuración, no cambies de worker a mitad del run sin
-  avisar: cierra el intento y propone el modo sin Aider.
+- Si Aider legacy falla por configuración, no cambies de worker a mitad del run
+  sin avisar: cierra el intento y propone el modo por defecto.
 
 ## Eficiencia de tokens
 

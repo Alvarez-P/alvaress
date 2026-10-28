@@ -6,10 +6,9 @@ import { loadConfig, getConfigPaths, readConfigFile, saveGlobalConfig } from '..
 import type {
   HarnessConfig,
   HarnessConfigFile,
-  ModelProviderConfig,
   PackageManager
 } from '../config/loader.js';
-import { aiderEnvFor, aiderModelFor, validateModelReference } from '../config/models.js';
+import { validateModelReference } from '../config/models.js';
 import {
   COMMAND_SEPARATOR,
   DEFAULT_LAYA_TIMEOUT_MS,
@@ -37,11 +36,12 @@ import {
   resolveInstallerPackageManager
 } from '../utils/package-manager.js';
 import {
-  ensurePipxPath,
-  installPipx,
-  pipxInstallHint,
-  pipxInstallPlan
-} from '../utils/pipx.js';
+  ensureUvPath,
+  installUv,
+  uvInstallHint,
+  uvInstallPlan,
+  uvToolInstallArgs
+} from '../utils/uv.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
 const COMPONENT_VALUES = ['agent', 'laya', 'obsidian', 'graphify', 'vite-plus', 'validation'] as const;
@@ -71,7 +71,7 @@ export interface InstallRuntime {
   connectObsidianVault: typeof connectObsidianVault;
   installSkills: typeof installSkills;
   installAgent: typeof installAgent;
-  installPipx: typeof installPipx;
+  installUv: typeof installUv;
   ensureLayaBundle: typeof ensureBundle;
 }
 
@@ -87,7 +87,7 @@ const DEFAULT_RUNTIME: InstallRuntime = {
   connectObsidianVault,
   installSkills,
   installAgent,
-  installPipx,
+  installUv,
   ensureLayaBundle: ensureBundle
 };
 
@@ -141,23 +141,9 @@ export async function runInstall(
   }
 
   const selected: Component[] = [...REQUIRED_COMPONENTS];
-  let aiderSelected = config.aider?.enabled === true;
 
   if (!yes) {
     p.note(FIXED_COMPONENT_SUMMARY, 'Se instalarán siempre');
-    if (!aiderSelected) {
-      aiderSelected = unwrap(
-        await p.confirm({
-          message:
-            '¿Instalar y habilitar Aider como worker opcional? Si no, trabajan los subagentes.',
-          initialValue: false
-        })
-      );
-      if (aiderSelected) {
-        config = { ...config, aider: { ...config.aider, enabled: true } };
-        configDirty = true;
-      }
-    }
   }
 
   let obsidianVaultPath: string | undefined;
@@ -179,14 +165,12 @@ export async function runInstall(
   if (!yes) {
     const configureModels = unwrap(
       await p.confirm({
-        message: '¿Configurar los modelos de orquestador, subagentes y Aider ahora?',
+        message: '¿Configurar los modelos de orquestador y subagentes ahora?',
         initialValue: true
       })
     );
     if (configureModels) {
-      config = await promptModels(config, {
-        askAiderCredentials: aiderSelected
-      });
+      config = await promptModels(config);
       configDirty = true;
     }
   }
@@ -214,8 +198,8 @@ export async function runInstall(
     );
   }
 
-  const needsPipx = selected.includes('graphify') || aiderSelected;
-  const pipxReady = needsPipx ? await ensurePipx(runtime, yes) : false;
+  const needsUv = selected.includes('graphify');
+  const uvReady = needsUv ? await ensureUv(runtime, yes) : false;
 
   const nodePlan = planNodeDependencies(root, runtime, {
     vitePlus: selected.includes('vite-plus'),
@@ -242,10 +226,7 @@ export async function runInstall(
     tasks.push(installObsidianComponent(runtime, update));
   }
   if (selected.includes('graphify')) {
-    tasks.push(installGraphify(runtime, pipxReady, update));
-  }
-  if (aiderSelected) {
-    tasks.push(installAider(runtime, pipxReady, update));
+    tasks.push(installGraphify(runtime, uvReady, update));
   }
   if (nodePlan.packages.length > 0) {
     tasks.push(installNodeDependencies(root, manager, runtime, nodePlan, update));
@@ -357,15 +338,9 @@ export async function runInstall(
     p.log.info('En OpenCode, selecciona el agente "alvaress" con Tab o con --agent alvaress.');
   }
 
-  const implementer = config.models.aiderImplementer;
-  const hasImplementerKey =
-    (implementer.apiKey ?? '').length > 0 ||
-    Object.entries(implementer.env ?? {}).some(
-      ([key, value]) => /KEY|TOKEN|SECRET/i.test(key) && value.length > 0
-    );
-  if (config.aider?.enabled === true && yes && !hasImplementerKey) {
+  if (config.aider?.enabled === true && !runtime.commandExists('aider')) {
     p.log.warn(
-      'Aider está habilitado pero no hay API key del implementador. Añádela en ~/.alvaressconfig.json o define la variable del proveedor.'
+      'La configuración legacy tiene aider.enabled=true, pero Aider no está instalado. Instálalo aparte o pon aider.enabled=false para usar los subagentes.'
     );
   }
 
@@ -377,15 +352,10 @@ export async function runInstall(
       `Config: ${paths.global}`,
       `Orquestador: ${describeModel(config.models.orchestrator.modelName, 'hereda el de OpenCode')}`,
       `Subagentes: ${describeModel(config.models.subagents.modelName, 'heredan el del orquestador')}`,
-      `Aider: ${
-        aiderSelected
-          ? config.models.aiderImplementer.modelName
-          : 'no instalado; trabajan los subagentes'
-      }`,
       ...(selected.includes('agent')
         ? []
         : ['Modelos guardados; ejecuta "alvaress agent install" para aplicarlos al frontmatter.']),
-      'Siguiente paso: ejecuta "alvaress run \\"tu petición\\"" o define tareas en openspec.yaml y usa "alvaress apply".'
+      'Siguiente paso: ejecuta "alvaress run \\"tu petición\\"" o define tareas en openspec.yaml y usa "alvaress run --task <TASK_ID>".'
     ].join('\n'),
     'alvaress listo'
   );
@@ -444,14 +414,14 @@ async function configureObsidian(currentVault: string, yes: boolean): Promise<st
   return vaultPath;
 }
 
-async function ensurePipx(runtime: InstallRuntime, yes: boolean): Promise<boolean> {
-  if (runtime.commandExists('pipx')) {
+async function ensureUv(runtime: InstallRuntime, yes: boolean): Promise<boolean> {
+  if (runtime.commandExists('uv')) {
     return true;
   }
 
-  const plan = pipxInstallPlan(process.platform, runtime.commandExists);
+  const plan = uvInstallPlan(process.platform, runtime.commandExists);
   if (plan === undefined) {
-    p.log.warn(`pipx no está disponible y hace falta para Aider y Graphify. ${pipxInstallHint()}`);
+    p.log.warn(`uv no está disponible y hace falta para instalar Graphify. ${uvInstallHint()}`);
     return false;
   }
 
@@ -459,35 +429,35 @@ async function ensurePipx(runtime: InstallRuntime, yes: boolean): Promise<boolea
     ? true
     : unwrap(
         await p.confirm({
-          message: 'pipx no está instalado y hace falta para Aider y Graphify. ¿Instalarlo ahora?',
+          message: 'uv no está instalado y hace falta para instalar Graphify. ¿Instalarlo ahora?',
           initialValue: true
         })
       );
   if (!shouldInstall) {
-    p.log.warn(`Sin pipx no se pueden instalar Aider ni Graphify. ${pipxInstallHint()}`);
+    p.log.warn(`Sin uv no se puede instalar Graphify. ${uvInstallHint()}`);
     return false;
   }
 
   const spinner = p.spinner();
-  spinner.start('Instalando pipx');
-  const result = await runtime.installPipx();
+  spinner.start('Instalando uv');
+  const result = await runtime.installUv();
   if (result.code === 0) {
-    ensurePipxPath();
-    if (runtime.commandExists('pipx')) {
-      spinner.stop('pipx instalado.');
+    ensureUvPath();
+    if (runtime.commandExists('uv')) {
+      spinner.stop('uv instalado.');
       return true;
     }
   }
 
-  spinner.stop('No se pudo instalar pipx automáticamente.');
+  spinner.stop('No se pudo instalar uv automáticamente.');
   p.log.warn(result.error ?? result.stderr.trim() ?? 'Instalación cancelada.');
-  p.log.info(pipxInstallHint());
+  p.log.info(uvInstallHint());
   return false;
 }
 
 async function installGraphify(
   runtime: InstallRuntime,
-  pipxReady: boolean,
+  uvReady: boolean,
   update: (key: string, value: string) => void
 ): Promise<ComponentResult> {
   update('Graphify', 'comprobando');
@@ -495,53 +465,24 @@ async function installGraphify(
     update('Graphify', 'listo');
     return { info: ['Graphify ya está instalado.'] };
   }
-  if (!pipxReady) {
+  if (!uvReady) {
     update('Graphify', 'omitido');
-    return { warn: ['Sin pipx no se puede instalar Graphify.'] };
+    return { warn: ['Sin uv no se puede instalar Graphify.'] };
   }
 
   update('Graphify', 'instalando');
-  const result = await runtime.runCommand('pipx', ['install', 'graphifyy']);
+  const result = await runtime.runCommand('uv', uvToolInstallArgs('graphifyy'));
   if (result.code !== 0) {
     update('Graphify', 'falló');
     return {
       warn: [
-        `pipx install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
+        `uv tool install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
       ]
     };
   }
+  ensureUvPath();
   update('Graphify', 'listo');
   return { info: ['Graphify instalado correctamente.'] };
-}
-
-async function installAider(
-  runtime: InstallRuntime,
-  pipxReady: boolean,
-  update: (key: string, value: string) => void
-): Promise<ComponentResult> {
-  update('Aider', 'comprobando');
-  const version = await runtime.runCommand('aider', ['--version']);
-  if (version.code === 0) {
-    update('Aider', 'listo');
-    return { info: [`Aider ya está instalado: ${version.stdout.trim() || 'versión desconocida'}`] };
-  }
-  if (!pipxReady) {
-    update('Aider', 'omitido');
-    return { warn: ['Sin pipx no se puede instalar Aider.'] };
-  }
-
-  update('Aider', 'instalando');
-  const result = await runtime.runCommand('pipx', ['install', 'aider-chat']);
-  if (result.code !== 0) {
-    update('Aider', 'falló');
-    return {
-      warn: [
-        `pipx install aider-chat falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
-      ]
-    };
-  }
-  update('Aider', 'listo');
-  return { info: ['Aider instalado correctamente.'] };
 }
 
 function planNodeDependencies(
@@ -814,65 +755,39 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
   };
 }
 
-export async function promptModels(
-  base: HarnessConfig,
-  options: { askAiderCredentials: boolean }
-): Promise<HarnessConfig> {
+export async function promptModels(base: HarnessConfig): Promise<HarnessConfig> {
   const mode = unwrap(
     await p.select<'single' | 'per-role'>({
       message: '¿Cómo quieres configurar los modelos?',
       options: [
         {
           value: 'single',
-          label: 'Un solo modelo para los tres roles',
-          hint: 'orquestador, subagentes y Aider'
+          label: 'Un solo modelo para orquestador y subagentes',
+          hint: 'mismo modelo para ambos roles'
         },
         {
           value: 'per-role',
           label: 'Un modelo por rol',
-          hint: 'orquestador, subagentes y Aider por separado'
+          hint: 'orquestador y subagentes por separado'
         }
       ],
       initialValue: 'single'
     })
   );
 
-  const credentials = async (): Promise<{ apiKey?: string; apiBase: string }> => {
-    if (!options.askAiderCredentials) {
-      return { apiBase: base.models.aiderImplementer.apiBase ?? '' };
-    }
-    const apiBase = await askText(
-      'API base para Aider (vacío = la del proveedor)',
-      base.models.aiderImplementer.apiBase ?? ''
-    );
-    const apiKey = await askSecret(
-      base.models.aiderImplementer.apiKey
-        ? 'API key para Aider (Enter conserva la actual)'
-        : 'API key para Aider (Enter para vacío)'
-    );
-    return { apiKey, apiBase };
-  };
-
   if (mode === 'single') {
     const model = await askModel(
-      'Modelo para orquestador y subagentes (Aider usará el mismo o su equivalente)',
-      base.models.orchestrator.modelName ||
-        base.models.subagents.modelName ||
-        base.models.aiderImplementer.modelName,
+      'Modelo para orquestador y subagentes',
+      base.models.orchestrator.modelName || base.models.subagents.modelName,
       { required: true }
     );
-    const aiderModel = aiderModelFor(model);
-    if (aiderModel !== model) {
-      p.log.info(`Aider usará ${aiderModel} en lugar de ${model}.`);
-    }
-    const { apiKey, apiBase } = await credentials();
 
     return {
       ...base,
       models: {
         orchestrator: { modelName: model },
         subagents: { modelName: model },
-        aiderImplementer: buildAiderConfig(base, aiderModel, apiKey, apiBase)
+        aiderImplementer: base.models.aiderImplementer
       }
     };
   }
@@ -887,39 +802,13 @@ export async function promptModels(
     base.models.subagents.modelName,
     { required: false }
   );
-  const implementer = await askRequired(
-    'Modelo de Aider (provider/model recomendado)',
-    base.models.aiderImplementer.modelName
-  );
-  const aiderModel = aiderModelFor(implementer);
-  if (aiderModel !== implementer) {
-    p.log.info(`Aider usará ${aiderModel} en lugar de ${implementer}.`);
-  }
-  const { apiKey, apiBase } = await credentials();
 
   return {
     ...base,
     models: {
       orchestrator: { modelName: orchestrator },
       subagents: { modelName: subagents },
-      aiderImplementer: buildAiderConfig(base, aiderModel, apiKey, apiBase)
-    }
-  };
-}
-
-function buildAiderConfig(
-  base: HarnessConfig,
-  modelName: string,
-  apiKey: string | undefined,
-  apiBase: string
-): ModelProviderConfig {
-  return {
-    modelName,
-    apiKey: apiKey ?? base.models.aiderImplementer.apiKey ?? '',
-    apiBase,
-    env: {
-      ...base.models.aiderImplementer.env,
-      ...(apiKey ? aiderEnvFor(modelName, apiKey) : {})
+      aiderImplementer: base.models.aiderImplementer
     }
   };
 }
@@ -1002,11 +891,6 @@ async function askRequired(message: string, defaultValue: string): Promise<strin
   );
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : defaultValue.trim();
-}
-
-async function askSecret(message: string): Promise<string | undefined> {
-  const value = unwrap(await p.password({ message }));
-  return value.trim().length > 0 ? value.trim() : undefined;
 }
 
 async function askPackageManager(defaultValue: PackageManager): Promise<PackageManager> {

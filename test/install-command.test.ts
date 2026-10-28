@@ -23,8 +23,8 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
 
     const calls: string[] = [];
     let saved: HarnessConfig | undefined;
-    let pipxInstalled = false;
-    let pipxCalls = 0;
+    let uvInstalled = false;
+    let uvCalls = 0;
 
     const config = mergeConfig(
       {
@@ -37,8 +37,8 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
 
     const runtime: Partial<InstallRuntime> = {
       commandExists: (command) => {
-        if (command === 'pipx') {
-          return pipxInstalled;
+        if (command === 'uv') {
+          return uvInstalled;
         }
         if (command === 'graphify' || command === 'vp') {
           return false;
@@ -74,17 +74,17 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
         links: []
       }),
       installAgent: () => ({ name: 'alvaress', files: [], subagents: [] }),
-      installPipx: async () => {
-        pipxCalls += 1;
-        pipxInstalled = true;
+      installUv: async () => {
+        uvCalls += 1;
+        uvInstalled = true;
         return result(0);
       }
     };
 
     await runInstall(root, { yes: true, runtime });
 
-    assert.equal(pipxCalls, 1);
-    assert.ok(calls.includes('pipx install graphifyy'));
+    assert.equal(uvCalls, 1);
+    assert.ok(calls.includes('uv tool install graphifyy'));
     assert.ok(
       calls.includes(
         'pnpm add -D vite-plus oxlint typescript @types/node onnxruntime-node @huggingface/tokenizers'
@@ -115,7 +115,7 @@ test('install --yes instala el runtime de Laya cuando no hay modelDir', async ()
     let saved: HarnessConfig | undefined;
 
     const runtime: Partial<InstallRuntime> = {
-      commandExists: (command) => command !== 'pipx' && command !== 'graphify' && command !== 'vp',
+      commandExists: (command) => command !== 'uv' && command !== 'graphify' && command !== 'vp',
       moduleAvailable: () => false,
       ensureLayaBundle: async ({ dir }) => dir,
       runCommand: async (command, args = []) => {
@@ -142,7 +142,7 @@ test('install --yes instala el runtime de Laya cuando no hay modelDir', async ()
       }),
       installSkills: () => ({ skillsDir: path.join(root, '.harness', 'skills'), files: [], links: [] }),
       installAgent: () => ({ name: 'alvaress', files: [], subagents: [] }),
-      installPipx: async () => result(0)
+      installUv: async () => result(0)
     };
 
     await runInstall(root, { yes: true, runtime });
@@ -161,7 +161,7 @@ test('install --yes instala el runtime de Laya cuando no hay modelDir', async ()
   }
 });
 
-test('install --yes instala Aider cuando ya está habilitado en la configuración', async () => {
+test('install --yes no instala Aider aunque la configuración legacy lo habilite', async () => {
   const temp = makeTempDir('alvaress-install-aider-');
   try {
     const root = path.join(temp.path, 'project');
@@ -178,19 +178,12 @@ test('install --yes instala Aider cuando ya está habilitado en la configuració
       {}
     );
 
-    let pipxInstalled = false;
     const runtime: Partial<InstallRuntime> = {
-      commandExists: (command) =>
-        command === 'pipx'
-          ? pipxInstalled
-          : command !== 'graphify' && command !== 'vp',
+      commandExists: (command) => command !== 'graphify' && command !== 'vp' && command !== 'aider',
       moduleAvailable: () => true,
       ensureLayaBundle: async ({ dir }) => dir,
       runCommand: async (command, args = []) => {
         calls.push([command, ...args].join(' '));
-        if (command === 'aider' && args[0] === '--version') {
-          return result(1);
-        }
         return result(0);
       },
       loadConfig: () => config,
@@ -214,15 +207,13 @@ test('install --yes instala Aider cuando ya está habilitado en la configuració
         links: []
       }),
       installAgent: () => ({ name: 'alvaress', files: [], subagents: [] }),
-      installPipx: async () => {
-        pipxInstalled = true;
-        return result(0);
-      }
+      installUv: async () => result(0)
     };
 
     await runInstall(root, { yes: true, runtime });
 
-    assert.ok(calls.includes('pipx install aider-chat'));
+    assert.equal(calls.some((call) => call.includes('aider')), false, calls.join('\n'));
+    assert.equal(calls.some((call) => call.includes('uv tool install aider')), false);
   } finally {
     temp.cleanup();
   }

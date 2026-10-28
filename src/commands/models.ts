@@ -141,9 +141,7 @@ export async function runModelsCommand(
   }
 
   if (subcommand === undefined || subcommand === 'configure') {
-    const next = await runtime.promptModels(runtime.loadGlobalConfig(), {
-      askAiderCredentials: true
-    });
+    const next = await runtime.promptModels(runtime.loadGlobalConfig());
     runtime.saveGlobalConfig(next);
     logger.success('Modelos guardados en la configuración global.');
     installCurrentAgent(next, root, {}, runtime);

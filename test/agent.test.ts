@@ -36,7 +36,8 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /máximo 3 líneas de texto/);
   assert.match(rendered, /Lista de cambios principales/);
   assert.match(rendered, /no pegues logs completos/i);
-  assert.match(rendered, /Aider es opcional/);
+  assert.match(rendered, /Worker por defecto: subagentes de código/);
+  assert.match(rendered, /Aider legacy/);
   assert.match(rendered, /alvaress-explorer/);
   assert.match(rendered, /Aprendizajes del proyecto: `\.harness\/memory\/learnings\.json`/);
   assert.match(rendered, /Laya decide el scope/);
