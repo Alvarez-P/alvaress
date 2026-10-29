@@ -7,4 +7,3 @@ graphify-out/cache/
 package-lock.json
 __pycache__/
 *.pyc
-.aider*

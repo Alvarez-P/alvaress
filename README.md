@@ -10,8 +10,9 @@ ejecuta con subagentes de código inspirados en el ciclo de
 Instala un agente de OpenCode llamado **`alvaress`**, sus skills y la
 configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission-AI/OpenSpec),
 [Obsidian](https://obsidian.md) y [Graphify](https://github.com/Graphify-Labs/graphify).
-Aider no es una dependencia: queda como worker legacy opcional para comparar y
-no se instala con `alvaress install`.
+El ejecutor es un conjunto de subagentes especializados: Laya decide qué
+especialistas consultar, el implementer aplica el cambio y el reviewer revisa el
+diff antes de cerrar.
 
 ## Contenido
 
@@ -81,8 +82,8 @@ cierra el alcance antes de pasar a la siguiente.
 | Fase | Qué pasa | Herramienta |
 | --- | --- | --- |
 | **1 · Entender** | Detecta ODD o SDD, lee la nota o `openspec.yaml`, consulta el grafo, carga solo los aprendizajes relevantes y cierra archivos, criterios y comandos de validación. | Graphify, OpenSpec, Obsidian, memoria |
-| **2 · Decidir** | Elige la ruta, estima complejidad y clasifica riesgos. Si Laya no está disponible, usa heurísticas. | Laya ONNX int8 |
-| **3 · Ejecutar** | Implementa el cambio con subagentes de código. El worker no hace commits ni escribe en la bóveda. | Subagentes |
+| **2 · Decidir** | Elige la ruta, estima complejidad y decide qué especialistas consultar. Si Laya no está disponible, usa heurísticas. | Laya ONNX int8 |
+| **3 · Ejecutar** | Pide briefs a los especialistas, el implementer aplica el cambio y el reviewer revisa el diff. El worker no hace commits ni escribe en la bóveda. | Subagentes |
 | **4 · Validar** | Ejecuta `vp check` y `vp test` (o los comandos de la tarea). Si falla, busca un pitfall que coincida, repara y vuelve a validar. | Vite-Plus, memoria |
 | **5 · Cerrar** | Marca la tarea o el checklist, escribe el reporte, actualiza la nota, guarda hasta tres aprendizajes y hace commit solo con los archivos del run. | OpenSpec, Obsidian, Git, memoria |
 
@@ -90,12 +91,18 @@ cierra el alcance antes de pasar a la siguiente.
 
 | Estado | Qué pasa | Quién actúa |
 | --- | --- | --- |
-| `Exploring` | Detecta el modo, lee la fuente, consulta Graphify, carga los aprendizajes relevantes y cierra el alcance. | Orquestador y `alvaress-explorer` |
+| `Exploring` | Detecta el modo, lee la fuente, consulta Graphify, carga los aprendizajes y cierra el alcance. Después decide los especialistas. | Orquestador, `alvaress-explorer` y especialistas |
 | `Working` | Implementa el cambio. | `alvaress-implementer` o `alvaress-implementer-lite` |
 | `Checking` | Ejecuta la validación y guarda stdout/stderr en `.laya/last_run.log`. | Orquestador o `alvaress-verifier` |
 | `Fixing` | Busca un pitfall que coincida con el error, repara la causa y vuelve a validar. Máximo dos intentos. | `alvaress-fixer` |
 | `Ready` | Marca el cierre, escribe el reporte y la nota, guarda aprendizajes y hace commit de los archivos del run. | Orquestador |
 | `Halted` | Fallo nuclear, de alcance o de herramienta. No hay commit ni cierre. | Orquestador |
+
+Laya decide antes de delegar: primero la ruta y la complejidad, y después del
+alcance qué especialistas aportan contexto. La regla de proporcionalidad evita
+pagar un arquitecto o un reviewer en un cambio ODD trivial o pequeño. Cada brief
+alimenta al siguiente especialista y, al final, al implementer; la revisión del
+diff se pasa al fixer cuando la validación falla.
 
 Se detiene en `Halted` cuando el fixer devuelve `nuclear`, el mismo error
 aparece dos veces, el diff se sale del alcance, falta una herramienta requerida,
@@ -121,7 +128,7 @@ decisión humana.
 
 El resto lo resuelve `alvaress install`: Laya, ONNX Runtime, tokenizers,
 Vite-Plus, Graphify (con `uv`), Obsidian (si se puede) y las dependencias de
-validación. Aider no se instala.
+validación.
 
 ## Instalación
 
@@ -154,8 +161,7 @@ alvaress install --yes
 `--yes` instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y
 validación), usa la configuración existente o los valores por defecto y no
 pregunta nada. Instala lo que falte, crea `openspec.yaml` si el proyecto es un
-repositorio y no crea `.alvaressrc.json`. Aider no forma parte del set: si
-quieres usarlo, instálalo aparte y actívalo con `aider.enabled`.
+repositorio y no crea `.alvaressrc.json`.
 
 ### Qué hace el instalador
 
@@ -172,7 +178,7 @@ quieres usarlo, instálalo aparte y actívalo con `aider.enabled`.
 6. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
 7. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
 8. Escribe las skills en `.harness/skills/` y sus enlaces globales.
-9. Instala el agente `alvaress` y sus cinco subagentes en OpenCode con el
+9. Instala el agente `alvaress` y sus diez subagentes en OpenCode con el
    modelo elegido en su frontmatter.
 
 Al final el instalador resume proyecto, rutas, configuración y los modelos
@@ -216,10 +222,10 @@ subagente de código, validará y actualizará el estado de la tarea.
 | --- | --- | --- |
 | `alvaress run "<petición>"` | Ejecuta el arnés de principio a fin: explora, decide, trabaja, valida y cierra. | `--task`, `--files`, `--mode odd\|sdd\|auto`, `--dry-run`, `--no-commit`, `--no-learn`, `--force` |
 | `alvaress -i` / `--inspect-last-run` | Muestra el log completo del último run (`.laya/last_run.log`). | — |
-| `alvaress install` | Instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y validación); Aider no se instala. | `--yes`, `-y` |
+| `alvaress install` | Instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y validación). | `--yes`, `-y` |
 | `alvaress init` | Crea `.harness/`, `openspec.yaml`, skills y agente del proyecto. | `--no-link` |
-| `alvaress apply [TASK...]` | Ejecuta tareas pendientes (o las indicadas) con el worker legacy de Aider; requiere Aider instalado aparte. | `--dry-run`, `--force`, `--update-graph`, `--no-lock` |
-| `alvaress verify <TASK_ID>` | Ejecuta la validación de la tarea y, si falla, pide reparación automática con Aider legacy. | — |
+| `alvaress apply [TASK...]` | Ejecuta tareas pendientes (o las indicadas) con el worker de subagentes, en grupos aislados. | `--dry-run`, `--force`, `--update-graph`, `--no-lock` |
+| `alvaress verify <TASK_ID>` | Ejecuta la validación de la tarea y, si falla, pide reparación automática al fixer. | — |
 | `alvaress archive <SPEC_ID>` | Archiva una spec con todas sus tareas en `Done`. Antes crea un backup. | — |
 | `alvaress doctor` | Diagnóstico de Node, configuración, modelos, frontmatter del agente, gestor, git, Laya, Vite-Plus, Graphify, Obsidian, manifiesto, grafo y locks. | `--json` |
 | `alvaress report [latest\|list\|show <id>]` | Muestra los reportes de `.harness/runs/`. | — |
@@ -227,9 +233,9 @@ subagente de código, validará y actualizará el estado de la tarea.
 | `alvaress skills` | Reinstala las skills del proyecto y sus enlaces globales. | `--no-link` |
 | `alvaress learn <subcomando>` | Guarda, busca y reutiliza aprendizajes globales y del proyecto. | `add`, `list`, `search`, `show`, `use`, `promote`, `prune`, `playbook` |
 | `alvaress agent [install\|show]` | Instala el agente y sus subagentes, o imprime el prompt del orquestador. | `--no-global`, `--no-project` |
-| `alvaress models [show\|set\|configure]` | Muestra o cambia los modelos de orquestador y subagentes sin reinstalar; `--aider` solo configura el worker legacy. | `--all`, `--orchestrator`, `--subagents`, `--aider`, `--no-install` |
+| `alvaress models [show\|set\|configure]` | Muestra o cambia los modelos de orquestador y subagentes. | `--all`, `--orchestrator`, `--subagents`, `--no-install` |
 | `alvaress obsidian [status\|sync\|note]` | Consulta o actualiza la bóveda y la nota del proyecto. | `--summary`, `--task`, `--from-run`, `--validation`, `--risk`, `--next` |
-| `alvaress config [show\|paths]` | Muestra la configuración resuelta (secretos enmascarados) o sus rutas. | — |
+| `alvaress config [show\|paths]` | Muestra la configuración resuelta o sus rutas. | — |
 | `alvaress --help` / `--version` | Ayuda y versión. | — |
 
 Códigos de salida: `0` éxito, `1` error o tarea fallida, `130` operación
@@ -249,14 +255,14 @@ cancelada.
 | `alvaress learn playbook` | Regenera `PLAYBOOK.md`; el del proyecto incluye lo global relevante. |
 | `alvaress agent install` | Instala el agente y sus subagentes; `--no-global` y `--no-project` limitan las ubicaciones. |
 | `alvaress agent show` | Imprime el prompt del orquestador. |
-| `alvaress models show` | Muestra los modelos efectivos de orquestador, subagentes y Aider legacy. |
-| `alvaress models set --all <provider/model>` | Cambia orquestador, subagentes y el modelo legacy de Aider, y reinstala el frontmatter. |
-| `alvaress models set --orchestrator <m> --subagents <m> --aider <m>` | Cambia roles concretos; `--no-install` solo guarda la configuración. |
+| `alvaress models show` | Muestra los modelos efectivos de orquestador y subagentes. |
+| `alvaress models set --all <provider/model>` | Cambia orquestador y subagentes, y reinstala el frontmatter. |
+| `alvaress models set --orchestrator <m> --subagents <m>` | Cambia roles concretos; `--no-install` solo guarda la configuración. |
 | `alvaress models configure` | Flujo interactivo para elegir un modelo o uno por rol (orquestador y subagentes). |
 | `alvaress obsidian status` | Muestra la bóveda, la nota y los enlaces. |
 | `alvaress obsidian sync` | Crea o repara `Harness/`, la nota y los enlaces. |
 | `alvaress obsidian note` | Añade una entrada de cierre; exige `--summary` o `--from-run`. |
-| `alvaress config show` | Muestra la configuración resuelta con secretos enmascarados. |
+| `alvaress config show` | Muestra la configuración resuelta. |
 | `alvaress config paths` | Muestra las rutas global y local. |
 
 ### Ejemplos
@@ -271,8 +277,7 @@ alvaress run --task TASK-01
 # Ver el plan sin tocar código.
 alvaress run "migra el repositorio de facturas" --dry-run
 
-# Ejecutar un lote de tareas con el worker legacy de Aider
-# (requiere aider.enabled y Aider instalado aparte).
+# Ejecutar un lote de tareas con el worker de subagentes.
 alvaress apply --dry-run
 alvaress apply SPEC-001/TASK-01 SPEC-001/TASK-02
 
@@ -288,11 +293,10 @@ La configuración se resuelve con precedencia **local sobre global**:
 - **Global:** `~/.alvaressconfig.json`
 - **Local del proyecto:** `.alvaressrc.json`
 
-Los campos escalares del archivo local sustituyen a los globales. Los objetos
-`env` se fusionan y el local gana en claves repetidas. Las cadenas admiten
-`${VARIABLE}` para interpolar variables de entorno. `alvaress config show`
-enmascara `apiKey` y las variables cuyo nombre contiene `KEY`, `TOKEN`, `SECRET`
-o `PASS`.
+Los campos escalares del archivo local sustituyen a los globales. La ruta de la
+bóveda y los comandos admiten `${VARIABLE}` para interpolar variables de
+entorno. `alvaress config show` devuelve la configuración resuelta tal cual:
+no hay credenciales en el archivo porque las maneja OpenCode.
 
 ### JSON completo
 
@@ -317,11 +321,8 @@ o `PASS`.
     "testCommand": "vp test",
     "fallbackToPackageManager": true
   },
-  "aider": {
-    "enabled": false,
-    "timeoutMs": 600000,
-    "extraArgs": [],
-    "inheritEnv": true
+  "worker": {
+    "timeoutMs": 600000
   },
   "models": {
     "orchestrator": {
@@ -329,14 +330,6 @@ o `PASS`.
     },
     "subagents": {
       "modelName": ""
-    },
-    "aiderImplementer": {
-      "modelName": "deepseek/deepseek-chat",
-      "apiKey": "${DEEPSEEK_API_KEY}",
-      "apiBase": "",
-      "env": {
-        "DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
-      }
     }
   },
   "validation": {
@@ -349,10 +342,6 @@ o `PASS`.
   }
 }
 ```
-
-Las claves `aider.*` y `models.aiderImplementer` se conservan para el worker
-legacy. No instalan Aider ni son necesarias para el flujo normal: si
-`aider.enabled` es `false`, trabajan los subagentes.
 
 ### Cada clave
 
@@ -371,46 +360,21 @@ legacy. No instalan Aider ni son necesarias para el flujo normal: si
 | `vitePlus.checkCommand` | `string` | `"vp check"` | Comando de lint, formato y tipos. |
 | `vitePlus.testCommand` | `string` | `"vp test"` | Comando de pruebas. |
 | `vitePlus.fallbackToPackageManager` | `boolean` | `true` | Se acepta por compatibilidad. La resolución actual de comandos ya usa el gestor configurado. |
-| `aider.enabled` | `boolean` | `false` | Activa el worker legacy de Aider. Requiere instalar Aider aparte. En `false`, trabajan los subagentes. |
-| `aider.timeoutMs` | `integer >= 1000` | `600000` | Timeout del worker legacy (10 min por defecto). |
-| `aider.extraArgs` | `string[]` | `[]` | Argumentos extra para el worker legacy. |
-| `aider.inheritEnv` | `boolean` | `true` | Hereda el entorno. En `false`, solo pasa las variables permitidas y las de `env`. |
+| `worker.timeoutMs` | `integer >= 1000` | `600000` | Timeout de cada invocación a un subagente (10 min por defecto). |
 | `models.orchestrator.modelName` | `string` | vacío = heredar el de OpenCode | Modelo `provider/model` del agente orquestador. Se escribe en el frontmatter del agente instalado. |
-| `models.subagents.modelName` | `string` | vacío = heredar el del orquestador | Modelo `provider/model` de los cinco subagentes. Se escribe en cada frontmatter. |
-| `models.aiderImplementer.modelName` | `string` | `"deepseek/deepseek-chat"` | Modelo del worker legacy de Aider. |
-| `models.aiderImplementer.apiKey` | `string` | vacío | Se expone a Aider legacy con la variable del proveedor del modelo (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, etc.). Admite `${VAR}`. |
-| `models.aiderImplementer.apiBase` | `string` | vacío | Se expone como `OPENAI_API_BASE`. Útil para endpoints compatibles con OpenAI; en ese caso la clave también se publica como `OPENAI_API_KEY`. |
-| `models.aiderImplementer.env` | `Record<string, string>` | `{}` | Variables adicionales para Aider legacy. Se fusionan con las globales y el local gana. |
+| `models.subagents.modelName` | `string` | vacío = heredar el del orquestador | Modelo `provider/model` de los diez subagentes. Se escribe en cada frontmatter. |
 | `validation.maxAttempts` | `integer >= 1` | `3` | Intentos de reparación en `apply` y `verify`. `run` usa su propio límite de dos reparaciones. |
 | `validation.commands` | `string[]` | `pnpm exec vp check`, `pnpm exec vp test` | Comandos globales de validación. Una tarea puede sustituirlos con su propio `validation`. |
 | `validation.requireCommands` | `boolean` | `true` | Si es `true`, no tener comandos de validación es un fallo. Si es `false`, se avisa y se continúa. |
 
-Si activas el worker legacy, Aider recibe la credencial según el proveedor del
-`modelName`:
-
-| Prefijo del modelo | Variable para Aider |
-| --- | --- |
-| `openai/*` | `OPENAI_API_KEY` |
-| `deepseek/*` | `DEEPSEEK_API_KEY` |
-| `anthropic/*` | `ANTHROPIC_API_KEY` |
-| `gemini/*`, `google/*` | `GEMINI_API_KEY` |
-| `openrouter/*` | `OPENROUTER_API_KEY` |
-| `mistral/*`, `groq/*`, `xai/*` | `MISTRAL_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY` |
-| proveedor desconocido o endpoint custom | `OPENAI_API_KEY` (+ `OPENAI_API_BASE`) |
-
-`google/*` se traduce a `gemini/*` al escribir el modelo de Aider, porque OpenCode
-y Aider no usan el mismo prefijo. Si heredas el entorno, las claves de proveedor
-que ya tengas en el shell se conservan; solo se eliminan secretos de alvaress,
-npm, GitHub y AWS.
-
 ### Valores por defecto y ejemplos
 
 ```bash
-alvaress config show    # configuración resuelta, secretos enmascarados
+alvaress config show    # configuración resuelta
 alvaress config paths   # rutas global y local
 alvaress models show    # modelos efectivos
 alvaress models set --all openai/gpt-5
-alvaress models set --orchestrator openai/gpt-5 --subagents openai/gpt-5-mini --aider deepseek/deepseek-chat
+alvaress models set --orchestrator openai/gpt-5 --subagents openai/gpt-5-mini
 ```
 
 `models set` guarda en la configuración global y reinstala el frontmatter del
@@ -437,7 +401,6 @@ modelo, el run sigue con heurísticas y `doctor` lo indica.
 | **oxlint + TypeScript** | Validación de respaldo para proyectos sin Vite-Plus. | `pnpm add -D oxlint typescript @types/node` (lo hace `alvaress install`). |
 | **Graphify** | Grafo AST del repositorio para localizar código sin leerlo entero. Lo usa el agente OpenCode y los subagentes. | `uv tool install graphifyy` (lo hace `alvaress install`). |
 | **uv** | Instala Graphify en un entorno Python aislado. | Instalador oficial, `brew install uv` o `python3 -m pip install --user uv`. |
-| **Aider (legacy)** | Worker multiarchivo alternativo cuando `aider.enabled` está activo. No se instala ni se requiere. | `pipx install aider-chat` o `uv tool install aider-chat`, solo si lo eliges. |
 | **Obsidian** | Nota ODD y espejo del estado SDD. | El instalador intenta instalarla; si falla, la bóveda se crea igual. |
 | **OpenSpec** | Formato de manifiesto y tareas SDD. | No se instala: alvaress usa el formato y crea `openspec.yaml`. |
 
@@ -449,9 +412,7 @@ guardarlos. El manifiesto `laya_int8.json` se escribe al final y es la fuente de
 verdad para `verifyBundle` y `doctor`.
 
 Todo el set se instala siempre para que el arnés tenga un camino completo:
-agente y skills, decisión local, notas, navegación de código y validación. Aider
-queda fuera del instalador; si lo quieres como worker legacy, instálalo por tu
-cuenta.
+agente y skills, decisión local, notas, navegación de código y validación.
 
 ### Qué usa cada path
 
@@ -459,11 +420,10 @@ cuenta.
 | --- | --- | --- | --- |
 | `alvaress run` por CLI | Subagentes; el CLI no consulta Graphify | `openspec.yaml` o nota ODD | Vite-Plus |
 | Agente OpenCode | Graphify | Nota ODD o spec | Vite-Plus |
-| `alvaress apply` (legacy) | El repo map efímero de Aider | Mensaje del run | Vite-Plus |
+| `alvaress apply` | Subagentes; alcance de cada tarea | `openspec.yaml` + tarea | Vite-Plus |
 
-Graphify y el repo map de Aider no compiten: uno explora antes de editar y el
-otro lo genera Aider para decidir qué archivos tocar. Aider no recibe el grafo
-de Graphify.
+Graphify alimenta la exploración; los subagentes no releen el repo completo ni
+reciben un mapa distinto por su cuenta.
 
 ## Agente, subagentes y skills
 
@@ -478,26 +438,31 @@ Es un agente `primary`, seleccionable con **Tab** en OpenCode o con
 | Subagente | Estado | Para qué sirve | Límite | Pasos |
 | --- | --- | --- | --- | ---: |
 | `alvaress-explorer` | `Exploring` | Solo lectura: localiza código, lee la nota y propone un alcance cerrado. | No edita, no decide, no escribe en la bóveda. | 12 |
+| `alvaress-researcher` | `Exploring` | Resuelve dudas de dependencias, versiones o APIs con evidencia y fuentes. | No instala, no edita, no sale del tema. | 16 |
+| `alvaress-architect` | `Exploring` | Propone límites, contratos, datos y orden de implementación. | No escribe código ni amplía el alcance. | 20 |
+| `alvaress-designer` | `Exploring` | Define layout, componentes, estados y accesibilidad. | No edita archivos ni inventa un design system. | 16 |
 | `alvaress-implementer` | `Working` | Implementa una micro-tarea ODD o una tarea SDD dentro del alcance. | Sin git, sin cierre, sin dependencias nuevas. | 30 |
 | `alvaress-implementer-lite` | `Working` | Cambios triviales o pequeños: edita sin explorar y sin validar. | Sin shell, sin git, sin dependencias nuevas. | 10 |
+| `alvaress-tester` | `Checking` | Diseña casos y diagnostica fallos con el runner existente. | No edita código ni aserciones. | 16 |
 | `alvaress-verifier` | `Checking` | Ejecuta Vite-Plus y devuelve el error exacto. | No edita archivos ni toca git. | 12 |
+| `alvaress-reviewer` | `Checking` | Revisa el diff contra la spec y los estándares del repo. | No reescribe; solo devuelve hallazgos. | 16 |
 | `alvaress-fixer` | `Fixing` | Repara un fallo trivial, máximo dos intentos. | No toca tests ni git; devuelve `nuclear` si no es trivial. | 20 |
 
 El orquestador no delega la decisión, el commit, el cierre de Obsidian ni los
-aprendizajes. La bóveda es de solo lectura para los cinco subagentes.
+aprendizajes. La bóveda es de solo lectura para los diez subagentes.
 
-Aider y los subagentes tienen prohibido agregar comentarios al código: ni
-explicaciones, ni separadores, ni `TODO`/`FIXME`, ni JSDoc de relleno. Conservan
-solo los comentarios que ya existían. El orquestador revisa el diff y rechaza
-cualquier comentario nuevo antes de validar y commitear.
+Los subagentes tienen prohibido agregar comentarios al código: ni explicaciones,
+ni separadores, ni `TODO`/`FIXME`, ni JSDoc de relleno. Conservan solo los
+comentarios que ya existían. El orquestador revisa el diff y rechaza cualquier
+comentario nuevo antes de validar y commitear.
 
 ### Inspiración y benchmark frente a Aider
 
 Los subagentes de código no son un clon de Aider: toman su ciclo de trabajo como
 referencia —alcance cerrado, edición por diff, una sesión por run y reparación
-con el error exacto— y lo implementan como subagentes de OpenCode. Aider sigue
-disponible como worker legacy (`aider.enabled`) para comparar, pero **no es una
-dependencia**: `alvaress install` no lo instala.
+con el error exacto— y lo implementan como subagentes de OpenCode. Aider solo se
+usó como baseline en este benchmark: **no es una dependencia** y
+`alvaress install` no lo instala.
 
 La comparación se hizo a nivel de worker con el mismo `WorkPlan`, el mismo modelo
 (`gemma4:31b-cloud` servido por un shim local compatible con OpenAI) y fixtures
@@ -534,15 +499,21 @@ una garantía.
 
 ### Skills
 
-El instalador escribe nueve skills en `.harness/skills/<nombre>/SKILL.md` y crea
-enlaces en `~/.config/opencode/skills/<nombre>` y `~/.claude/skills/<nombre>`:
+El instalador escribe catorce skills en `.harness/skills/<nombre>/SKILL.md` y
+crea enlaces en `~/.config/opencode/skills/<nombre>` y
+`~/.claude/skills/<nombre>`:
 
 | Skill | Qué hace |
 | --- | --- |
 | `read-spec-first` | Lee la nota ODD o la spec SDD antes de programar y resume los criterios. |
 | `consult-graphify-ast` | Evita lecturas masivas y prioriza Graphify. |
 | `self-healing-verify` | Valida con Vite-Plus tras cada edición y limita los ciclos de reparación. |
-| `universal-design-patterns` | Respeta los patrones existentes, evita abstracciones nuevas y no agrega comentarios al código. |
+| `clean-code` | Nombres con intención, constantes con nombre, funciones cortas, DRY y cero comentarios de relleno. |
+| `architecture-decisions` | Propone límites, contratos y patrones proporcionales antes de implementar. |
+| `ui-design` | Define layout, tokens, estados y accesibilidad antes de tocar la interfaz. |
+| `testing-strategy` | Elige el nivel de prueba y diseña casos given/when/then sin debilitar aserciones. |
+| `code-review` | Revisa el diff contra la spec y los estándares con hallazgos accionables. |
+| `technical-research` | Contrasta versiones, APIs y migraciones con fuentes antes de decidir. |
 | `obsidian-sdd` | Define el uso de Obsidian por fase y el acceso de solo lectura de los subagentes. |
 | `continuous-learning` | Consulta títulos relevantes y guarda aprendizajes en el store global o del proyecto sin inflar el contexto. |
 | `bounded-scope` | Mantiene al subagente en los archivos asignados y le enseña a detenerse. |
@@ -555,8 +526,7 @@ límites y comandos denegados está en [docs/subagents.md](docs/subagents.md).
 ### Permisos
 
 El agente `primary` puede leer, buscar, editar y usar skills. El shell tiene una
-allowlist: `alvaress`, `graphify`, `aider` (solo para el worker legacy),
-`git status/diff/log/show`, `pnpm test`,
+allowlist: `alvaress`, `graphify`, `git status/diff/log/show`, `pnpm test`,
 `pnpm run validate/build/lint/typecheck/test`,
 `pnpm exec vp/oxlint/tsc/eslint/vitest`, `vp`, `npx vp`, `npm test`,
 `npm run validate/build/lint/typecheck/test`, `npx oxlint/tsc`, `rg`, `grep`,
@@ -569,7 +539,8 @@ Están denegados de forma explícita:
 - `pnpm`/`npm publish`, `pnpm dlx`, `npm exec` y `npx --yes`;
 - `find -exec`, `find -delete`, `sed -i` y `rg --pre`;
 - scripts de deploy, release, publish, migración, base de datos y seed;
-- que los subagentes lancen otros subagentes o consulten la web;
+- que los subagentes lancen otros subagentes o consulten la web (salvo el
+  `alvaress-researcher`, que puede leer documentación);
 - `execute` y `question` en los subagentes;
 - la lectura de `.env`, `.pem`, `.key`, `.p12`, `id_rsa` e `id_ed25519`;
 - escribir en la bóveda Obsidian desde un subagente.
@@ -774,9 +745,7 @@ bajo. Los ids de tarea deben ser únicos en todo el manifiesto.
 - **Backups** del manifiesto en `.harness/backups/` antes de `apply` y `archive`.
 - **Reportes** en `.harness/runs/<id>-apply.json` y `<id>-run.json`.
 - **Control de alcance** con `git status` (`scope`).
-- **Timeouts** para el worker (subagentes o Aider legacy) y Laya, con
-  terminación controlada.
-- **Entorno saneado** para Aider legacy: no hereda credenciales de npm ni GitHub.
+- **Timeouts** para cada subagente y para Laya, con terminación controlada.
 - **Redacción de secretos** antes de enviar estado a Laya y al escribir la nota.
 - **Permisos estrictos** en el agente y los subagentes.
 - **CI** con pnpm en Node 20/22/24, smoke test del tarball y release con
@@ -814,7 +783,7 @@ src/
 ├── ui/              paleta TrueColor, loader de estados y reporte final
 ├── graphify/        estado y actualización del grafo
 ├── openspec/        manifiesto y tipos
-├── orchestrator/    agrupación, workers (subagentes y Aider legacy), verificación, apply, backups, reportes y alcance
+├── orchestrator/    agrupación, worker de subagentes, verificación, apply, backups, reportes y alcance
 ├── skills/          definición e instalación de skills
 ├── obsidian/        conexión con la bóveda
 └── utils/           args, errores, FS, lock, gestor de paquetes, uv, redacción, logger y procesos
@@ -822,7 +791,7 @@ test/                pruebas con node:test
 assets/              animación y diagramas SVG del README
 docs/laya-int8.md    artefacto int8, hashes y mediciones
 docs/subagents.md    contrato y permisos de los subagentes
-docs/spec.md         prompt histórico de generación; no es referencia de uso
+docs/spec.md         especificación vigente del arnés
 ```
 
 ## Licencia

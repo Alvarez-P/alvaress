@@ -1,9 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
-import type { FixInput, WorkPlan } from '../src/core/contracts.js';
-import { buildFixMessage, buildWorkMessage } from '../src/orchestrator/workers.js';
-import { makeTempDir, writeFile } from './helpers.js';
+import { mergeConfig } from '../src/config/loader.js';
+import type { ConsultInput, FixInput, WorkPlan } from '../src/core/contracts.js';
+import {
+  buildConsultMessage,
+  buildFixMessage,
+  buildWorkMessage,
+  createWorker
+} from '../src/orchestrator/workers.js';
+import { fakeOpencode, makeTempDir, writeFile } from './helpers.js';
 
 function plan(): WorkPlan {
   return {
@@ -86,4 +93,98 @@ test('buildFixMessage prohíbe comentarios en la reparación', () => {
   assert.match(message, /TODO\/FIXME/);
   assert.match(message, /Conserva los comentarios existentes/i);
   assert.match(message, /error de permisos, no lo reintentes/i);
+});
+
+test('buildWorkMessage integra los briefs de especialistas en orden', () => {
+  const message = buildWorkMessage({
+    ...plan(),
+    briefs: [
+      { role: 'architect', summary: 'separa el parseo de la escritura' },
+      { role: 'tester', summary: 'cubre el caso de configuración vacía' }
+    ]
+  });
+
+  assert.match(message, /Briefs de especialistas/);
+  assert.match(message, /### architect\nsepara el parseo/);
+  assert.match(message, /### tester\ncubre el caso/);
+});
+
+test('buildFixMessage incluye la revisión del reviewer', () => {
+  const input: FixInput = {
+    runId: 'run-1',
+    attempt: 1,
+    files: ['src/helper.ts'],
+    failure: {
+      ok: false,
+      commands: [{ command: 'pnpm test', code: 1, stderr: 'falló' }],
+      warnings: []
+    },
+    error: 'falló',
+    review: 'blocker en src/helper.ts: falta validar el borde'
+  };
+
+  const message = buildFixMessage(input);
+
+  assert.match(message, /Revisión del diff \(prioriza los blockers\)/);
+  assert.match(message, /falta validar el borde/);
+});
+
+test('buildConsultMessage encadena el brief del especialista anterior', () => {
+  const input: ConsultInput = {
+    runId: 'run-1',
+    request: 'rediseña la pantalla de facturación',
+    mode: 'sdd',
+    complexity: 'medium',
+    source: 'openspec.yaml',
+    acceptance: ['la pantalla lista facturas'],
+    files: ['src/ui/invoice.tsx'],
+    validation: ['pnpm test'],
+    briefs: [{ role: 'researcher', summary: 'usa el patrón de tabla existente' }],
+    changes: [],
+    focus: 'define estados vacíos'
+  };
+
+  const message = buildConsultMessage('designer', input);
+
+  assert.match(message, /Consultoría designer/);
+  assert.match(message, /Briefs anteriores/);
+  assert.match(message, /patrón de tabla existente/);
+  assert.match(message, /define estados vacíos/);
+  assert.match(message, /No edites archivos/);
+});
+
+test('SubagentWorker.consult invoca al especialista y devuelve su brief', async () => {
+  const temp = makeTempDir('alvaress-consult-');
+  try {
+    const bin = path.join(temp.path, 'bin');
+    fs.mkdirSync(bin);
+    const log = path.join(temp.path, 'opencode.log');
+    fakeOpencode(bin, { log, action: "echo 'brief del researcher'" });
+
+    const worker = createWorker({
+      root: temp.path,
+      config: mergeConfig({}, {}),
+      env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` }
+    });
+    const brief = await worker.consult?.('researcher', {
+      runId: 'run-1',
+      request: 'elige una versión compatible',
+      mode: 'odd',
+      complexity: 'small',
+      source: 'nota odd',
+      acceptance: ['la versión existe'],
+      files: ['package.json'],
+      validation: ['pnpm test'],
+      briefs: [],
+      changes: []
+    });
+
+    assert.equal(brief?.role, 'researcher');
+    assert.equal(brief?.summary, 'brief del researcher');
+    const call = fs.readFileSync(log, 'utf-8');
+    assert.match(call, /--agent alvaress-researcher/);
+    assert.doesNotMatch(call, /--format json/);
+  } finally {
+    temp.cleanup();
+  }
 });

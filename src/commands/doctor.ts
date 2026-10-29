@@ -104,14 +104,10 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
   }
 
   if (config !== undefined) {
-    const legacyAider = config.aider?.enabled === true;
     const models: Array<[string, string]> = [
       ['orchestrator', config.models.orchestrator.modelName],
       ['subagents', config.models.subagents.modelName]
     ];
-    if (legacyAider) {
-      models.push(['aiderImplementer', config.models.aiderImplementer.modelName]);
-    }
     const invalid = models
       .filter(([, value]) => !isModelReference(value))
       .map(([name]) => name);
@@ -121,10 +117,7 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
             'models',
             'ok',
             `Orquestador: ${modelLabel(config.models.orchestrator.modelName, 'hereda')} · ` +
-              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')}` +
-              (legacyAider
-                ? ` · Aider legacy: ${config.models.aiderImplementer.modelName}`
-                : '')
+              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')}`
           )
         : check(
             'models',
@@ -182,8 +175,7 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
       const localConfig = readConfigFile(path.join(root, '.alvaressrc.json'));
       const hasLocalModels =
         localConfig.models?.orchestrator !== undefined ||
-        localConfig.models?.subagents !== undefined ||
-        localConfig.models?.aiderImplementer !== undefined;
+        localConfig.models?.subagents !== undefined;
       if (hasLocalModels) {
         checks.push(
           check(
@@ -281,19 +273,6 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
           'Graphify no está instalado; ejecuta "alvaress install" o "uv tool install graphifyy".'
         )
   );
-
-  // Aider es legacy: solo se revisa si alguien lo habilitó explícitamente.
-  if (config?.aider?.enabled === true) {
-    checks.push(
-      hasCommand('aider')
-        ? check('aider', 'ok', 'Aider legacy disponible.')
-        : check(
-            'aider',
-            'warn',
-            'Aider legacy está habilitado pero no está instalado; instálalo aparte o usa aider.enabled=false.'
-          )
-    );
-  }
 
   const vaultPath = config?.obsidianVaultPath.trim() ?? '';
   if (vaultPath.length === 0) {

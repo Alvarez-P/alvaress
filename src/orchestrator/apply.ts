@@ -12,12 +12,12 @@ import {
   setTaskStatus
 } from '../openspec/manifest.js';
 import type { OpenSpecManifest, WorkItem } from '../openspec/types.js';
+import type { WorkPlan, Worker } from '../core/contracts.js';
 import { pathExists } from '../utils/fs.js';
 import { errorMessage } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { acquireProjectLock } from '../utils/lock.js';
 import type { ProjectLock } from '../utils/lock.js';
-import { buildAiderEnv, runAider } from './aider.js';
 import { backupManifest } from './backup.js';
 import { describeGroups, groupWorkItems } from './locks.js';
 import { changedFiles, outOfScopeFiles } from './scope.js';
@@ -25,6 +25,7 @@ import type { ScopeMode } from './scope.js';
 import { createRunReport, newRunReportId, writeRunReport } from './report.js';
 import type { RunTaskReport } from './report.js';
 import { verifyAndRepairTask } from './verify.js';
+import { createWorker } from './workers.js';
 
 export type TaskOutcome = 'verified' | 'failed' | 'skipped';
 
@@ -70,6 +71,7 @@ interface ExecutionContext {
   manifest: OpenSpecManifest;
   persist: () => Promise<void>;
   runId: string;
+  worker: Worker;
 }
 
 function existingAssignedFiles(root: string, files: string[] | undefined): string[] {
@@ -141,7 +143,7 @@ export async function applyTasks(options: ApplyOptions = {}): Promise<ApplyRepor
           });
         }
       });
-      logger.info('Modo dry-run: no se invocó a Aider ni se modificó openspec.yaml.');
+      logger.info('Modo dry-run: no se invocó al worker ni se modificó openspec.yaml.');
       return {
         total: items.length,
         groups: groups.length,
@@ -158,7 +160,7 @@ export async function applyTasks(options: ApplyOptions = {}): Promise<ApplyRepor
       logger.info(`Backup del manifiesto: ${backup.path}`);
     }
 
-    const context: ExecutionContext = { root, config, manifest, persist, runId };
+    const context: ExecutionContext = { root, config, manifest, persist, runId, worker: createWorker({ root, config }) };
     const perGroup = await Promise.all(
       groups.map((group, groupIndex) => runGroup(group, groupIndex + 1, context))
     );
@@ -217,7 +219,7 @@ async function executeTask(
   groupNumber: number,
   context: ExecutionContext
 ): Promise<TaskExecutionResult> {
-  const { root, config, manifest, runId } = context;
+  const { root, config, manifest, worker } = context;
   const boundedContextPath = contextPath(manifest, item.spec.context);
   const startedAt = new Date();
   const assignedFiles = existingAssignedFiles(root, item.task.files);
@@ -229,26 +231,25 @@ async function executeTask(
     refreshSpecStatus(item.spec);
     await context.persist();
 
-    logger.step(`[Grupo ${groupNumber}] ${item.spec.id}/${item.task.id} (${item.spec.context}) -> Aider`);
+    logger.step(`[Grupo ${groupNumber}] ${item.spec.id}/${item.task.id} (${item.spec.context}) -> subagente`);
 
-    const relativeTaskFile = path.join('.harness', 'tasks', `${item.task.id}.md`);
-    const implementer = config.models.aiderImplementer;
     const before = changedFiles(root);
-
-    const run = await runAider(implementer.modelName, {
-      message: `Implementa la subtarea descrita en ${relativeTaskFile}`,
+    const plan: WorkPlan = {
+      runId: `${context.runId}-${item.task.id}`,
+      mode: 'sdd',
+      complexity: 'medium',
+      request: `Implementa la subtarea ${item.task.id}: ${item.task.description}`,
+      taskId: item.task.id,
+      source: path.join('.harness', 'tasks', `${item.task.id}.md`),
+      acceptance: item.task.acceptance ?? [item.task.description],
       files: assignedFiles,
-      readFiles: [relativeTaskFile],
-      cwd: root,
-      env: buildAiderEnv(config),
-      inherit: false,
-      timeoutMs: config.aider?.timeoutMs,
-      logFile: path.join(root, '.harness', 'runs', `${runId}-${item.task.id}.log`),
-      extraArgs: config.aider?.extraArgs
-    });
+      validation: item.task.validation ?? config.validation.commands,
+      learnings: []
+    };
+    const work = await worker.work(plan);
 
-    if (run.code !== 0) {
-      const detail = run.error ?? `Aider terminó con código ${run.code}.`;
+    if (work.status !== 'done') {
+      const detail = work.detail ?? `El worker terminó con estado ${work.status}.`;
       logger.error(`[Grupo ${groupNumber}] ${item.task.id}: ${detail}`);
       setTaskStatus(manifest, item.task.id, 'Failed');
       refreshSpecStatus(item.spec);
@@ -263,7 +264,7 @@ async function executeTask(
     const after = changedFiles(root);
     const outOfScope = outOfScopeFiles(newChanges(before, after), assignedFiles);
     if (scopeMode === 'strict' && outOfScope.length > 0) {
-      const detail = `Aider modificó archivos fuera del alcance: ${outOfScope.join(', ')}.`;
+      const detail = `El subagente modificó archivos fuera del alcance: ${outOfScope.join(', ')}.`;
       logger.error(`[Grupo ${groupNumber}] ${item.task.id}: ${detail}`);
       setTaskStatus(manifest, item.task.id, 'Failed');
       refreshSpecStatus(item.spec);
@@ -285,10 +286,9 @@ async function executeTask(
       root,
       files: assignedFiles,
       config,
+      worker,
       commands: item.task.validation,
-      requireCommands: config.validation.requireCommands,
-      aiderTimeoutMs: config.aider?.timeoutMs,
-      logFile: path.join(root, '.harness', 'runs', `${runId}-${item.task.id}-verify.log`)
+      requireCommands: config.validation.requireCommands
     });
 
     setTaskStatus(manifest, item.task.id, verified ? 'Done' : 'Failed');

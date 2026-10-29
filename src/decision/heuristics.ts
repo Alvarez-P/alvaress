@@ -3,19 +3,39 @@ import type {
   DecisionEngine,
   FailureInput,
   FailureVerdict,
+  FlowInput,
+  FlowPlan,
   LearningScopeDecision,
   LearningScopeInput,
   Risk,
   RiskAssessment,
   RiskInput,
   RouteDecision,
-  RouteInput
+  RouteInput,
+  SpecialistRole
 } from '../core/contracts.js';
 
 const SDD_PATTERN =
   /\b(arquitectura|redise[nñ]|migra|refactor|multi|varios archivos|sistema|flujo completo|end.to.end|api|contrato|esquema|schema|openspec|sdd|instalador)\b/i;
 
 const GRAPH_PATTERN = /\b(grafo|graphify|dependencia|relaci[oó]n|impacto|llamadas)\b/i;
+
+const RESEARCH_PATTERN =
+  /\b(dependencia|dependencias|versi[oó]n|versiones|migraci[oó]n|migrar|actualizar|upgrade|deprecat|breaking|api externa|sdk|release)\b/i;
+
+const UI_PATTERN =
+  /\b(ui|ux|interfaz|pantalla|componente|layout|responsive|accesibilidad|a11y|dise[nñ]o|estilo|tema|color|tipograf[ií]a|formulario|modal|tabla)\b/i;
+
+const TEST_PATTERN =
+  /\b(test|tests|prueba|pruebas|bug|fallo|regresi[oó]n|reproducir|criterio de aceptaci[oó]n|criterios de aceptaci[oó]n|caso borde)\b/i;
+
+export const SPECIALIST_ROLES: SpecialistRole[] = [
+  'researcher',
+  'architect',
+  'designer',
+  'tester',
+  'reviewer'
+];
 
 const RISKY_PATH_PATTERN =
   /(auth|security|seguridad|secret|token|config|migraci[oó]n|schema|package\.json|lock|\.github|installer|deploy)/i;
@@ -31,7 +51,7 @@ const TRIVIAL_PATTERN =
  * prácticas que no dependen del repositorio donde se descubrieron.
  */
 const GLOBAL_LEARNING_PATTERN =
-  /\b(pnpm|npm|yarn|node|typescript|tsc|oxlint|eslint|vitest|vite|git|github|actions|ci|docker|kubernetes|postgres|sqlite|redis|migraci[oó]n|lockfile|monorepo|husky|commitlint|lint-staged|shell|bash|zsh|http|json|yaml|markdown|obsidian|graphify|aider|opencode)\b/i;
+  /\b(pnpm|npm|yarn|node|typescript|tsc|oxlint|eslint|vitest|vite|git|github|actions|ci|docker|kubernetes|postgres|sqlite|redis|migraci[oó]n|lockfile|monorepo|husky|commitlint|lint-staged|shell|bash|zsh|http|json|yaml|markdown|obsidian|graphify|opencode)\b/i;
 
 /** Señales de contexto local: rutas, ids y configuración del repo. */
 const PROJECT_LEARNING_PATTERN =
@@ -123,6 +143,60 @@ export function estimateComplexity(input: RouteInput): Complexity {
   return 'large';
 }
 
+/** Orden fijo del flujo: cada especialista ve el brief del anterior. */
+export function orderSpecialists(roles: Iterable<SpecialistRole>): SpecialistRole[] {
+  const selected = new Set(roles);
+  return SPECIALIST_ROLES.filter((role) => selected.has(role));
+}
+
+/**
+ * Flujo proporcional al cambio. Los cambios triviales o pequeños no pagan el
+ * coste de un arquitecto ni de un revisor; los especialistas solo entran cuando
+ * la petición menciona su dominio.
+ */
+export function heuristicFlow(input: FlowInput): FlowPlan {
+  const formal = input.mode === 'sdd';
+  const lightweight = !formal && (input.complexity === 'trivial' || input.complexity === 'small');
+  if (!formal && input.complexity === 'trivial') {
+    return {
+      roles: [],
+      reason: 'Cambio trivial: el implementer-lite y la validación del orquestador bastan.',
+      confidence: 0.85,
+      source: 'heuristic'
+    };
+  }
+
+  const text = `${input.request}\n${input.acceptance.join('\n')}`;
+  const roles = new Set<SpecialistRole>();
+
+  if (!lightweight) {
+    roles.add('architect');
+  }
+  if (RESEARCH_PATTERN.test(text)) {
+    roles.add('researcher');
+  }
+  if (UI_PATTERN.test(text)) {
+    roles.add('designer');
+  }
+  if (TEST_PATTERN.test(text) || formal) {
+    roles.add('tester');
+  }
+  if (!lightweight) {
+    roles.add('reviewer');
+  }
+
+  const ordered = orderSpecialists(roles);
+  return {
+    roles: ordered,
+    reason:
+      ordered.length === 0
+        ? 'Cambio pequeño y local: no hace falta ningún especialista.'
+        : `Cambio ${input.complexity}: especialistas proporcionales a la petición.`,
+    confidence: 0.8,
+    source: 'heuristic'
+  };
+}
+
 export function heuristicVerdict(input: FailureInput): FailureVerdict {
   const error = `${input.command}\n${input.error}`;
   const nuclear = input.exitCode === 137 || NUCLEAR_PATTERN.test(error);
@@ -166,6 +240,10 @@ export class HeuristicDecisionEngine implements DecisionEngine {
       confidence: wantsSdd ? 0.72 : 0.8,
       source: 'heuristic'
     });
+  }
+
+  planFlow(input: FlowInput): Promise<FlowPlan> {
+    return Promise.resolve(heuristicFlow(input));
   }
 
   assessRisk(input: RiskInput): Promise<RiskAssessment> {

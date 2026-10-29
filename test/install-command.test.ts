@@ -92,8 +92,6 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
       calls.join('\n')
     );
     assert.equal(calls.filter((call) => call.startsWith('pnpm add -D ')).length, 1);
-    assert.equal(calls.some((call) => call.includes('aider')), false);
-    assert.equal(saved?.aider?.enabled, false);
     assert.equal(saved?.laya?.enabled, true);
     assert.equal(saved?.laya?.modelDir, '/models/laya');
     assert.equal(saved?.obsidianVaultPath, vault);
@@ -156,64 +154,6 @@ test('install --yes instala el runtime de Laya cuando no hay modelDir', async ()
     assert.equal(calls.filter((call) => call.startsWith('pnpm add -D ')).length, 1);
     assert.equal(saved?.laya?.enabled, true);
     assert.equal(saved?.laya?.modelDir, undefined);
-  } finally {
-    temp.cleanup();
-  }
-});
-
-test('install --yes no instala Aider aunque la configuración legacy lo habilite', async () => {
-  const temp = makeTempDir('alvaress-install-aider-');
-  try {
-    const root = path.join(temp.path, 'project');
-    fs.mkdirSync(root, { recursive: true });
-    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'demo' }));
-    const vault = path.join(temp.path, 'vault');
-    const calls: string[] = [];
-
-    const config = mergeConfig(
-      {
-        obsidianVaultPath: vault,
-        aider: { enabled: true }
-      },
-      {}
-    );
-
-    const runtime: Partial<InstallRuntime> = {
-      commandExists: (command) => command !== 'graphify' && command !== 'vp' && command !== 'aider',
-      moduleAvailable: () => true,
-      ensureLayaBundle: async ({ dir }) => dir,
-      runCommand: async (command, args = []) => {
-        calls.push([command, ...args].join(' '));
-        return result(0);
-      },
-      loadConfig: () => config,
-      getConfigPaths: () => ({
-        global: path.join(temp.path, 'global.json'),
-        local: path.join(root, '.alvaressrc.json')
-      }),
-      saveGlobalConfig: () => undefined,
-      detectObsidian: () => ({ installed: true, method: 'binary' }),
-      installObsidian: async () => ({ installed: true, message: 'ok' }),
-      connectObsidianVault: () => ({
-        vaultPath: vault,
-        harnessDir: path.join(vault, 'Harness'),
-        tasksLink: path.join(vault, 'Harness', 'Tasks'),
-        tasksLinkResult: 'created',
-        notePath: path.join(vault, 'Harness', 'demo.md')
-      }),
-      installSkills: () => ({
-        skillsDir: path.join(root, '.harness', 'skills'),
-        files: [],
-        links: []
-      }),
-      installAgent: () => ({ name: 'alvaress', files: [], subagents: [] }),
-      installUv: async () => result(0)
-    };
-
-    await runInstall(root, { yes: true, runtime });
-
-    assert.equal(calls.some((call) => call.includes('aider')), false, calls.join('\n'));
-    assert.equal(calls.some((call) => call.includes('uv tool install aider')), false);
   } finally {
     temp.cleanup();
   }

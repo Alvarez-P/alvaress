@@ -57,7 +57,7 @@
   <!-- Phase 2: Decidir -->
   <rect x="60" y="206" width="260" height="54" rx="6" fill="#f3e8ff" stroke="#a855f7"/>
   <text x="190" y="228" font-size="12" fill="#6b21a8" text-anchor="middle">2 · Decidir</text>
-  <text x="190" y="246" font-size="10" fill="#6b21a8" text-anchor="middle">ODD o SDD · riesgo y complejidad</text>
+  <text x="190" y="246" font-size="10" fill="#6b21a8" text-anchor="middle">ODD o SDD · complejidad y especialistas</text>
 
   <!-- Phase 3: Ejecutar -->
   <rect x="60" y="286" width="260" height="54" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
@@ -84,10 +84,10 @@
   <text x="570" y="228" font-size="12" fill="#6b21a8" text-anchor="middle">Laya ONNX int8</text>
   <text x="570" y="246" font-size="10" fill="#6b21a8" text-anchor="middle">local · sin API key</text>
 
-  <!-- Tool 3: Aider -->
+  <!-- Tool 3: subagents -->
   <rect x="420" y="286" width="300" height="54" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
   <text x="570" y="308" font-size="12" fill="#b45309" text-anchor="middle">Subagentes de código</text>
-  <text x="570" y="326" font-size="10" fill="#b45309" text-anchor="middle">implementer · fixer · verifier</text>
+  <text x="570" y="326" font-size="10" fill="#b45309" text-anchor="middle">explorer · especialistas · implementer · reviewer</text>
 
   <!-- Tool 4: local validation -->
   <rect x="420" y="366" width="300" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
@@ -110,5 +110,5 @@
   <text x="390" y="548" font-size="10" fill="#64748b" text-anchor="middle">ODD para tareas pequeñas · SDD para cambios grandes o multi-contexto.</text>
   <text x="390" y="563" font-size="10" fill="#64748b" text-anchor="middle">Fixing reintenta hasta 2 veces; un fallo nuclear termina en Halted.</text>
   <text x="390" y="578" font-size="10" fill="#64748b" text-anchor="middle">Obsidian refleja el estado; solo el orquestador escribe en la bóveda.</text>
-  <text x="390" y="593" font-size="10" fill="#64748b" text-anchor="middle">Aider queda como baseline legacy opcional; no es una dependencia.</text>
+  <text x="390" y="593" font-size="10" fill="#64748b" text-anchor="middle">Laya decide qué especialistas consultar antes de implementar.</text>
 </svg>

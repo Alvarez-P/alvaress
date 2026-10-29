@@ -130,11 +130,7 @@ export async function runInstall(
   let configDirty = !hadGlobalConfig;
 
   const localModels = readConfigFile(paths.local).models;
-  if (
-    localModels?.orchestrator !== undefined ||
-    localModels?.subagents !== undefined ||
-    localModels?.aiderImplementer !== undefined
-  ) {
+  if (localModels?.orchestrator !== undefined || localModels?.subagents !== undefined) {
     p.log.warn(
       'Este proyecto define modelos en .alvaressrc.json; ganan sobre los globales que guarde el instalador.'
     );
@@ -336,12 +332,6 @@ export async function runInstall(
       p.log.success(`Subagente instalado en ${file}`);
     }
     p.log.info('En OpenCode, selecciona el agente "alvaress" con Tab o con --agent alvaress.');
-  }
-
-  if (config.aider?.enabled === true && !runtime.commandExists('aider')) {
-    p.log.warn(
-      'La configuración legacy tiene aider.enabled=true, pero Aider no está instalado. Instálalo aparte o pon aider.enabled=false para usar los subagentes.'
-    );
   }
 
   p.note(
@@ -786,8 +776,7 @@ export async function promptModels(base: HarnessConfig): Promise<HarnessConfig> 
       ...base,
       models: {
         orchestrator: { modelName: model },
-        subagents: { modelName: model },
-        aiderImplementer: base.models.aiderImplementer
+        subagents: { modelName: model }
       }
     };
   }
@@ -807,8 +796,7 @@ export async function promptModels(base: HarnessConfig): Promise<HarnessConfig> 
     ...base,
     models: {
       orchestrator: { modelName: orchestrator },
-      subagents: { modelName: subagents },
-      aiderImplementer: base.models.aiderImplementer
+      subagents: { modelName: subagents }
     }
   };
 }

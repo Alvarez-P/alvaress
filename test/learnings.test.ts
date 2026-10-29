@@ -18,6 +18,9 @@ function decisionsWith(scope: 'global' | 'project', calls: string[] = []): Decis
     async route() {
       throw new Error('route no debería usarse en learn');
     },
+    async planFlow() {
+      throw new Error('planFlow no debería usarse en learn');
+    },
     async assessRisk() {
       throw new Error('assessRisk no debería usarse en learn');
     },

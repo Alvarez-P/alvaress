@@ -1,4 +1,4 @@
-import { getConfigPaths, loadConfig, maskConfig } from '../config/loader.js';
+import { getConfigPaths, loadConfig, displayConfig } from '../config/loader.js';
 
 export function runConfigCommand(args: string[], root: string = process.cwd()): void {
   const [subcommand] = args;
@@ -10,7 +10,7 @@ export function runConfigCommand(args: string[], root: string = process.cwd()): 
   }
 
   if (subcommand === undefined || subcommand === 'show') {
-    console.log(JSON.stringify(maskConfig(loadConfig(root)), null, 2));
+    console.log(JSON.stringify(displayConfig(loadConfig(root)), null, 2));
     return;
   }
 

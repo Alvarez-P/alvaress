@@ -92,6 +92,42 @@ export interface Exploration {
   blockedBy?: string;
 }
 
+export type SpecialistRole = 'researcher' | 'architect' | 'designer' | 'tester' | 'reviewer';
+
+export interface SpecialistBrief {
+  role: SpecialistRole;
+  summary: string;
+}
+
+export interface FlowInput {
+  request: string;
+  mode: RunMode;
+  complexity: Complexity;
+  files: string[];
+  acceptance: string[];
+}
+
+export interface FlowPlan {
+  roles: SpecialistRole[];
+  reason: string;
+  confidence: number;
+  source: 'laya' | 'heuristic';
+}
+
+export interface ConsultInput {
+  runId: string;
+  request: string;
+  mode: RunMode;
+  complexity: Complexity;
+  source: string;
+  acceptance: string[];
+  files: string[];
+  validation: string[];
+  briefs: SpecialistBrief[];
+  changes: FileChange[];
+  focus?: string;
+}
+
 export interface WorkPlan {
   runId: string;
   mode: RunMode;
@@ -104,6 +140,7 @@ export interface WorkPlan {
   validation: string[];
   learnings: Array<{ id: string; title: string }>;
   vaultPath?: string;
+  briefs?: SpecialistBrief[];
 }
 
 export interface WorkResult {
@@ -120,6 +157,7 @@ export interface FixInput {
   files: string[];
   failure: ValidationResult;
   error: string;
+  review?: string;
 }
 
 export interface FixResult {
@@ -137,6 +175,7 @@ export interface ReadyInput {
   changes: FileChange[];
   risks: Risk[];
   validation: ValidationResult;
+  review?: string;
 }
 
 export interface ReadyResult {
@@ -214,6 +253,7 @@ export interface FailureVerdict {
 
 export interface DecisionEngine {
   route(input: RouteInput): Promise<RouteDecision>;
+  planFlow(input: FlowInput): Promise<FlowPlan>;
   assessRisk(input: RiskInput): Promise<RiskAssessment>;
   classifyFailure(input: FailureInput): Promise<FailureVerdict>;
   decideLearningScope(input: LearningScopeInput): Promise<LearningScopeDecision>;
@@ -221,9 +261,9 @@ export interface DecisionEngine {
 }
 
 export interface Worker {
-  readonly kind: 'aider' | 'subagent';
   work(plan: WorkPlan): Promise<WorkResult>;
   fix(input: FixInput): Promise<FixResult>;
+  consult?(role: SpecialistRole, input: ConsultInput): Promise<SpecialistBrief>;
   close?(): Promise<void>;
 }
 
@@ -233,9 +273,15 @@ export interface Validator {
 
 export interface HarnessHandlers {
   explore(request: RunRequest, route: RouteDecision): Promise<Exploration>;
+  consult?(role: SpecialistRole, input: ConsultInput): Promise<SpecialistBrief>;
   work(plan: WorkPlan): Promise<WorkResult>;
   check(work: WorkResult): Promise<ValidationResult>;
-  fix(failure: ValidationResult, attempt: number, work: WorkResult): Promise<FixResult>;
+  fix(
+    failure: ValidationResult,
+    attempt: number,
+    work: WorkResult,
+    review?: string
+  ): Promise<FixResult>;
   ready(input: ReadyInput): Promise<ReadyResult>;
   halt(reason: HaltReason): Promise<void>;
   close?(): Promise<void>;

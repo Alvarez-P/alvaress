@@ -125,6 +125,9 @@ function fakeDecisions(mode: 'odd' | 'sdd'): DecisionEngine {
     async route() {
       return route;
     },
+    async planFlow() {
+      return { roles: [], reason: 'cambio pequeño', confidence: 0.8, source: 'heuristic' };
+    },
     async assessRisk() {
       return { risks: [], confidence: 0.5, source: 'heuristic' };
     },
@@ -150,7 +153,6 @@ function fakeDecisions(mode: 'odd' | 'sdd'): DecisionEngine {
 
 function fakeWorker(action: (plan: WorkPlan) => WorkResult | Promise<WorkResult>): Worker {
   return {
-    kind: 'subagent',
     async work(plan) {
       return action(plan);
     },
@@ -185,7 +187,6 @@ function project(options: { vault?: boolean; sdd?: boolean } = {}): {
     path.join(root, '.alvaressrc.json'),
     baseConfig({
       obsidianVaultPath: options.vault === false ? '' : vault,
-      aider: { enabled: false },
       validation: { maxAttempts: 1, commands: ['true'] }
     })
   );
@@ -322,6 +323,7 @@ test('run --dry-run explora y no invoca al worker ni escribe en Obsidian', async
   assert.equal(called, false);
   assert.equal(fs.readFileSync(note, 'utf-8'), before);
   assert.match(chunks.join(''), /DRY-RUN/);
+  assert.match(chunks.join(''), /Especialistas:/);
   assert.match(chunks.join(''), /No se invocó al worker/);
 });
 

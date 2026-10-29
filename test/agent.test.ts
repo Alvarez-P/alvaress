@@ -36,9 +36,10 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /máximo 3 líneas de texto/);
   assert.match(rendered, /Lista de cambios principales/);
   assert.match(rendered, /no pegues logs completos/i);
-  assert.match(rendered, /Worker por defecto: subagentes de código/);
-  assert.match(rendered, /Aider legacy/);
-  assert.match(rendered, /alvaress-explorer/);
+  assert.match(rendered, /Worker de código: diez subagentes de OpenCode/);
+  for (const subagent of SUBAGENTS) {
+    assert.ok(rendered.includes(`\`${subagent.name}\``));
+  }
   assert.match(rendered, /Aprendizajes del proyecto: `\.harness\/memory\/learnings\.json`/);
   assert.match(rendered, /Laya decide el scope/);
   assert.match(rendered, /alvaress learn promote/);
@@ -131,14 +132,19 @@ test('installAgent permite desactivar ubicaciones', () => {
   }
 });
 
-test('define los cinco subagentes del modo sin Aider', () => {
+test('define los subagentes especializados del flujo SDD/ODD', () => {
   assert.deepEqual(
     SUBAGENTS.map((subagent) => subagent.name),
     [
       'alvaress-explorer',
+      'alvaress-researcher',
+      'alvaress-architect',
+      'alvaress-designer',
       'alvaress-implementer',
       'alvaress-implementer-lite',
+      'alvaress-tester',
       'alvaress-verifier',
+      'alvaress-reviewer',
       'alvaress-fixer'
     ]
   );
@@ -176,7 +182,7 @@ test('renderSubagent declara skills, pasos y permisos restrictivos', () => {
   assert.match(liteRendered, /steps: 10/);
   assert.match(liteRendered, /action: edit\n    resource: "\*"\n    effect: allow/);
   assert.doesNotMatch(liteRendered, /resource: "vp check \*"/);
-  assert.doesNotMatch(liteRendered, /`universal-design-patterns`/);
+  assert.doesNotMatch(liteRendered, /`architecture-decisions`/);
 
   const explorerRendered = renderSubagent(explorer);
   assert.match(explorerRendered, /steps: 12/);
@@ -218,7 +224,7 @@ test('renderSubagent declara skills, pasos y permisos restrictivos', () => {
   assert.match(fixerRendered, /No agregues comentarios al código/);
 });
 
-test('installAgent escribe los cuatro subagentes junto al agente', () => {
+test('installAgent escribe los diez subagentes junto al agente', () => {
   const temp = makeTempDir('alvaress-agent-');
   try {
     const globalDir = path.join(temp.path, 'home', '.config', 'opencode', 'agents');

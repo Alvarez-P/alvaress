@@ -12,12 +12,17 @@ test('define las skills del estándar híbrido SDD/ODD', () => {
       'read-spec-first',
       'consult-graphify-ast',
       'self-healing-verify',
-      'universal-design-patterns',
+      'clean-code',
       'obsidian-sdd',
       'continuous-learning',
       'bounded-scope',
       'vite-plus-verify',
-      'failure-triage'
+      'failure-triage',
+      'architecture-decisions',
+      'ui-design',
+      'testing-strategy',
+      'code-review',
+      'technical-research'
     ]
   );
   for (const skill of SKILLS) {
@@ -55,14 +60,14 @@ test('installSkills escribe SKILL.md y enlaza las skills globales', () => {
     const targets = [path.join(temp.path, 'opencode'), path.join(temp.path, 'claude')];
     const report = installSkills(temp.path, { targets });
 
-    assert.equal(report.files.length, 9);
+    assert.equal(report.files.length, SKILLS.length);
     for (const skill of SKILLS) {
       const file = skillFilePath(skill, report.skillsDir);
       assert.ok(fs.existsSync(file));
       assert.match(fs.readFileSync(file, 'utf-8'), new RegExp(`name: ${skill.name}`));
     }
 
-    assert.equal(report.links.length, 18);
+    assert.equal(report.links.length, SKILLS.length * targets.length);
     assert.ok(report.links.every((link) => link.result === 'created'));
     for (const target of targets) {
       for (const skill of SKILLS) {
@@ -96,7 +101,7 @@ test('installSkills omite enlaces cuando el destino es real', () => {
 
     const report = installSkills(temp.path, { targets: [target] });
 
-    assert.equal(report.links.length, 9);
+    assert.equal(report.links.length, SKILLS.length);
     assert.equal(report.links.filter((link) => link.result === 'skipped').length, 1);
   } finally {
     temp.cleanup();
@@ -116,7 +121,7 @@ test('la skill obsidian-sdd separa la política de subagentes y orquestador', ()
 });
 
 test('las skills evitan sobreingeniería y no confunden fallos de herramienta con HALT', () => {
-  const patterns = SKILLS.find((entry) => entry.name === 'universal-design-patterns');
+  const patterns = SKILLS.find((entry) => entry.name === 'clean-code');
   const triage = SKILLS.find((entry) => entry.name === 'failure-triage');
   const learning = SKILLS.find((entry) => entry.name === 'continuous-learning');
   const graphify = SKILLS.find((entry) => entry.name === 'consult-graphify-ast');
@@ -128,8 +133,8 @@ test('las skills evitan sobreingeniería y no confunden fallos de herramienta co
   assert.ok(graphify !== undefined);
   assert.ok(verify !== undefined);
 
-  assert.match(patterns.body, /no introduzcas/i);
-  assert.match(patterns.body, /no agregues comentarios/i);
+  assert.match(patterns.body, /magic strings/i);
+  assert.match(patterns.body, /nombra por intención/i);
   assert.match(patterns.body, /TODO\/FIXME/);
   assert.doesNotMatch(patterns.body, /altamente escalable/i);
 
@@ -172,7 +177,7 @@ test('installSkills con linkGlobal=false no crea enlaces', () => {
     const report = installSkills(temp.path, { linkGlobal: false });
 
     assert.equal(report.links.length, 0);
-    assert.equal(report.files.length, 9);
+    assert.equal(report.files.length, SKILLS.length);
   } finally {
     temp.cleanup();
   }

@@ -8,10 +8,12 @@ import {
 } from '../constants.js';
 import type {
   CommitResult,
+  ConsultInput,
   DecisionEngine,
   Exploration,
   FileChange,
   FixResult,
+  FlowPlan,
   HarnessHandlers,
   HarnessUI,
   HaltReason,
@@ -22,6 +24,8 @@ import type {
   RunMode,
   RunRequest,
   RunResult,
+  SpecialistBrief,
+  SpecialistRole,
   ValidationResult,
   WorkPlan,
   WorkResult,
@@ -276,7 +280,8 @@ function completeTask(
 function printDryRun(
   stream: NodeJS.WriteStream,
   request: RunRequest,
-  exploration: Exploration
+  exploration: Exploration,
+  flow: FlowPlan
 ): void {
   const lines = [
     '[alvaress] DRY-RUN',
@@ -297,6 +302,11 @@ function printDryRun(
     ...(exploration.validation.length > 0
       ? exploration.validation.map((command) => `- ${command}`)
       : ['- (sin comandos)']),
+    '',
+    'Especialistas:',
+    ...(flow.roles.length > 0
+      ? flow.roles.map((role) => `- ${role}`)
+      : ['- (ninguno)']),
     '',
     'Aprendizajes relevantes:',
     ...(exploration.learnings.length > 0
@@ -454,6 +464,7 @@ export async function runHarnessCommand(
     if (request.dryRun === true) {
       ui.start('Exploring');
       let exploration: Exploration | undefined;
+      let flow: FlowPlan | undefined;
       try {
         const requestedMode = request.mode !== undefined && request.mode !== 'auto' ? request.mode : undefined;
         const route = await decisions.route({
@@ -464,11 +475,18 @@ export async function runHarnessCommand(
         const effectiveRoute: RouteDecision =
           requestedMode !== undefined ? { ...route, mode: requestedMode } : route;
         exploration = await exploreRequest(request, effectiveRoute, { root, config, log });
+        flow = await decisions.planFlow({
+          request: request.request,
+          mode: exploration.mode,
+          complexity: effectiveRoute.complexity,
+          files: exploration.files,
+          acceptance: exploration.acceptance
+        });
       } finally {
         ui.stop();
       }
 
-      if (exploration === undefined) {
+      if (exploration === undefined || flow === undefined) {
         throw new Error('La exploración no devolvió un resultado.');
       }
 
@@ -496,7 +514,7 @@ export async function runHarnessCommand(
         return 1;
       }
 
-      printDryRun(stdout, request, exploration);
+      printDryRun(stdout, request, exploration, flow);
       const dryRunResult: RunResult = {
         runId,
         state: 'Ready',
@@ -536,6 +554,17 @@ export async function runHarnessCommand(
         return result;
       },
 
+      async consult(role: SpecialistRole, input: ConsultInput): Promise<SpecialistBrief> {
+        log.section(`Especialista ${role}`);
+        log.text('Consulta', `${input.mode}/${input.complexity} · ${input.files.join(', ') || 'sin archivos'}`);
+        const brief = await worker?.consult?.(role, input);
+        if (brief === undefined) {
+          return { role, summary: '' };
+        }
+        log.text('Brief', brief.summary || '(vacío)');
+        return brief;
+      },
+
       async work(plan: WorkPlan): Promise<WorkResult> {
         workStarted = true;
         log.section('Plan de trabajo');
@@ -570,7 +599,12 @@ export async function runHarnessCommand(
         return result;
       },
 
-      async fix(failure: ValidationResult, attempt: number, work: WorkResult): Promise<FixResult> {
+      async fix(
+        failure: ValidationResult,
+        attempt: number,
+        work: WorkResult,
+        review?: string
+      ): Promise<FixResult> {
         const first = firstFailure(failure);
         lastFix = {
           command: first?.command ?? 'validación',
@@ -585,7 +619,8 @@ export async function runHarnessCommand(
           attempt,
           files: scopeFiles,
           failure,
-          error: failureText(failure)
+          error: failureText(failure),
+          ...(review !== undefined ? { review } : {})
         });
         if (result === undefined) {
           return {
@@ -604,6 +639,11 @@ export async function runHarnessCommand(
       async ready(input: ReadyInput): Promise<ReadyResult> {
         const risks = [...input.risks];
         const effectiveTaskId = input.exploration.taskId ?? input.request.taskId;
+
+        if (input.review !== undefined) {
+          log.section('Revisión');
+          log.text('Reviewer', input.review);
+        }
 
         try {
           completeTask(root, effectiveTaskId, input.mode, 'Done');

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadManifest } from '../src/openspec/manifest.js';
 import { applyTasks } from '../src/orchestrator/apply.js';
-import { makeTempDir, writeFile, writeJson, fakeAider, baseConfig, withPathAsync } from './helpers.js';
+import { makeTempDir, writeFile, writeJson, fakeOpencode, baseConfig, withPathAsync } from './helpers.js';
 
 function projectManifest(options: {
   contexts?: Array<{ name: string; path: string }>;
@@ -57,8 +57,8 @@ function setupProject(manifest = projectManifest(), config: Record<string, unkno
   const temp = makeTempDir();
   const bin = path.join(temp.path, 'bin');
   fs.mkdirSync(bin);
-  const log = path.join(temp.path, 'aider.log');
-  fakeAider(bin, { log });
+  const log = path.join(temp.path, 'opencode.log');
+  fakeOpencode(bin, { log });
   writeFile(path.join(temp.path, 'openspec.yaml'), manifest);
   writeJson(path.join(temp.path, '.alvaressrc.json'), config);
   return { root: temp.path, bin, log, cleanup: temp.cleanup };
@@ -119,14 +119,14 @@ test('applyTasks secuencia tareas del mismo contexto', async () => {
   }
 });
 
-test('applyTasks marca la tarea y el spec como fallidos si Aider falla', async () => {
+test('applyTasks marca la tarea y el spec como fallidos si el worker falla', async () => {
   const project = setupProject(
     projectManifest({
       specs: [{ id: 'SPEC-001', context: 'billing', tasks: [{ id: 'TASK-01' }] }]
     })
   );
   try {
-    fakeAider(project.bin, { log: project.log, exitCode: 1 });
+    fakeOpencode(project.bin, { log: project.log, exitCode: 1 });
     const report = await withPathAsync([project.bin], () => applyTasks({ root: project.root }));
 
     assert.equal(report.failed, 1);
@@ -157,7 +157,7 @@ test('applyTasks marca fallo si la validación local no pasa', async () => {
   }
 });
 
-test('applyTasks en dry-run no invoca Aider ni modifica el manifiesto', async () => {
+test('applyTasks en dry-run no invoca al worker ni modifica el manifiesto', async () => {
   const project = setupProject(
     projectManifest({
       specs: [{ id: 'SPEC-001', context: 'billing', tasks: [{ id: 'TASK-01' }] }]

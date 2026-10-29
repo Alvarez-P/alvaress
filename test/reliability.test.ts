@@ -6,7 +6,6 @@ import path from 'node:path';
 import { installAgent, renderSubagent, SUBAGENTS } from '../src/agent/installer.js';
 import { runArchiveCommand } from '../src/commands/archive.js';
 import { runDoctor, runDoctorCommand } from '../src/commands/doctor.js';
-import type { DoctorDeps } from '../src/commands/doctor.js';
 import { runObsidianCommand } from '../src/commands/obsidian.js';
 import { mergeConfig } from '../src/config/loader.js';
 import { loadManifest, saveManifest, scaffoldManifest } from '../src/openspec/manifest.js';
@@ -22,7 +21,7 @@ import {
 } from '../src/utils/package-manager.js';
 import { redactSecrets } from '../src/utils/redact.js';
 import { LockError } from '../src/utils/errors.js';
-import { fakeAider, makeTempDir, writeFile, writeJson, baseConfig, withPathAsync } from './helpers.js';
+import { fakeOpencode, makeTempDir, writeFile, writeJson, baseConfig, withPathAsync } from './helpers.js';
 
 function manifestWithTasks(tasks: string): string {
   return `specification: "1.0.0"
@@ -304,8 +303,7 @@ test('doctor valida modelos y frontmatter del agente', () => {
         obsidianVaultPath: '',
         models: {
           orchestrator: { modelName: 'openai/gpt-5' },
-          subagents: { modelName: 'openai/gpt-5-mini' },
-          aiderImplementer: { modelName: 'deepseek/deepseek-chat' }
+          subagents: { modelName: 'openai/gpt-5-mini' }
         },
         validation: { maxAttempts: 1, commands: ['true'] }
       },
@@ -335,50 +333,6 @@ test('doctor valida modelos y frontmatter del agente', () => {
     const byName = new Map(checks.map((entry) => [entry.name, entry]));
     assert.equal(byName.get('models')?.status, 'ok');
     assert.equal(byName.get('agent')?.status, 'ok');
-  } finally {
-    temp.cleanup();
-  }
-});
-
-test('doctor solo exige el modelo legacy de Aider cuando está habilitado', () => {
-  const temp = makeTempDir('alvaress-doctor-aider-legacy-');
-  try {
-    const root = path.join(temp.path, 'project');
-    fs.mkdirSync(root, { recursive: true });
-    writeJson(path.join(root, 'package.json'), { name: 'demo-app' });
-    writeFile(
-      path.join(root, 'openspec.yaml'),
-      'specification: "1.0.0"\nproject: demo-app\nspecs: []\n'
-    );
-    const deps: DoctorDeps = {
-      commandExists: () => true,
-      graphStatus: {
-        exists: true,
-        path: path.join(root, 'graphify-out', 'graph.json'),
-        stale: false
-      },
-      layaAvailable: true,
-      vitePlusAvailable: true,
-      agentDirs: []
-    };
-    const base = {
-      obsidianVaultPath: '',
-      models: {
-        orchestrator: { modelName: 'openai/gpt-5' },
-        subagents: { modelName: 'openai/gpt-5-mini' },
-        aiderImplementer: { modelName: 'deepseek-chat' }
-      },
-      validation: { maxAttempts: 1, commands: ['true'] }
-    };
-
-    const disabled = runDoctor(root, { ...deps, config: mergeConfig(base, {}) });
-    assert.equal(disabled.find((entry) => entry.name === 'models')?.status, 'ok');
-
-    const enabled = runDoctor(root, {
-      ...deps,
-      config: mergeConfig({ ...base, aider: { enabled: true } }, {})
-    });
-    assert.equal(enabled.find((entry) => entry.name === 'models')?.status, 'error');
   } finally {
     temp.cleanup();
   }
@@ -508,7 +462,7 @@ test('apply escribe reporte, backup y respeta el alcance estricto', async () => 
   const root = makeTempDir('alvaress-apply-report-');
   const bin = path.join(root.path, 'bin');
   fs.mkdirSync(bin);
-  fakeAider(bin, { action: 'touch fuera.txt' });
+  fakeOpencode(bin, { action: 'touch fuera.txt' });
   writeFile(
     path.join(root.path, 'openspec.yaml'),
     manifestWithTasks(

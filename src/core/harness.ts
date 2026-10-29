@@ -1,9 +1,11 @@
 import { DEFAULT_MAX_FIX_ATTEMPTS, LAYA_LOG_PATH } from '../constants.js';
 import { errorMessage } from '../utils/errors.js';
 import type {
+  ConsultInput,
   DecisionEngine,
   Exploration,
   FileChange,
+  FlowPlan,
   HaltCode,
   HaltReason,
   HarnessHandlers,
@@ -13,6 +15,8 @@ import type {
   RunMode,
   RunRequest,
   RunResult,
+  SpecialistBrief,
+  SpecialistRole,
   ValidationCommandResult,
   ValidationResult,
   WorkPlan
@@ -128,9 +132,24 @@ export class HarnessCore {
       }
 
       const plan = this.toWorkPlan(runId, request, route, exploration);
+      const flow = await this.decisions.planFlow({
+        request: request.request,
+        mode,
+        complexity: route.complexity,
+        files: exploration.files,
+        acceptance: exploration.acceptance
+      });
+      const { briefs, risks: briefRisks } = await this.collectBriefs(
+        flow,
+        runId,
+        request,
+        route,
+        exploration
+      );
+      risks.push(...briefRisks);
 
       this.ui.setState('Working');
-      const work = await this.handlers.work(plan);
+      const work = await this.handlers.work({ ...plan, ...(briefs.length > 0 ? { briefs } : {}) });
       changes.push(...work.changes);
       risks.push(...work.risks);
 
@@ -167,6 +186,18 @@ export class HarnessCore {
       this.ui.setState('Checking');
       validation = await this.handlers.check(work);
       risks.push(...warningsToRisks(validation.warnings));
+
+      const review = await this.requestReview(
+        flow,
+        runId,
+        request,
+        route,
+        exploration,
+        work,
+        validation,
+        briefs,
+        risks
+      );
 
       let attempt = 0;
       while (!validation.ok) {
@@ -209,7 +240,12 @@ export class HarnessCore {
 
         attempt += 1;
         this.ui.setState('Fixing');
-        const fix = await this.handlers.fix(validation, attempt, work);
+        const fix = await this.handlers.fix(
+          validation,
+          attempt,
+          work,
+          ...(review !== undefined ? [review] : [])
+        );
         changes.push(...fix.changes);
         risks.push(...fix.risks);
 
@@ -247,7 +283,8 @@ export class HarnessCore {
         exploration,
         changes: mergeChanges(changes),
         risks: mergeRisks(risks),
-        validation
+        validation,
+        ...(review !== undefined ? { review } : {})
       });
 
       return {
@@ -302,6 +339,110 @@ export class HarnessCore {
       validation: exploration.validation,
       learnings: exploration.learnings
     };
+  }
+
+  private async collectBriefs(
+    flow: FlowPlan,
+    runId: string,
+    request: RunRequest,
+    route: RouteDecision,
+    exploration: Exploration
+  ): Promise<{ briefs: SpecialistBrief[]; risks: Risk[] }> {
+    const consult = this.handlers.consult;
+    const briefs: SpecialistBrief[] = [];
+    const risks: Risk[] = [];
+    if (consult === undefined) {
+      return { briefs, risks };
+    }
+
+    for (const role of flow.roles) {
+      if (role === 'reviewer') {
+        continue;
+      }
+      const brief = await this.consultQuietly(
+        consult,
+        role,
+        {
+          runId,
+          request: request.request,
+          mode: route.mode,
+          complexity: route.complexity,
+          source: exploration.source,
+          acceptance: exploration.acceptance,
+          files: exploration.files,
+          validation: exploration.validation,
+          briefs: [...briefs],
+          changes: []
+        },
+        risks
+      );
+      if (brief !== undefined) {
+        briefs.push(brief);
+      }
+    }
+
+    return { briefs, risks };
+  }
+
+  private async requestReview(
+    flow: FlowPlan,
+    runId: string,
+    request: RunRequest,
+    route: RouteDecision,
+    exploration: Exploration,
+    work: { changes: FileChange[] },
+    validation: ValidationResult,
+    briefs: SpecialistBrief[],
+    risks: Risk[]
+  ): Promise<string | undefined> {
+    const consult = this.handlers.consult;
+    if (consult === undefined || !flow.roles.includes('reviewer')) {
+      return undefined;
+    }
+
+    const failure = firstFailure(validation);
+    const focus = validation.ok
+      ? 'Revisa el diff implementado: blockers, criterios sin cubrir y tests faltantes.'
+      : `La validación falló. Prioriza la causa raíz de "${failure?.command ?? 'la validación'}":\n${failure?.stderr ?? failure?.stdout ?? ''}`;
+
+    const brief = await this.consultQuietly(
+      consult,
+      'reviewer',
+      {
+        runId,
+        request: request.request,
+        mode: route.mode,
+        complexity: route.complexity,
+        source: exploration.source,
+        acceptance: exploration.acceptance,
+        files: exploration.files,
+        validation: exploration.validation,
+        briefs: [...briefs],
+        changes: work.changes,
+        focus
+      },
+      risks
+    );
+    return brief?.summary;
+  }
+
+  private async consultQuietly(
+    consult: NonNullable<HarnessHandlers['consult']>,
+    role: SpecialistRole,
+    input: ConsultInput,
+    risks: Risk[]
+  ): Promise<SpecialistBrief | undefined> {
+    try {
+      const brief = await consult(role, input);
+      return brief.summary.trim().length > 0 ? brief : undefined;
+    } catch {
+      risks.push({
+        title: `El especialista ${role} no devolvió un brief.`,
+        source: 'harness',
+        severity: 'low'
+      });
+      return undefined;
+    }
   }
 
   private async halt(

@@ -18,8 +18,7 @@ function configWith(vaultPath: string): HarnessConfig {
     },
     models: {
       orchestrator: { modelName: 'openai/orchestrator' },
-      subagents: { modelName: 'openai/subagents' },
-      aiderImplementer: { modelName: 'deepseek/deepseek-chat', apiKey: '', apiBase: '', env: {} }
+      subagents: { modelName: 'openai/subagents' }
     },
     validation: { maxAttempts: 1, commands: [] }
   };

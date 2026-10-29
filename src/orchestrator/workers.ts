@@ -1,29 +1,46 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_WORKER_TIMEOUT_MS } from '../constants.js';
 import type { HarnessConfig } from '../config/loader.js';
 import type {
+  ConsultInput,
   FileChange,
   FixInput,
   FixResult,
   Risk,
+  SpecialistBrief,
+  SpecialistRole,
   WorkPlan,
   WorkResult,
   Worker
 } from '../core/contracts.js';
 import { heuristicVerdict } from '../decision/heuristics.js';
-import { pathExists } from '../utils/fs.js';
 import { runCommand } from '../utils/process.js';
 import type { CommandResult } from '../utils/process.js';
-import { buildAiderEnv, runAider } from './aider.js';
 import { diffSnapshots, scopeRisks, snapshotWorkspace } from './diff.js';
 import type { RunLog } from './run-log.js';
 
-const DEFAULT_WORKER_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_INLINE_FILE_BYTES = 8_000;
 const MAX_INLINE_TOTAL_BYTES = 16_000;
 const IMPLEMENTER_AGENT = 'alvaress-implementer';
 const IMPLEMENTER_LITE_AGENT = 'alvaress-implementer-lite';
 const FIXER_AGENT = 'alvaress-fixer';
+
+const SPECIALIST_AGENTS: Record<SpecialistRole, string> = {
+  researcher: 'alvaress-researcher',
+  architect: 'alvaress-architect',
+  designer: 'alvaress-designer',
+  tester: 'alvaress-tester',
+  reviewer: 'alvaress-reviewer'
+};
+
+const SPECIALIST_FOCUS: Record<SpecialistRole, string> = {
+  researcher: 'Resuelve solo las dudas técnicas con evidencia y fuentes; no instales nada.',
+  architect: 'Decide límites, contratos, datos y orden de implementación; no escribas código.',
+  designer: 'Define layout, componentes, tokens, estados, responsive y accesibilidad.',
+  tester: 'Diseña casos given/when/then y el diagnóstico esperado; no cambies aserciones.',
+  reviewer: 'Revisa el diff contra la spec y los estándares; prioriza blockers accionables.'
+};
 
 /** Sesión estable por run para reutilizar prompt, skills y archivos leídos. */
 export function subagentSessionId(runId: string): string {
@@ -119,6 +136,13 @@ export function buildWorkMessage(plan: WorkPlan, options: WorkMessageOptions = {
     'Archivos permitidos (alcance cerrado):',
     list(plan.files),
     '',
+    ...(plan.briefs !== undefined && plan.briefs.length > 0
+      ? [
+          'Briefs de especialistas (contexto de solo lectura, no los repitas):',
+          ...plan.briefs.map((brief) => `### ${brief.role}\n${brief.summary}`),
+          ''
+        ]
+      : []),
     'Validación final (la ejecuta el orquestador; no la ejecutes tú):',
     list(plan.validation),
     '',
@@ -157,6 +181,9 @@ export function buildFixMessage(input: FixInput): string {
     'Archivos del alcance:',
     list(input.files),
     '',
+    ...(input.review !== undefined && input.review.trim().length > 0
+      ? ['Revisión del diff (prioriza los blockers):', input.review.trim(), '']
+      : []),
     'Reglas:',
     '- Corrige la causa, no silencies el error.',
     '- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.',
@@ -167,16 +194,47 @@ export function buildFixMessage(input: FixInput): string {
   ].join('\n');
 }
 
-function existingFiles(root: string, files: string[]): string[] {
-  return files.filter((file) => pathExists(path.join(root, file)));
-}
+export function buildConsultMessage(role: SpecialistRole, input: ConsultInput): string {
+  const changes = input.changes
+    .map((change) => `${change.kind ?? 'modified'} ${change.path}: ${change.change}`)
+    .join('\n');
 
-function taskDocument(plan: WorkPlan): string[] {
-  if (plan.taskId === undefined) {
-    return [];
-  }
-  const target = path.join('.harness', 'tasks', `${plan.taskId}.md`);
-  return [target];
+  return [
+    `Consultoría ${role} para el run ${input.runId}.`,
+    '',
+    `Rol: ${SPECIALIST_FOCUS[role]}`,
+    `Modo: ${input.mode}`,
+    `Complejidad: ${input.complexity}`,
+    `Fuente: ${input.source}`,
+    '',
+    'Petición:',
+    input.request,
+    '',
+    'Criterios de aceptación:',
+    list(input.acceptance),
+    '',
+    'Archivos del alcance:',
+    list(input.files),
+    '',
+    'Validación prevista:',
+    list(input.validation),
+    '',
+    ...(changes.length > 0 ? ['Cambios implementados:', changes, ''] : []),
+    ...(input.briefs.length > 0
+      ? [
+          'Briefs anteriores (no los repitas, intégralos):',
+          ...input.briefs.map((brief) => `### ${brief.role}\n${brief.summary}`),
+          ''
+        ]
+      : []),
+    ...(input.focus !== undefined && input.focus.trim().length > 0
+      ? ['Foco de esta consulta:', input.focus.trim(), '']
+      : []),
+    'Reglas:',
+    '- No edites archivos ni ejecutes git.',
+    '- No ejecutes la validación; la ejecuta el orquestador.',
+    '- Responde en texto breve y accionable; no repitas el contexto.'
+  ].join('\n');
 }
 
 function commandDetail(result: CommandResult): string {
@@ -215,66 +273,7 @@ function fixVerdict(
     : { verdict: 'needs-orchestrator', cause: verdict.reason };
 }
 
-export class AiderWorker implements Worker {
-  readonly kind = 'aider' as const;
-  private readonly root: string;
-  private readonly config: HarnessConfig;
-  private readonly log: RunLog | undefined;
-  private readonly env: NodeJS.ProcessEnv | undefined;
-
-  constructor(options: WorkerOptions) {
-    this.root = options.root;
-    this.config = options.config;
-    this.log = options.log;
-    this.env = options.env;
-  }
-
-  async work(plan: WorkPlan): Promise<WorkResult> {
-    const before = snapshotWorkspace(this.root, plan.files);
-    const run = await runAider(this.config.models.aiderImplementer.modelName, {
-      message: buildWorkMessage(plan),
-      files: existingFiles(this.root, plan.files),
-      readFiles: existingFiles(this.root, taskDocument(plan)),
-      cwd: this.root,
-      env: { ...buildAiderEnv(this.config), ...this.env },
-      inherit: false,
-      timeoutMs: this.config.aider?.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
-      extraArgs: this.config.aider?.extraArgs
-    });
-    const after = snapshotWorkspace(this.root, plan.files);
-    const changes = diffSnapshots(before, after, 'Aider');
-    const risks = scopeRisks(plan.files, changes, this.config.scope ?? 'warn');
-    this.log?.command('aider', run);
-
-    if (run.code !== 0) {
-      return { status: 'failed', changes, risks, detail: commandDetail(run) };
-    }
-    return { status: 'done', changes, risks };
-  }
-
-  async fix(input: FixInput): Promise<FixResult> {
-    const before = snapshotWorkspace(this.root, input.files);
-    const run = await runAider(this.config.models.aiderImplementer.modelName, {
-      message: buildFixMessage(input),
-      files: existingFiles(this.root, input.files),
-      cwd: this.root,
-      env: { ...buildAiderEnv(this.config), ...this.env },
-      inherit: false,
-      timeoutMs: this.config.aider?.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
-      extraArgs: this.config.aider?.extraArgs
-    });
-    const after = snapshotWorkspace(this.root, input.files);
-    const changes = diffSnapshots(before, after, 'Aider');
-    const risks = scopeRisks(input.files, changes, this.config.scope ?? 'warn');
-    const verdict = fixVerdict(run, input, changes);
-    this.log?.command('aider (reparación)', run);
-
-    return { ...verdict, changes, risks };
-  }
-}
-
 export class SubagentWorker implements Worker {
-  readonly kind = 'subagent' as const;
   private readonly root: string;
   private readonly config: HarnessConfig;
   private readonly log: RunLog | undefined;
@@ -307,6 +306,19 @@ export class SubagentWorker implements Worker {
     return { ...verdict, changes, risks };
   }
 
+  async consult(role: SpecialistRole, input: ConsultInput): Promise<SpecialistBrief> {
+    const run = await this.runOpenCode(
+      SPECIALIST_AGENTS[role],
+      buildConsultMessage(role, input),
+      input.runId,
+      'text'
+    );
+    return {
+      role,
+      summary: run.code === 0 ? run.stdout.trim() : commandDetail(run)
+    };
+  }
+
   private async invoke(
     agent: string,
     message: string,
@@ -335,7 +347,8 @@ export class SubagentWorker implements Worker {
   private async runOpenCode(
     agent: string,
     message: string,
-    runId: string
+    runId: string,
+    format: 'json' | 'text' = 'json'
   ): Promise<CommandResult> {
     const model = this.config.models.subagents.modelName.trim();
     const session = subagentSessionId(runId);
@@ -346,8 +359,7 @@ export class SubagentWorker implements Worker {
         '--agent',
         agent,
         '--auto',
-        '--format',
-        'json',
+        ...(format === 'json' ? ['--format', 'json'] : []),
         ...(model.length > 0 ? ['--model', model] : []),
         '--session',
         session,
@@ -358,7 +370,7 @@ export class SubagentWorker implements Worker {
       {
         cwd: this.root,
         env: this.env ?? process.env,
-        timeout: this.config.aider?.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
+        timeout: this.config.worker?.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
         maxBuffer: 4 * 1024 * 1024
       }
     );
@@ -371,11 +383,5 @@ export class SubagentWorker implements Worker {
 }
 
 export function createWorker(options: WorkerOptions): Worker {
-  return options.config.aider?.enabled === true
-    ? new AiderWorker(options)
-    : new SubagentWorker(options);
-}
-
-export function workerSource(worker: Worker): string {
-  return worker.kind === 'aider' ? 'Aider' : 'subagentes de OpenCode';
+  return new SubagentWorker(options);
 }
