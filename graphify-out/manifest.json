@@ -623,30 +623,6 @@
     "ast_hash": "d12892144fb99601f163dc429b426322",
     "semantic_hash": ""
   },
-  ".husky/post-checkout": {
-    "mtime": 1793322395.0690737,
-    "seen": 1793322505.6439528,
-    "ast_hash": "6a48ef7099af373379bdde111b39fb03",
-    "semantic_hash": ""
-  },
-  ".husky/post-commit": {
-    "mtime": 1793322395.0689201,
-    "seen": 1793322505.6439595,
-    "ast_hash": "5fd99eef972be2b9b9c3eb960a2439e0",
-    "semantic_hash": ""
-  },
-  ".husky/post-merge": {
-    "mtime": 1793322395.0691957,
-    "seen": 1793322505.643962,
-    "ast_hash": "4dc1d76530db068ce38432085ec0078f",
-    "semantic_hash": ""
-  },
-  ".husky/post-rewrite": {
-    "mtime": 1793322395.0693123,
-    "seen": 1793322505.6439636,
-    "ast_hash": "a8754a3a4bdbf6181c7c2a75b7649027",
-    "semantic_hash": ""
-  },
   "src/orchestrator/git-diff.ts": {
     "mtime": 1793322187.9695103,
     "seen": 1793322505.6440248,
