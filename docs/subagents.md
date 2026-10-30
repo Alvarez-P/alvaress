@@ -56,13 +56,16 @@ export interface Worker {
 ```
 
 `SubagentWorker` no implementa el subagente: lo invoca con
-`opencode run --agent <subagente> --auto --session <run>`. La implementación y la
-reparación piden `--format json`; las consultas de especialistas usan texto
-porque su brief es la respuesta. El worker pasa el `WorkPlan` serializado en el
+`opencode run --agent <subagente> --auto --format json --session <sesión>`. De
+los eventos JSON toma el texto (el brief de los especialistas) y los tokens de
+cada `step_finish`. El worker pasa el `WorkPlan` serializado en el
 mensaje, junto con la fuente y los archivos pequeños del alcance (≤8 KB por
 archivo, ≤16 KB en total) para ahorrar la llamada de lectura. Si
-`models.subagents.modelName` no está vacío, añade `--model`; la misma sesión se
-reutiliza entre especialistas, implementación y reparación. Para la
+`models.subagents.modelName` no está vacío, añade `--model`. El implementer y el
+fixer comparten la sesión del run para reutilizar lo que ya leyeron; cada
+especialista usa una sesión propia, porque OpenCode reenvía el historial completo
+de la sesión y el implementer pagaría de nuevo cada consulta previa (los briefs ya
+le llegan recortados en el mensaje). Para la
 implementación y la reparación no interpreta la respuesta: compara el workspace
 antes y después con snapshots SHA-1 y deriva `changes` y `risks` de ese diff. El
 subagente devuelve un resumen corto para el log, pero la fuente de verdad del
@@ -74,6 +77,12 @@ el fixer, el diff completo (máx. 8 000 caracteres). Ambos incluyen los archivos
 nuevos sin seguimiento, así que nadie necesita `git status`. Cada brief de
 especialista se recorta a 3 000 caracteres. El log del run anota el tamaño de
 cada prompt para medir el consumo.
+
+El consumo real se registra por fase (`especialistas`, `implementación`,
+`revisión`, `reparación`): llamadas, tokens de entrada, salida, razonamiento,
+caché y costo cuando el proveedor lo informa. Queda en la sección
+`consumo de tokens` del log (`alvaress -i`) y en `usage` del reporte
+(`alvaress report`); `alvaress report list` muestra el total de entrada/salida.
 
 Con `--self-check` (o `worker.selfCheck: true`), el `alvaress-implementer` (no la
 variante lite) puede ejecutar una vez el primer comando rápido de la validación

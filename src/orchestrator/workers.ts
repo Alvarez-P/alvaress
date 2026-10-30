@@ -8,8 +8,10 @@ import type {
   FixInput,
   FixResult,
   Risk,
+  RunUsage,
   SpecialistBrief,
   SpecialistRole,
+  UsagePhase,
   WorkPlan,
   WorkResult,
   Worker
@@ -23,6 +25,7 @@ import { diffSnapshots, scopeRisks, snapshotWorkspace } from './diff.js';
 import { workingTreeDiff, workingTreeStat } from './git-diff.js';
 import { changedFiles } from './scope.js';
 import type { RunLog } from './run-log.js';
+import { UsageLedger, formatUsage, parseOpencodeOutput } from './usage.js';
 
 const MAX_INLINE_FILE_BYTES = 8_000;
 const MAX_INLINE_TOTAL_BYTES = 16_000;
@@ -58,9 +61,15 @@ const SPECIALIST_FOCUS: Record<SpecialistRole, string> = {
   reviewer: 'Revisa el diff contra la spec y los estándares; prioriza blockers accionables.'
 };
 
-/** Sesión estable por run para reutilizar prompt, skills y archivos leídos. */
-export function subagentSessionId(runId: string): string {
-  return `ses_alvaress${runId.replace(/[^a-zA-Z0-9]/g, '')}`;
+/**
+ * Sesión estable por run: el implementer y el fixer la comparten para reutilizar
+ * los archivos ya leídos. Cada especialista usa la suya (`scope`), porque una
+ * sesión de OpenCode reenvía todo su historial y el implementer pagaría de nuevo
+ * cada consulta previa; los briefs ya le llegan recortados en el mensaje.
+ */
+export function subagentSessionId(runId: string, scope?: string): string {
+  const id = scope !== undefined ? `${runId}-${scope}` : runId;
+  return `ses_alvaress${id.replace(/[^a-zA-Z0-9]/g, '')}`;
 }
 
 function implementerAgent(complexity: WorkPlan['complexity']): string {
@@ -358,6 +367,7 @@ export class SubagentWorker implements Worker {
   private readonly env: NodeJS.ProcessEnv | undefined;
   private auditBaseline: FileContents | undefined;
   private allowDocs = false;
+  private readonly ledger = new UsageLedger();
 
   constructor(options: WorkerOptions) {
     this.root = options.root;
@@ -399,7 +409,12 @@ export class SubagentWorker implements Worker {
     this.auditBaseline ??= snapshotFileContents(this.root, input.files);
     const before = snapshotWorkspace(this.root, input.files);
     const diff = await workingTreeDiff(this.root, input.files);
-    const run = await this.runOpenCode(FIXER_AGENT, buildFixMessage(input, diff), input.runId);
+    const { result: run } = await this.runOpenCode(
+      FIXER_AGENT,
+      buildFixMessage(input, diff),
+      subagentSessionId(input.runId),
+      'reparación'
+    );
     const after = snapshotWorkspace(this.root, input.files);
     const changes = diffSnapshots(before, after, 'El subagente');
     const risks = this.collectRisks(input.files, changes);
@@ -412,11 +427,20 @@ export class SubagentWorker implements Worker {
       role === 'reviewer'
         ? buildConsultMessage(role, input, await workingTreeDiff(this.root, input.files))
         : buildConsultMessage(role, input, undefined, await workingTreeStat(this.root, input.files));
-    const run = await this.runOpenCode(SPECIALIST_AGENTS[role], message, input.runId, 'text');
+    const { result: run, text } = await this.runOpenCode(
+      SPECIALIST_AGENTS[role],
+      message,
+      subagentSessionId(input.runId, role),
+      role === 'reviewer' ? 'revisión' : 'especialistas'
+    );
     return {
       role,
-      summary: run.code === 0 ? capBrief(run.stdout) : commandDetail(run)
+      summary: run.code === 0 ? capBrief(text) : commandDetail(run)
     };
+  }
+
+  usage(): RunUsage | undefined {
+    return this.ledger.snapshot();
   }
 
   private collectRisks(files: string[], changes: FileChange[]): Risk[] {
@@ -443,7 +467,12 @@ export class SubagentWorker implements Worker {
     runId: string
   ): Promise<WorkResult> {
     const before = snapshotWorkspace(this.root, files);
-    const run = await this.runOpenCode(agent, message, runId);
+    const { result: run } = await this.runOpenCode(
+      agent,
+      message,
+      subagentSessionId(runId),
+      'implementación'
+    );
     const after = snapshotWorkspace(this.root, files);
     const changes = diffSnapshots(before, after, 'El subagente');
     const risks = this.collectRisks(files, changes);
@@ -463,11 +492,10 @@ export class SubagentWorker implements Worker {
   private async runOpenCode(
     agent: string,
     message: string,
-    runId: string,
-    format: 'json' | 'text' = 'json'
-  ): Promise<CommandResult> {
+    session: string,
+    phase: UsagePhase
+  ): Promise<{ result: CommandResult; text: string }> {
     const model = this.config.models.subagents.modelName.trim();
-    const session = subagentSessionId(runId);
     const result = await runCommand(
       'opencode',
       [
@@ -475,12 +503,13 @@ export class SubagentWorker implements Worker {
         '--agent',
         agent,
         '--auto',
-        ...(format === 'json' ? ['--format', 'json'] : []),
+        '--format',
+        'json',
         ...(model.length > 0 ? ['--model', model] : []),
         '--session',
         session,
         '--title',
-        `alvaress ${runId}`,
+        `alvaress ${session}`,
         message
       ],
       {
@@ -494,8 +523,11 @@ export class SubagentWorker implements Worker {
       `opencode run --agent ${agent}${model.length > 0 ? ` --model ${model}` : ''} --session ${session}`,
       result
     );
-    this.log?.line(`prompt: ${message.length} caracteres (~${Math.ceil(message.length / 4)} tokens)`);
-    return result;
+    const output = parseOpencodeOutput(result.stdout);
+    this.ledger.add(phase, output.usage);
+    this.log?.line(`prompt: ${message.length} caracteres`);
+    this.log?.line(`tokens (${phase}): ${formatUsage(output.usage)}`);
+    return { result, text: output.events > 0 ? output.text : result.stdout.trim() };
   }
 }
 

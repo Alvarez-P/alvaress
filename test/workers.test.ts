@@ -11,7 +11,8 @@ import {
   capBrief,
   createWorker,
   docsRequested,
-  fastCheckCommand
+  fastCheckCommand,
+  subagentSessionId
 } from '../src/orchestrator/workers.js';
 import { fakeOpencode, makeTempDir, writeFile } from './helpers.js';
 
@@ -229,7 +230,7 @@ test('SubagentWorker.consult invoca al especialista y devuelve su brief', async 
     assert.equal(brief?.summary, 'brief del researcher');
     const call = fs.readFileSync(log, 'utf-8');
     assert.match(call, /--agent alvaress-researcher/);
-    assert.doesNotMatch(call, /--format json/);
+    assert.match(call, /--format json/);
   } finally {
     temp.cleanup();
   }
@@ -296,4 +297,58 @@ test('docsRequested detecta tareas que piden documentar y relaja la regla del pr
   assert.equal(docsRequested(plan()), false);
   assert.match(buildWorkMessage(documented), /Agrega JSDoc\/docstrings solo donde la petición lo pide/);
   assert.match(buildWorkMessage(plan()), /JSDoc de relleno/);
+});
+
+test('SubagentWorker separa la sesión de cada especialista y suma tokens por fase', async () => {
+  const temp = makeTempDir('alvaress-usage-');
+  try {
+    const bin = path.join(temp.path, 'bin');
+    const log = path.join(temp.path, 'opencode.log');
+    const events = [
+      '{"type":"text","sessionID":"s","part":{"text":"brief en json"}}',
+      '{"type":"step_finish","sessionID":"s","part":{"cost":0.01,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":40,"write":0}}}}'
+    ];
+    fakeOpencode(bin, { log, action: `printf '%s\\n' '${events[0]}' '${events[1]}'` });
+    const worker = createWorker({
+      root: temp.path,
+      config: mergeConfig({}, {}),
+      env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` }
+    });
+    const input: ConsultInput = {
+      runId: 'run-1',
+      request: 'revisa',
+      mode: 'odd',
+      complexity: 'medium',
+      source: 'nota',
+      acceptance: [],
+      files: ['src/helper.ts'],
+      validation: [],
+      briefs: [],
+      changes: []
+    };
+
+    const brief = await worker.consult?.('architect', input);
+    await worker.consult?.('reviewer', input);
+    await worker.work({ ...plan(), runId: 'run-1' });
+
+    assert.equal(brief?.summary, 'brief en json');
+    const sessions = fs
+      .readFileSync(log, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((line) => /--session (\S+)/.exec(line)?.[1]);
+    assert.deepEqual(sessions, [
+      subagentSessionId('run-1', 'architect'),
+      subagentSessionId('run-1', 'reviewer'),
+      subagentSessionId('run-1')
+    ]);
+    const usage = worker.usage?.();
+    assert.equal(usage?.phases.especialistas?.input, 100);
+    assert.equal(usage?.phases['revisión']?.calls, 1);
+    assert.equal(usage?.phases['implementación']?.output, 20);
+    assert.equal(usage?.total.input, 300);
+    assert.equal(usage?.total.cacheRead, 120);
+  } finally {
+    temp.cleanup();
+  }
 });

@@ -285,6 +285,13 @@ cancelada.
 | `alvaress models set --all <provider/model>` | Cambia orquestador y subagentes, y reinstala el frontmatter. |
 | `alvaress models set --orchestrator <m> --subagents <m>` | Cambia roles concretos; `--no-install` solo guarda la configuración. |
 | `alvaress models configure` | Flujo interactivo para elegir un modelo o uno por rol (orquestador y subagentes). |
+
+**Qué modelo usar.** El orquestador conversa contigo, cierra el alcance y resuelve
+los HALT: gasta pocos tokens, así que conviene el modelo más capaz (familia Opus,
+GPT-5 o equivalente). Los subagentes hacen el volumen de llamadas con alcance
+cerrado y validación externa: conviene un modelo rápido y barato con tool-calling
+fiable (familia Haiku, GPT-5 mini, Gemini Flash, DeepSeek o Qwen Coder), sin
+razonamiento extendido. `alvaress doctor` sugiere separarlos si comparten modelo.
 | `alvaress obsidian status` | Muestra la bóveda, la nota y los enlaces. |
 | `alvaress obsidian sync` | Crea o repara `Harness/`, la nota y los enlaces. |
 | `alvaress obsidian note` | Añade una entrada de cierre; exige `--summary` o `--from-run`. |

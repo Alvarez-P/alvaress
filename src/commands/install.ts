@@ -888,23 +888,35 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
   };
 }
 
+export const MODEL_RECOMMENDATION = [
+  'Orquestador: el modelo más capaz que tengas (familia Opus, GPT-5 o equivalente).',
+  '  Conversa contigo, cierra el alcance y resuelve los HALT; gasta pocos tokens,',
+  '  así que aquí la calidad rinde más que el precio.',
+  'Subagentes: un modelo rápido y barato con tool-calling fiable (familia Haiku,',
+  '  GPT-5 mini, Gemini Flash, DeepSeek o Qwen Coder). Implementan con alcance',
+  '  cerrado, contexto en el mensaje y validación del orquestador.',
+  'Evita razonamiento extendido en subagentes: encarece cada llamada sin mejorar',
+  '  ediciones acotadas. Un solo modelo para todo solo conviene si es barato o local.'
+].join('\n');
+
 export async function promptModels(base: HarnessConfig): Promise<HarnessConfig> {
+  p.note(MODEL_RECOMMENDATION, 'Recomendación de modelos');
   const mode = unwrap(
     await p.select<'single' | 'per-role'>({
       message: '¿Cómo quieres configurar los modelos?',
       options: [
         {
+          value: 'per-role',
+          label: 'Un modelo por rol (recomendado)',
+          hint: 'orquestador capaz y subagentes rápidos'
+        },
+        {
           value: 'single',
           label: 'Un solo modelo para orquestador y subagentes',
           hint: 'mismo modelo para ambos roles'
-        },
-        {
-          value: 'per-role',
-          label: 'Un modelo por rol',
-          hint: 'orquestador y subagentes por separado'
         }
       ],
-      initialValue: 'single'
+      initialValue: 'per-role'
     })
   );
 

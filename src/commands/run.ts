@@ -436,6 +436,7 @@ export async function runHarnessCommand(
               }
             }
           : {}),
+        ...(worker?.usage?.() !== undefined ? { usage: worker.usage() } : {}),
         logPath: result.logPath
       });
     } catch (error) {
@@ -846,6 +847,7 @@ export async function runHarnessCommand(
     });
 
     const result = await core.run(request);
+    log.usage(worker?.usage?.());
     log.finish(result);
     persistReport(result);
     printFinalReport(finalReportFromRun(result, reportTasks(result, exploration)), { stream: stdout });

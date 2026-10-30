@@ -8,6 +8,7 @@ import type {
   HarnessState,
   Risk,
   RunMode,
+  RunUsage,
   ValidationResult
 } from '../core/contracts.js';
 import { errorMessage } from '../utils/errors.js';
@@ -58,6 +59,7 @@ export interface HarnessRunReport {
   validation?: ValidationResult;
   commit?: CommitResult;
   halt?: { code: HaltCode; message: string; detail?: string };
+  usage?: RunUsage;
   logPath: string;
 }
 

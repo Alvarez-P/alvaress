@@ -391,6 +391,10 @@ test('SubagentWorker invoca opencode con el subagente y detecta el diff', async 
   const args = fs.readFileSync(log, 'utf-8');
   assert.match(args, /run --agent alvaress-implementer-lite --auto/);
   assert.equal(fs.readFileSync(path.join(fixture.root, 'src', 'a.ts'), 'utf-8'), 'export const a = 5;\n');
+  const report = readAnyReport(fixture.root, 'latest');
+  assert.ok(report !== undefined && report.command === 'run');
+  assert.equal(report.usage?.phases['implementación']?.calls, 1);
+  assert.match(fs.readFileSync(path.join(fixture.root, '.laya', 'last_run.log'), 'utf-8'), /## consumo de tokens/);
 });
 
 test('SubagentWorker pasa el modelo y reutiliza la sesión del run', async () => {

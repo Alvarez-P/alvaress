@@ -260,10 +260,28 @@ export interface DecisionEngine {
   close?(): Promise<void>;
 }
 
+export type UsagePhase = 'especialistas' | 'implementación' | 'revisión' | 'reparación';
+
+export interface TokenUsage {
+  calls: number;
+  input: number;
+  output: number;
+  reasoning: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+}
+
+export interface RunUsage {
+  phases: Partial<Record<UsagePhase, TokenUsage>>;
+  total: TokenUsage;
+}
+
 export interface Worker {
   work(plan: WorkPlan): Promise<WorkResult>;
   fix(input: FixInput): Promise<FixResult>;
   consult?(role: SpecialistRole, input: ConsultInput): Promise<SpecialistBrief>;
+  usage?(): RunUsage | undefined;
   close?(): Promise<void>;
 }
 

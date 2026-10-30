@@ -55,6 +55,12 @@ function missingBundleFiles(dir: string): string[] {
   return problems;
 }
 
+function sharesOrchestratorModel(config: HarnessConfig): boolean {
+  const orchestrator = config.models.orchestrator.modelName.trim();
+  const subagents = config.models.subagents.modelName.trim();
+  return orchestrator.length > 0 && (subagents.length === 0 || subagents === orchestrator);
+}
+
 function check(
   name: string,
   status: DoctorStatus,
@@ -117,7 +123,11 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
             'models',
             'ok',
             `Orquestador: ${modelLabel(config.models.orchestrator.modelName, 'hereda')} · ` +
-              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')}`
+              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')}` +
+              (sharesOrchestratorModel(config)
+                ? ' · Sugerencia: usa un modelo más rápido y barato para los subagentes ' +
+                  '("alvaress models set --subagents <provider/model>").'
+                : '')
           )
         : check(
             'models',
