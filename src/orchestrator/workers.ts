@@ -18,7 +18,14 @@ import type {
 } from '../core/contracts.js';
 import { heuristicVerdict } from '../decision/heuristics.js';
 import { runCommand } from '../utils/process.js';
-import type { CommandResult } from '../utils/process.js';
+import type { CommandResult, RunOptions } from '../utils/process.js';
+import {
+  claudeArgs,
+  claudeModel,
+  claudeSessionUuid,
+  parseClaudeOutput,
+  subagentDefinition
+} from './claude-backend.js';
 import { auditWorkspace, snapshotFileContents } from './audit.js';
 import type { FileContents } from './audit.js';
 import { diffSnapshots, scopeRisks, snapshotWorkspace } from './diff.js';
@@ -26,6 +33,7 @@ import { workingTreeDiff, workingTreeStat } from './git-diff.js';
 import { changedFiles } from './scope.js';
 import type { RunLog } from './run-log.js';
 import { UsageLedger, formatUsage, parseOpencodeOutput } from './usage.js';
+import type { OpencodeOutput } from './usage.js';
 
 const MAX_INLINE_FILE_BYTES = 8_000;
 const MAX_INLINE_TOTAL_BYTES = 16_000;
@@ -368,6 +376,7 @@ export class SubagentWorker implements Worker {
   private auditBaseline: FileContents | undefined;
   private allowDocs = false;
   private readonly ledger = new UsageLedger();
+  private readonly claudeSessions = new Set<string>();
 
   constructor(options: WorkerOptions) {
     this.root = options.root;
@@ -401,7 +410,8 @@ export class SubagentWorker implements Worker {
       }),
       plan.files,
       'subagente',
-      plan.runId
+      plan.runId,
+      selfCheck !== undefined ? [selfCheck] : []
     );
   }
 
@@ -409,11 +419,13 @@ export class SubagentWorker implements Worker {
     this.auditBaseline ??= snapshotFileContents(this.root, input.files);
     const before = snapshotWorkspace(this.root, input.files);
     const diff = await workingTreeDiff(this.root, input.files);
-    const { result: run } = await this.runOpenCode(
+    const failed = input.failure.commands.find((command) => command.code !== 0)?.command;
+    const { result: run } = await this.runSubagent(
       FIXER_AGENT,
       buildFixMessage(input, diff),
       subagentSessionId(input.runId),
-      'reparación'
+      'reparación',
+      failed !== undefined ? [failed] : []
     );
     const after = snapshotWorkspace(this.root, input.files);
     const changes = diffSnapshots(before, after, 'El subagente');
@@ -427,7 +439,7 @@ export class SubagentWorker implements Worker {
       role === 'reviewer'
         ? buildConsultMessage(role, input, await workingTreeDiff(this.root, input.files))
         : buildConsultMessage(role, input, undefined, await workingTreeStat(this.root, input.files));
-    const { result: run, text } = await this.runOpenCode(
+    const { result: run, text } = await this.runSubagent(
       SPECIALIST_AGENTS[role],
       message,
       subagentSessionId(input.runId, role),
@@ -464,14 +476,16 @@ export class SubagentWorker implements Worker {
     message: string,
     files: string[],
     label: string,
-    runId: string
+    runId: string,
+    extraCommands: string[] = []
   ): Promise<WorkResult> {
     const before = snapshotWorkspace(this.root, files);
-    const { result: run } = await this.runOpenCode(
+    const { result: run } = await this.runSubagent(
       agent,
       message,
       subagentSessionId(runId),
-      'implementación'
+      'implementación',
+      extraCommands
     );
     const after = snapshotWorkspace(this.root, files);
     const changes = diffSnapshots(before, after, 'El subagente');
@@ -489,12 +503,43 @@ export class SubagentWorker implements Worker {
     return { status: 'done', changes, risks };
   }
 
-  private async runOpenCode(
+  private async runSubagent(
     agent: string,
     message: string,
     session: string,
-    phase: UsagePhase
+    phase: UsagePhase,
+    extraCommands: string[] = []
   ): Promise<{ result: CommandResult; text: string }> {
+    const backend = this.config.worker?.backend ?? 'opencode';
+    const { result, output } =
+      backend === 'claude'
+        ? await this.runClaude(agent, message, session, extraCommands)
+        : await this.runOpenCode(agent, message, session);
+    this.ledger.add(phase, output.usage);
+    this.log?.line(`prompt: ${message.length} caracteres`);
+    this.log?.line(`tokens (${phase}): ${formatUsage(output.usage)}`);
+    const spawnError = result.error !== undefined && result.error.length > 0 ? result.error : undefined;
+    const error = spawnError ?? output.error;
+    return {
+      result: error !== undefined ? { ...result, error } : result,
+      text: output.events > 0 ? output.text : result.stdout.trim()
+    };
+  }
+
+  private commandOptions(): RunOptions {
+    return {
+      cwd: this.root,
+      env: this.env ?? process.env,
+      timeout: this.config.worker?.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
+      maxBuffer: 4 * 1024 * 1024
+    };
+  }
+
+  private async runOpenCode(
+    agent: string,
+    message: string,
+    session: string
+  ): Promise<{ result: CommandResult; output: OpencodeOutput }> {
     const model = this.config.models.subagents.modelName.trim();
     const result = await runCommand(
       'opencode',
@@ -512,27 +557,40 @@ export class SubagentWorker implements Worker {
         `alvaress ${session}`,
         message
       ],
-      {
-        cwd: this.root,
-        env: this.env ?? process.env,
-        timeout: this.config.worker?.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
-        maxBuffer: 4 * 1024 * 1024
-      }
+      this.commandOptions()
     );
     this.log?.command(
       `opencode run --agent ${agent}${model.length > 0 ? ` --model ${model}` : ''} --session ${session}`,
       result
     );
-    const output = parseOpencodeOutput(result.stdout);
-    this.ledger.add(phase, output.usage);
-    this.log?.line(`prompt: ${message.length} caracteres`);
-    this.log?.line(`tokens (${phase}): ${formatUsage(output.usage)}`);
-    const spawnError = result.error !== undefined && result.error.length > 0 ? result.error : undefined;
-    const error = spawnError ?? output.error;
-    return {
-      result: error !== undefined ? { ...result, error } : result,
-      text: output.events > 0 ? output.text : result.stdout.trim()
-    };
+    return { result, output: parseOpencodeOutput(result.stdout) };
+  }
+
+  private async runClaude(
+    agent: string,
+    message: string,
+    session: string,
+    extraCommands: string[]
+  ): Promise<{ result: CommandResult; output: OpencodeOutput }> {
+    const { model, fallback } = claudeModel(this.config.models.subagents.modelName);
+    if (fallback) {
+      this.log?.line(
+        `modelo: ${this.config.models.subagents.modelName} no es de Anthropic; el backend claude usa ${model}`
+      );
+    }
+    const sessionUuid = claudeSessionUuid(session);
+    const resume = this.claudeSessions.has(sessionUuid);
+    this.claudeSessions.add(sessionUuid);
+    const result = await runCommand(
+      'claude',
+      claudeArgs(subagentDefinition(agent), message, { model, sessionUuid, resume, extraCommands }),
+      this.commandOptions()
+    );
+    this.log?.command(
+      `claude -p (${agent}) --model ${model} ${resume ? '--resume' : '--session-id'} ${sessionUuid}`,
+      result
+    );
+    return { result, output: parseClaudeOutput(result.stdout) };
   }
 }
 

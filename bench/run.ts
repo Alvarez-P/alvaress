@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { WorkerBackend } from '../src/config/loader.js';
 import type { SpecialistRole } from '../src/core/contracts.js';
 import { flagEnabled, parseArgs } from '../src/utils/args.js';
-import { listFixtures, preflight, runFixture, summarize } from './runner.js';
+import { listFixtures, preflight, runDirect, runFixture, summarize } from './runner.js';
 import type { BenchResult } from './runner.js';
 
 const HELP = `pnpm bench [opciones]
@@ -14,6 +15,9 @@ Opciones:
   --fixture a,b       Fixtures a ejecutar (por defecto, todos).
   --repeat N          Repeticiones por fixture (por defecto, 1).
   --model p/m         Modelo de los subagentes (por defecto, el configurado).
+  --backend b         opencode (por defecto) o claude (claude -p con tu plan o API key).
+  --direct            Línea base sin alvaress: Claude Code solo resuelve la tarea
+                      (--model por defecto: opus).
   --roles r1,r2       Especialistas: researcher, architect, designer, tester, reviewer.
   --self-check        Activa el autochequeo del implementer.
   --keep              Conserva el directorio de trabajo de cada corrida.
@@ -46,7 +50,12 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const problems = preflight();
+  const direct = flagEnabled(flags, 'direct');
+  const backend: WorkerBackend = direct || flags.backend === 'claude' ? 'claude' : 'opencode';
+  if (typeof flags.backend === 'string' && !['opencode', 'claude'].includes(flags.backend)) {
+    throw new Error('--backend debe ser opencode o claude.');
+  }
+  const problems = preflight(backend);
   if (problems.length > 0) {
     for (const problem of problems) {
       console.error(`✖ ${problem}`);
@@ -68,6 +77,7 @@ async function main(): Promise<number> {
     roles: parseRoles(flags.roles),
     selfCheck: flagEnabled(flags, 'self-check'),
     keep: flagEnabled(flags, 'keep'),
+    backend,
     ...(typeof flags.model === 'string' ? { model: flags.model } : {})
   };
 
@@ -75,7 +85,7 @@ async function main(): Promise<number> {
   for (const fixture of fixtures) {
     for (let index = 1; index <= repeat; index += 1) {
       process.stdout.write(`▸ ${fixture} (${index}/${repeat})… `);
-      const result = await runFixture(fixture, options);
+      const result = direct ? await runDirect(fixture, options) : await runFixture(fixture, options);
       results.push(result);
       const tokens = result.usage?.total;
       console.log(
@@ -91,7 +101,7 @@ async function main(): Promise<number> {
       ? flags.out
       : path.join('bench', 'results', `${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, `${JSON.stringify({ options, results }, null, 2)}\n`, 'utf-8');
+  fs.writeFileSync(out, `${JSON.stringify({ options: { ...options, direct }, results }, null, 2)}\n`, 'utf-8');
   console.log(`\nResultados: ${out}`);
   return results.every((result) => result.state === 'Ready') ? 0 : 1;
 }

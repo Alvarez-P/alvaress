@@ -204,3 +204,9 @@ test('displayConfig conserva los modelos sin credenciales', () => {
   assert.equal(displayed.models.subagents.modelName, 'openai/subagents');
   assert.equal(displayed.obsidianVaultPath, '/vault');
 });
+
+test('worker.backend acepta opencode o claude y se conserva al guardar', () => {
+  assert.equal(mergeConfig({}, {}).worker?.backend, 'opencode');
+  assert.equal(mergeConfig({ worker: { backend: 'claude' } }, {}).worker?.backend, 'claude');
+  assert.throws(() => validateConfigFile({ worker: { backend: 'aider' } }, 'test'), ConfigError);
+});

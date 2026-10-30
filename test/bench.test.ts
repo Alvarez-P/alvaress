@@ -43,7 +43,7 @@ test('runFixture recorre el HarnessCore real y mide los tokens del subagente', a
     assert.equal(result.fixes, 0);
     assert.equal(result.auditFindings, 0);
     assert.equal(result.usage?.phases['implementación']?.input, 1000);
-    assert.match(summarize([result]), /\| fix-overlap \| 1\/1 \| 1 \| 1000 \| 50 \| 200 \| 0\.0 \|/);
+    assert.match(summarize([result]), /\| fix-overlap \| 1\/1 \| 1 \| 1000 \| 50 \| 200 \| \$0\.0000 \| 0\.0 \|/);
   } finally {
     temp.cleanup();
   }
