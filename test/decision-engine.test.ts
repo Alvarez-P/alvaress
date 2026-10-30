@@ -440,10 +440,12 @@ test('heuristicFlow no paga especialistas para un cambio trivial', async () => {
   assert.equal(plan.source, 'heuristic');
 });
 
-test('heuristicFlow pide arquitecto y reviewer solo en cambios medianos', async () => {
-  const plan = await new HeuristicDecisionEngine().planFlow(flowInput());
+test('heuristicFlow pide arquitecto y reviewer solo en cambios ODD grandes', async () => {
+  const medium = await new HeuristicDecisionEngine().planFlow(flowInput());
+  const large = await new HeuristicDecisionEngine().planFlow(flowInput({ complexity: 'large' }));
 
-  assert.deepEqual(plan.roles, ['architect', 'reviewer']);
+  assert.deepEqual(medium.roles, []);
+  assert.deepEqual(large.roles, ['architect', 'reviewer']);
 });
 
 test('heuristicFlow suma especialistas de dominio sin reordenarlos', async () => {
@@ -506,7 +508,7 @@ test('LayaDecisionEngine cae a la heurística si la confianza del flujo es baja'
     architect: { type: 'noul', noul: 1, answer_confidence: 0.4 },
     reviewer: { type: 'noul', noul: 1, answer_confidence: 0.9 }
   });
-  const plan = await new LayaDecisionEngine(agent).planFlow(flowInput());
+  const plan = await new LayaDecisionEngine(agent).planFlow(flowInput({ complexity: 'large' }));
 
   assert.equal(plan.source, 'heuristic');
   assert.deepEqual(plan.roles, ['architect', 'reviewer']);
@@ -518,4 +520,15 @@ test('heuristicFlow trata un SDD pequeño como flujo formal', async () => {
   );
 
   assert.deepEqual(plan.roles, ['architect', 'tester', 'reviewer']);
+});
+
+test('LayaDecisionEngine no paga arquitecto ni reviewer en un ODD mediano', async () => {
+  const agent = fakeAgent({
+    architect: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    tester: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    reviewer: { type: 'noul', noul: 0.9, answer_confidence: 0.9 }
+  });
+  const plan = await new LayaDecisionEngine(agent).planFlow(flowInput());
+
+  assert.deepEqual(plan.roles, ['tester']);
 });

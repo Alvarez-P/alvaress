@@ -150,13 +150,14 @@ export function orderSpecialists(roles: Iterable<SpecialistRole>): SpecialistRol
 }
 
 /**
- * Flujo proporcional al cambio. Los cambios triviales o pequeños no pagan el
- * coste de un arquitecto ni de un revisor; los especialistas solo entran cuando
- * la petición menciona su dominio.
+ * Flujo proporcional al cambio. En ODD, arquitecto y revisor solo entran en
+ * cambios grandes: en el benchmark multiplicaban por 3,6-5,4 el costo de un
+ * cambio mediano sin cambiar el resultado. Los especialistas de dominio entran
+ * cuando la petición los menciona; SDD conserva el flujo formal completo.
  */
 export function heuristicFlow(input: FlowInput): FlowPlan {
   const formal = input.mode === 'sdd';
-  const lightweight = !formal && (input.complexity === 'trivial' || input.complexity === 'small');
+  const lightweight = !formal && input.complexity !== 'large';
   if (!formal && input.complexity === 'trivial') {
     return {
       roles: [],

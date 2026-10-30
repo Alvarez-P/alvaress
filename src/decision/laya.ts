@@ -223,8 +223,8 @@ function describeFlow(input: FlowInput): string {
 
 /**
  * Laya elige especialistas, no alcance. El orquestador impone la regla de
- * proporcionalidad: un cambio trivial o pequeño no paga arquitecto, y un
- * trivial tampoco paga revisor.
+ * proporcionalidad: en ODD, un cambio trivial no paga especialistas y uno
+ * pequeño o mediano no paga arquitecto ni revisor.
  */
 function enforceProportionality(
   roles: SpecialistRole[],
@@ -237,8 +237,8 @@ function enforceProportionality(
   if (complexity === 'trivial') {
     return [];
   }
-  if (complexity === 'small') {
-    return orderSpecialists(roles.filter((role) => role !== 'architect'));
+  if (complexity === 'small' || complexity === 'medium') {
+    return orderSpecialists(roles.filter((role) => role !== 'architect' && role !== 'reviewer'));
   }
   return orderSpecialists(roles);
 }
