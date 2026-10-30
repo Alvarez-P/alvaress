@@ -17,8 +17,11 @@ import type {
 import { heuristicVerdict } from '../decision/heuristics.js';
 import { runCommand } from '../utils/process.js';
 import type { CommandResult } from '../utils/process.js';
+import { auditWorkspace, snapshotFileContents } from './audit.js';
+import type { FileContents } from './audit.js';
 import { diffSnapshots, scopeRisks, snapshotWorkspace } from './diff.js';
-import { workingTreeDiff } from './git-diff.js';
+import { workingTreeDiff, workingTreeStat } from './git-diff.js';
+import { changedFiles } from './scope.js';
 import type { RunLog } from './run-log.js';
 
 const MAX_INLINE_FILE_BYTES = 8_000;
@@ -26,6 +29,18 @@ const MAX_INLINE_TOTAL_BYTES = 16_000;
 const IMPLEMENTER_AGENT = 'alvaress-implementer';
 const IMPLEMENTER_LITE_AGENT = 'alvaress-implementer-lite';
 const FIXER_AGENT = 'alvaress-fixer';
+const MAX_BRIEF_CHARS = 3_000;
+const DOCS_REQUEST = /\b(?:jsdoc|tsdoc|docstrings?|document[ae]\w*)\b/i;
+const FAST_CHECK_PATTERN = /\b(?:vp\s+check|tsc|oxlint|eslint)\b/i;
+
+export function fastCheckCommand(commands: readonly string[]): string | undefined {
+  return commands.find((command) => FAST_CHECK_PATTERN.test(command));
+}
+
+/** La petición pide documentar el código: los bloques JSDoc dejan de bloquear. */
+export function docsRequested(plan: Pick<WorkPlan, 'request' | 'acceptance'>): boolean {
+  return [plan.request, ...plan.acceptance].some((text) => DOCS_REQUEST.test(text));
+}
 
 const SPECIALIST_AGENTS: Record<SpecialistRole, string> = {
   researcher: 'alvaress-researcher',
@@ -69,6 +84,8 @@ export interface WorkMessageOptions {
   root?: string;
   inlineContext?: boolean;
   diff?: string;
+  stat?: string;
+  selfCheck?: string;
 }
 
 /**
@@ -145,6 +162,13 @@ export function buildWorkMessage(plan: WorkPlan, options: WorkMessageOptions = {
           ''
         ]
       : []),
+    ...(options.selfCheck !== undefined
+      ? [
+          'Autochequeo permitido (una sola vez, antes de terminar):',
+          `- \`${options.selfCheck}\``,
+          ''
+        ]
+      : []),
     'Validación final (la ejecuta el orquestador; no la ejecutes tú):',
     list(plan.validation),
     '',
@@ -160,6 +184,15 @@ export function buildWorkMessage(plan: WorkPlan, options: WorkMessageOptions = {
           ''
         ]
       : []),
+    ...(options.stat !== undefined && options.stat.trim().length > 0
+      ? [
+          'Cambios actuales del árbol de trabajo (git diff --stat, incluye archivos nuevos; usa `git diff -- <archivo>` solo si necesitas el detalle):',
+          '```',
+          options.stat.trimEnd(),
+          '```',
+          ''
+        ]
+      : []),
     'Aprendizajes relevantes:',
     list(plan.learnings.map((learning) => `${learning.id}: ${learning.title}`)),
     '',
@@ -167,9 +200,15 @@ export function buildWorkMessage(plan: WorkPlan, options: WorkMessageOptions = {
     '- No toques archivos fuera del alcance permitido.',
     '- No ejecutes git commit ni git push.',
     '- No escribas en la bóveda Obsidian.',
-    '- No ejecutes la validación ni comandos de test; el orquestador la ejecutará al terminar.',
+    ...(options.selfCheck !== undefined
+      ? [
+          '- Puedes ejecutar solo el autochequeo indicado, una vez. No ejecutes tests ni repitas el comando.'
+        ]
+      : ['- No ejecutes la validación ni comandos de test; el orquestador la ejecutará al terminar.']),
     '- Si una herramienta o comando te devuelve un error de permisos, no lo reintentes: usa otra vía o devuelve el bloqueo.',
-    '- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.',
+    docsRequested(plan)
+      ? '- Agrega JSDoc/docstrings solo donde la petición lo pide. Ningún otro comentario: cero explicaciones, separadores o TODO/FIXME. Conserva los comentarios existentes.'
+      : '- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.',
     '- Devuelve un resumen breve de los archivos modificados.'
   ].join('\n');
 }
@@ -214,7 +253,12 @@ export function buildFixMessage(input: FixInput, diff?: string): string {
   ].join('\n');
 }
 
-export function buildConsultMessage(role: SpecialistRole, input: ConsultInput, diff?: string): string {
+export function buildConsultMessage(
+  role: SpecialistRole,
+  input: ConsultInput,
+  diff?: string,
+  stat?: string
+): string {
   const changes = input.changes
     .map((change) => `${change.kind ?? 'modified'} ${change.path}: ${change.change}`)
     .join('\n');
@@ -243,6 +287,9 @@ export function buildConsultMessage(role: SpecialistRole, input: ConsultInput, d
     ...(diff !== undefined && diff.trim().length > 0
       ? ['Diff del árbol de trabajo (solo lectura):', '```diff', diff.trim(), '```', '']
       : []),
+    ...(stat !== undefined && stat.trim().length > 0
+      ? ['Cambios del árbol de trabajo (git diff --stat, solo lectura):', '```', stat.trimEnd(), '```', '']
+      : []),
     ...(input.briefs.length > 0
       ? [
           'Briefs anteriores (no los repitas, intégralos):',
@@ -258,6 +305,14 @@ export function buildConsultMessage(role: SpecialistRole, input: ConsultInput, d
     '- No ejecutes la validación; la ejecuta el orquestador.',
     '- Responde en texto breve y accionable; no repitas el contexto.'
   ].join('\n');
+}
+
+export function capBrief(summary: string, maxChars = MAX_BRIEF_CHARS): string {
+  const trimmed = summary.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, maxChars).trimEnd()}\n[brief recortado: ${trimmed.length - maxChars} caracteres]`;
 }
 
 function commandDetail(result: CommandResult): string {
@@ -301,6 +356,8 @@ export class SubagentWorker implements Worker {
   private readonly config: HarnessConfig;
   private readonly log: RunLog | undefined;
   private readonly env: NodeJS.ProcessEnv | undefined;
+  private auditBaseline: FileContents | undefined;
+  private allowDocs = false;
 
   constructor(options: WorkerOptions) {
     this.root = options.root;
@@ -310,10 +367,28 @@ export class SubagentWorker implements Worker {
   }
 
   async work(plan: WorkPlan): Promise<WorkResult> {
-    const diff = await workingTreeDiff(this.root, plan.files);
+    this.auditBaseline = snapshotFileContents(this.root, [
+      ...plan.files,
+      ...(changedFiles(this.root) ?? [])
+    ]);
+    this.allowDocs = docsRequested(plan);
+    const stat = await workingTreeStat(this.root, plan.files);
+    const agent = implementerAgent(plan.complexity);
+    const selfCheck =
+      this.config.worker?.selfCheck === true && agent === IMPLEMENTER_AGENT
+        ? fastCheckCommand(plan.validation)
+        : undefined;
+    if (selfCheck !== undefined) {
+      this.log?.line(`autochequeo: ${selfCheck}`);
+    }
     return this.invoke(
-      implementerAgent(plan.complexity),
-      buildWorkMessage(plan, { root: this.root, inlineContext: true, diff }),
+      agent,
+      buildWorkMessage(plan, {
+        root: this.root,
+        inlineContext: true,
+        ...(stat !== undefined ? { stat } : {}),
+        ...(selfCheck !== undefined ? { selfCheck } : {})
+      }),
       plan.files,
       'subagente',
       plan.runId
@@ -321,28 +396,43 @@ export class SubagentWorker implements Worker {
   }
 
   async fix(input: FixInput): Promise<FixResult> {
+    this.auditBaseline ??= snapshotFileContents(this.root, input.files);
     const before = snapshotWorkspace(this.root, input.files);
     const diff = await workingTreeDiff(this.root, input.files);
     const run = await this.runOpenCode(FIXER_AGENT, buildFixMessage(input, diff), input.runId);
     const after = snapshotWorkspace(this.root, input.files);
     const changes = diffSnapshots(before, after, 'El subagente');
-    const risks = scopeRisks(input.files, changes, this.config.scope ?? 'warn');
+    const risks = this.collectRisks(input.files, changes);
     const verdict = fixVerdict(run, input, changes);
     return { ...verdict, changes, risks };
   }
 
   async consult(role: SpecialistRole, input: ConsultInput): Promise<SpecialistBrief> {
-    const diff = await workingTreeDiff(this.root, input.files);
-    const run = await this.runOpenCode(
-      SPECIALIST_AGENTS[role],
-      buildConsultMessage(role, input, diff),
-      input.runId,
-      'text'
-    );
+    const message =
+      role === 'reviewer'
+        ? buildConsultMessage(role, input, await workingTreeDiff(this.root, input.files))
+        : buildConsultMessage(role, input, undefined, await workingTreeStat(this.root, input.files));
+    const run = await this.runOpenCode(SPECIALIST_AGENTS[role], message, input.runId, 'text');
     return {
       role,
-      summary: run.code === 0 ? run.stdout.trim() : commandDetail(run)
+      summary: run.code === 0 ? capBrief(run.stdout) : commandDetail(run)
     };
+  }
+
+  private collectRisks(files: string[], changes: FileChange[]): Risk[] {
+    const scope = scopeRisks(files, changes, this.config.scope ?? 'warn');
+    if (this.auditBaseline === undefined) {
+      return scope;
+    }
+    return [
+      ...scope,
+      ...auditWorkspace(
+        this.root,
+        this.auditBaseline,
+        changes.map((change) => change.path),
+        { allowDocs: this.allowDocs }
+      )
+    ];
   }
 
   private async invoke(
@@ -356,7 +446,7 @@ export class SubagentWorker implements Worker {
     const run = await this.runOpenCode(agent, message, runId);
     const after = snapshotWorkspace(this.root, files);
     const changes = diffSnapshots(before, after, 'El subagente');
-    const risks: Risk[] = scopeRisks(files, changes, this.config.scope ?? 'warn');
+    const risks = this.collectRisks(files, changes);
 
     if (run.code !== 0) {
       return {
@@ -404,6 +494,7 @@ export class SubagentWorker implements Worker {
       `opencode run --agent ${agent}${model.length > 0 ? ` --model ${model}` : ''} --session ${session}`,
       result
     );
+    this.log?.line(`prompt: ${message.length} caracteres (~${Math.ceil(message.length / 4)} tokens)`);
     return result;
   }
 }

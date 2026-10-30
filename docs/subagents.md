@@ -68,6 +68,19 @@ antes y después con snapshots SHA-1 y deriva `changes` y `risks` de ese diff. E
 subagente devuelve un resumen corto para el log, pero la fuente de verdad del
 resultado es el diff.
 
+El estado del árbol de trabajo se envía en dos niveles para ahorrar tokens: el
+implementer y los especialistas previos reciben `git diff --stat`; el reviewer y
+el fixer, el diff completo (máx. 8 000 caracteres). Ambos incluyen los archivos
+nuevos sin seguimiento, así que nadie necesita `git status`. Cada brief de
+especialista se recorta a 3 000 caracteres. El log del run anota el tamaño de
+cada prompt para medir el consumo.
+
+Con `--self-check` (o `worker.selfCheck: true`), el `alvaress-implementer` (no la
+variante lite) puede ejecutar una vez el primer comando rápido de la validación
+(`vp check`, `tsc`, `oxlint` o `eslint`) antes de terminar. Está desactivado por
+defecto: ahorra una ronda de reparación cuando hay errores de tipos, a cambio de
+una llamada más dentro del turno. El log registra el comando usado.
+
 ## Flujo de especialistas
 
 Laya participa en dos momentos del run:
@@ -127,6 +140,20 @@ Los subagentes reciben una regla explícita: cero comentarios en el código
 generado (nada de explicaciones, separadores, `TODO`/`FIXME` ni JSDoc de
 relleno); solo conservan los comentarios que ya existían. El orquestador revisa
 el diff y rechaza cualquier comentario nuevo antes de validar y commitear.
+
+Esa revisión es una auditoría determinista (`src/orchestrator/audit.ts`), sin
+tokens: compara las líneas añadidas en archivos de código desde el inicio del
+run. Bloquean (cuentan como fallo de validación y pasan al fixer) los
+comentarios nuevos, `TODO`/`FIXME`, tests con `.skip`/`.only`, archivos de test
+eliminados y cambios en lockfiles. Solo se reportan como riesgo `console.log`,
+tipos `any`, menos casos de prueba y borrados de más de 200 líneas.
+
+No cuentan como comentario las directivas funcionales (`// @ts-expect-error`,
+`/// <reference>`, `eslint-disable`, `# noqa`, `# type:`, shebangs…) ni las
+líneas que empiezan con `*` fuera de un bloque `/* */`. Si la petición o los
+criterios piden documentar (`JSDoc`, `TSDoc`, `docstring`, `documenta…`), el
+prompt permite JSDoc donde se pide y la auditoría no bloquea los bloques `/** */`;
+cualquier otro comentario sigue bloqueando.
 
 ## Skills por subagente
 

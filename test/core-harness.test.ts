@@ -278,6 +278,24 @@ test('HarnessCore repara una vez y termina en Ready', async () => {
   assert.equal(fixture.ready[0]?.validation.ok, true);
 });
 
+test('HarnessCore trata un hallazgo alto de la auditoría como fallo y lo repara', async () => {
+  const blocker = {
+    title: 'La auditoría detectó comentarios nuevos',
+    description: 'Comentarios añadidos: src/a.ts:1 (// helper).',
+    source: 'audit' as const,
+    severity: 'high' as const
+  };
+  const fixture = makeFixture({
+    work: async () => work({ risks: [blocker] }),
+    check: async () => okValidation()
+  });
+  const result = await fixture.core.run({ request: 'agrega un helper' });
+
+  assert.equal(result.state, 'Ready');
+  assert.equal(fixture.fixes, 1);
+  assert.equal(fixture.ready[0]?.validation.ok, true);
+});
+
 test('HarnessCore se detiene tras agotar los dos reintentos de Fixing', async () => {
   const fixture = makeFixture({ check: async () => failedValidation() });
   const result = await fixture.core.run({ request: 'arregla todo' });

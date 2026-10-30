@@ -8,7 +8,10 @@ import {
   buildConsultMessage,
   buildFixMessage,
   buildWorkMessage,
-  createWorker
+  capBrief,
+  createWorker,
+  docsRequested,
+  fastCheckCommand
 } from '../src/orchestrator/workers.js';
 import { fakeOpencode, makeTempDir, writeFile } from './helpers.js';
 
@@ -230,4 +233,67 @@ test('SubagentWorker.consult invoca al especialista y devuelve su brief', async 
   } finally {
     temp.cleanup();
   }
+});
+
+test('buildWorkMessage usa el stat del árbol de trabajo en lugar del diff', () => {
+  const message = buildWorkMessage(plan(), { stat: ' src/helper.ts | 2 +-' });
+
+  assert.match(message, /git diff --stat/);
+  assert.match(message, /src\/helper\.ts \| 2 \+-/);
+  assert.doesNotMatch(message, /```diff/);
+});
+
+test('buildWorkMessage permite un autochequeo único cuando se indica', () => {
+  const message = buildWorkMessage(plan(), { selfCheck: 'pnpm tsc --noEmit' });
+
+  assert.match(message, /Autochequeo permitido/);
+  assert.match(message, /`pnpm tsc --noEmit`/);
+  assert.doesNotMatch(message, /No ejecutes la validación ni comandos de test/);
+});
+
+test('fastCheckCommand elige solo comandos rápidos de tipos o lint', () => {
+  assert.equal(fastCheckCommand(['pnpm test', 'pnpm tsc --noEmit']), 'pnpm tsc --noEmit');
+  assert.equal(fastCheckCommand(['vp check', 'vp test']), 'vp check');
+  assert.equal(fastCheckCommand(['pnpm test']), undefined);
+});
+
+test('capBrief recorta briefs largos y avisa del recorte', () => {
+  assert.equal(capBrief('  corto  ', 10), 'corto');
+  const capped = capBrief('x'.repeat(50), 10);
+  assert.match(capped, /^x{10}\n\[brief recortado: 40 caracteres\]$/);
+});
+
+test('SubagentWorker ofrece el autochequeo solo al implementer completo', async () => {
+  const temp = makeTempDir('alvaress-self-check-');
+  try {
+    const bin = path.join(temp.path, 'bin');
+    const log = path.join(temp.path, 'opencode.log');
+    fakeOpencode(bin, { log });
+    const base = mergeConfig({}, {});
+    const worker = createWorker({
+      root: temp.path,
+      config: { ...base, worker: { ...base.worker, selfCheck: true } },
+      env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` }
+    });
+    const checked: WorkPlan = { ...plan(), validation: ['pnpm tsc --noEmit', 'pnpm test'] };
+
+    await worker.work({ ...checked, complexity: 'medium' });
+    await worker.work({ ...checked, complexity: 'small' });
+
+    const [full, lite] = fs.readFileSync(log, 'utf-8').trim().split('\n');
+    assert.match(full ?? '', /--agent alvaress-implementer .*Autochequeo permitido/);
+    assert.match(lite ?? '', /--agent alvaress-implementer-lite /);
+    assert.doesNotMatch(lite ?? '', /Autochequeo permitido/);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('docsRequested detecta tareas que piden documentar y relaja la regla del prompt', () => {
+  const documented = { ...plan(), request: 'Documenta el helper con JSDoc' };
+
+  assert.equal(docsRequested(documented), true);
+  assert.equal(docsRequested(plan()), false);
+  assert.match(buildWorkMessage(documented), /Agrega JSDoc\/docstrings solo donde la petición lo pide/);
+  assert.match(buildWorkMessage(plan()), /JSDoc de relleno/);
 });

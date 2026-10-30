@@ -51,6 +51,7 @@ export interface HarnessConfig {
   vitePlus?: VitePlusConfig;
   worker?: {
     timeoutMs?: number;
+    selfCheck?: boolean;
   };
   models: {
     orchestrator: ModelSelection;
@@ -85,6 +86,7 @@ export interface HarnessConfigFile {
   };
   worker?: {
     timeoutMs?: number;
+    selfCheck?: boolean;
   };
   models?: {
     orchestrator?: Partial<ModelSelection>;
@@ -208,6 +210,7 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
       throw new ConfigError(`El campo "worker" debe ser un objeto en ${source}.`);
     }
     assertPositiveInteger(value.worker.timeoutMs, 'worker.timeoutMs', source, 1000);
+    assertBoolean(value.worker.selfCheck, 'worker.selfCheck', source);
   }
 
   if (value.models !== undefined) {
@@ -300,7 +303,8 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
       timeoutMs:
         localConfig.worker?.timeoutMs ??
         globalConfig.worker?.timeoutMs ??
-        DEFAULT_WORKER_TIMEOUT_MS
+        DEFAULT_WORKER_TIMEOUT_MS,
+      selfCheck: localConfig.worker?.selfCheck ?? globalConfig.worker?.selfCheck ?? false
     },
     models: {
       orchestrator: {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { workingTreeDiff } from '../src/orchestrator/git-diff.js';
+import { workingTreeDiff, workingTreeStat } from '../src/orchestrator/git-diff.js';
 import { makeTempDir } from './helpers.js';
 
 function git(root: string, args: string[]): void {
@@ -61,6 +61,44 @@ test('workingTreeDiff no devuelve nada fuera de un repositorio git', async () =>
     fs.writeFileSync(path.join(root, 'app.ts'), 'const value = 1;\n');
 
     assert.equal(await workingTreeDiff(root, ['app.ts']), undefined);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('workingTreeDiff incluye archivos nuevos sin seguimiento y omite artefactos', async () => {
+  const temp = makeTempDir('alvaress-git-diff-new-');
+  try {
+    const root = path.join(temp.path, 'repo');
+    initRepo(root);
+    fs.writeFileSync(path.join(root, 'nuevo.ts'), 'export const nuevo = 1;\n');
+    fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'dist', 'out.js'), 'compiled\n');
+    fs.writeFileSync(path.join(root, 'blob.bin'), Buffer.from([0, 1, 2]));
+
+    const diff = await workingTreeDiff(root);
+
+    assert.match(diff ?? '', /\+export const nuevo = 1/);
+    assert.doesNotMatch(diff ?? '', /dist\/out\.js/);
+    assert.doesNotMatch(diff ?? '', /blob\.bin/);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('workingTreeStat resume cambios y archivos nuevos sin el contenido', async () => {
+  const temp = makeTempDir('alvaress-git-diff-stat-');
+  try {
+    const root = path.join(temp.path, 'repo');
+    initRepo(root);
+    fs.writeFileSync(path.join(root, 'app.ts'), 'const value = 2;\n');
+    fs.writeFileSync(path.join(root, 'nuevo.ts'), 'export const nuevo = 1;\n');
+
+    const stat = await workingTreeStat(root);
+
+    assert.match(stat ?? '', /app\.ts \|/);
+    assert.match(stat ?? '', /nuevo\.ts \| nuevo/);
+    assert.doesNotMatch(stat ?? '', /const value = 2/);
   } finally {
     temp.cleanup();
   }

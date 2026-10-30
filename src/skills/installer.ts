@@ -206,7 +206,7 @@ alvaress learn add solution "Validar migraciones en seco" \\
     name: 'git-diff-context',
     description: 'Usa el diff del árbol de trabajo como contexto de solo lectura, sin tocar el historial.',
     scope: 'project',
-    body: `El orquestador te envía el diff del árbol de trabajo frente a HEAD, igual que hace Aider. Es contexto, no una invitación a salir del alcance.
+    body: `El orquestador te envía el estado del árbol de trabajo frente a HEAD, igual que hace Aider: el implementer y los especialistas previos reciben solo \`git diff --stat\`; el reviewer y el fixer, el diff completo. Ambos incluyen los archivos nuevos sin seguimiento. Es contexto, no una invitación a salir del alcance.
 
 ## Para qué sirve
 
@@ -216,10 +216,9 @@ alvaress learn add solution "Validar migraciones en seco" \\
 
 ## Cómo leerlo
 
-1. Si el diff viene truncado, pide solo el archivo: \`git diff -- <ruta>\`.
-2. Para un mapa rápido: \`git diff --stat\`.
-3. Los archivos nuevos sin seguimiento no aparecen en el diff: \`git status --porcelain\` los lista.
-4. Contrasta el diff con la lista de archivos asignados; lo que quede fuera es contexto, no permiso.
+1. Si recibiste solo el \`--stat\` o el diff viene truncado, pide solo el archivo que necesites: \`git diff -- <ruta>\`.
+2. Los archivos nuevos ya vienen incluidos; no ejecutes \`git status\` para buscarlos.
+3. Contrasta el diff con la lista de archivos asignados; lo que quede fuera es contexto, no permiso.
 
 ## Límites
 

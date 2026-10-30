@@ -4,7 +4,7 @@ export type RunMode = 'odd' | 'sdd';
 
 export type ChangeKind = 'created' | 'modified' | 'deleted';
 
-export type RiskSource = 'laya' | 'linter' | 'harness' | 'worker';
+export type RiskSource = 'laya' | 'linter' | 'harness' | 'worker' | 'audit';
 
 export type RiskSeverity = 'low' | 'medium' | 'high';
 

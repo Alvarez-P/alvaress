@@ -96,6 +96,7 @@ Opciones:
   --mode odd|sdd|auto   Fuerza el modo; por defecto decide Laya.
   --dry-run             Explora y muestra el plan sin invocar al worker.
   --no-commit           No hace commit automático al terminar en Ready.
+  --self-check          Permite un autochequeo rápido (tipos/lint) al implementer.
   --no-learn            No registra aprendizajes ni usos en este run.
   --force               Ignora un lock huérfano de otra ejecución.
   -i, --inspect-last-run  Muestra el log completo del último run.
@@ -529,7 +530,14 @@ export async function runHarnessCommand(
       return 0;
     }
 
-    worker = deps.worker ?? createWorker({ root, config, log, ...(deps.env !== undefined ? { env: deps.env } : {}) });
+    worker = deps.worker ?? createWorker({
+      root,
+      config: flagEnabled(flags, 'self-check')
+        ? { ...config, worker: { ...config.worker, selfCheck: true } }
+        : config,
+      log,
+      ...(deps.env !== undefined ? { env: deps.env } : {})
+    });
 
     let exploration: Exploration | undefined;
     let lastFix: { command: string; error: string } | undefined;

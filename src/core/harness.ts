@@ -73,6 +73,27 @@ export function warningsToRisks(warnings: string[]): Risk[] {
   }));
 }
 
+function auditBlockers(risks: Risk[]): Risk[] {
+  return risks.filter((risk) => risk.source === 'audit' && risk.severity === 'high');
+}
+
+function validationWithAudit(validation: ValidationResult, blockers: Risk[]): ValidationResult {
+  if (blockers.length === 0) {
+    return validation;
+  }
+  const findings = blockers
+    .map((risk) => `- ${risk.title}${risk.description !== undefined ? `: ${risk.description}` : ''}`)
+    .join('\n');
+  return {
+    ok: false,
+    commands: [
+      ...validation.commands,
+      { command: 'auditoría de cambios', code: 1, stdout: '', stderr: findings }
+    ],
+    warnings: validation.warnings
+  };
+}
+
 export function createRunId(now: Date = new Date()): string {
   const stamp = now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
   return `run-${stamp}-${Math.random().toString(36).slice(2, 8)}`;
@@ -184,7 +205,7 @@ export class HarnessCore {
       }
 
       this.ui.setState('Checking');
-      validation = await this.handlers.check(work);
+      validation = validationWithAudit(await this.handlers.check(work), auditBlockers(work.risks));
       risks.push(...warningsToRisks(validation.warnings));
 
       const review = await this.requestReview(
@@ -271,7 +292,10 @@ export class HarnessCore {
         }
 
         this.ui.setState('Checking');
-        validation = await this.handlers.check(work);
+        validation = validationWithAudit(
+          await this.handlers.check(work),
+          auditBlockers(fix.risks)
+        );
         risks.push(...warningsToRisks(validation.warnings));
       }
 

@@ -246,7 +246,7 @@ subagente de código, validará y actualizará el estado de la tarea.
 
 | Comando | Qué hace | Opciones principales |
 | --- | --- | --- |
-| `alvaress run "<petición>"` | Ejecuta el arnés de principio a fin: explora, decide, trabaja, valida y cierra. | `--task`, `--files`, `--mode odd\|sdd\|auto`, `--dry-run`, `--no-commit`, `--no-learn`, `--force` |
+| `alvaress run "<petición>"` | Ejecuta el arnés de principio a fin: explora, decide, trabaja, valida y cierra. | `--task`, `--files`, `--mode odd\|sdd\|auto`, `--dry-run`, `--no-commit`, `--self-check`, `--no-learn`, `--force` |
 | `alvaress -i` / `--inspect-last-run` | Muestra el log completo del último run (`.laya/last_run.log`). | — |
 | `alvaress install` | Instala el set fijo (agente, Laya, Graphify, Vite-Plus y validación) y crea la bóveda Markdown. | `--yes`, `-y`, `--with-obsidian` |
 | `alvaress init` | Crea `.harness/`, `openspec.yaml`, skills y agente del proyecto. | `--no-link` |
@@ -387,6 +387,7 @@ no hay credenciales en el archivo porque las maneja OpenCode.
 | `vitePlus.testCommand` | `string` | `"vp test"` | Comando de pruebas. |
 | `vitePlus.fallbackToPackageManager` | `boolean` | `true` | Se acepta por compatibilidad. La resolución actual de comandos ya usa el gestor configurado. |
 | `worker.timeoutMs` | `integer >= 1000` | `600000` | Timeout de cada invocación a un subagente (10 min por defecto). |
+| `worker.selfCheck` | `boolean` | `false` | Permite al `alvaress-implementer` un autochequeo rápido (tipos/lint) antes de terminar. Equivale a `--self-check`. |
 | `models.orchestrator.modelName` | `string` | vacío = heredar el de OpenCode | Modelo `provider/model` del agente orquestador. Se escribe en el frontmatter del agente instalado. |
 | `models.subagents.modelName` | `string` | vacío = heredar el del orquestador | Modelo `provider/model` de los diez subagentes. Se escribe en cada frontmatter. |
 | `validation.maxAttempts` | `integer >= 1` | `3` | Intentos de reparación en `apply` y `verify`. `run` usa su propio límite de dos reparaciones. |
