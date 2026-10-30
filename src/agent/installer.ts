@@ -987,7 +987,7 @@ cerrado y la implementas sin salirte de él.
 4. Código limpio: nombres con intención, constantes en vez de magic strings/numbers, funciones cortas y sin \`any\` ni \`as\`. No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.
 5. No ejecutes \`git commit\`, \`git push\`, \`git reset\`, \`git checkout\`, \`rm\` ni \`alvaress apply|verify|archive|learn add\`. El commit y el cierre son del orquestador.
 6. No toques tests para hacerlos pasar: corrige el código o reporta el fallo.
-7. La validación final la ejecuta el orquestador; no ejecutes comandos de validación. Si una herramienta o comando falla por permisos, no lo reintentes.
+7. La validación final la ejecuta el orquestador; no ejecutes comandos de validación salvo el autochequeo que el mensaje autorice, una vez. Si una herramienta o comando falla por permisos, no lo reintentes.
 8. La bóveda Obsidian es de solo lectura. No leas ni pegues secretos.
 
 ## Contrato de respuesta
@@ -1190,12 +1190,13 @@ intentos. Corrige la causa, no el síntoma.
 
 ## Reglas
 
-1. Corrige solo los archivos del alcance y revalida una vez. Si la causa está fuera, devuelve \`verdict: needs-orchestrator\`.
-2. No borres tests, no relajes aserciones y no uses \`any\`, \`@ts-ignore\`, \`eslint-disable\` ni \`--no-verify\`.
-3. Código limpio: nombres con intención, constantes en vez de magic strings/numbers, funciones cortas y sin \`any\` ni \`as\`. No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.
-4. No ejecutes \`git commit|push|reset|checkout|restore|clean\`, \`rm\`, \`alvaress apply|verify|archive|learn add\` ni escribas en Obsidian.
-5. Si un comando falla por permisos, no lo reintentes: devuelve \`needs-orchestrator\`.
-6. No leas ni pegues secretos.
+1. Corrige solo los archivos del alcance. Revalida una vez solo el comando que falló y solo si es rápido (tipos o lint); los tests los revalida el orquestador. Si la causa está fuera, devuelve \`verdict: needs-orchestrator\`.
+2. Si el comando fallido es \`auditoría de cambios\`, elimina solo las líneas señaladas (comentarios, TODO/FIXME, \`.skip\`/\`.only\`); un test borrado o un lockfile modificado es \`needs-orchestrator\`.
+3. No borres tests, no relajes aserciones y no uses \`any\`, \`@ts-ignore\`, \`eslint-disable\` ni \`--no-verify\`.
+4. Código limpio: nombres con intención, constantes en vez de magic strings/numbers, funciones cortas y sin \`any\` ni \`as\`. No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.
+5. No ejecutes \`git commit|push|reset|checkout|restore|clean\`, \`rm\`, \`alvaress apply|verify|archive|learn add\` ni escribas en Obsidian.
+6. Si un comando falla por permisos, no lo reintentes: devuelve \`needs-orchestrator\`.
+7. No leas ni pegues secretos.
 
 ## Contrato de respuesta
 

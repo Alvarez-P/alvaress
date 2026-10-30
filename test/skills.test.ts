@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildWorkMessage } from '../src/orchestrator/workers.js';
 import { SKILLS, installSkills, renderSkill, skillFilePath } from '../src/skills/installer.js';
 import { makeTempDir } from './helpers.js';
 
@@ -182,4 +183,34 @@ test('installSkills con linkGlobal=false no crea enlaces', () => {
   } finally {
     temp.cleanup();
   }
+});
+
+function body(name: string): string {
+  return SKILLS.find((entry) => entry.name === name)?.body ?? '';
+}
+
+test('las skills de subagente coinciden con lo que el arnés envía y audita', () => {
+  const message = buildWorkMessage(
+    {
+      runId: 'run-1',
+      mode: 'odd',
+      request: 'r',
+      source: 's',
+      acceptance: [],
+      files: [],
+      validation: ['tsc'],
+      learnings: []
+    },
+    { selfCheck: 'tsc' }
+  );
+  const harness = fs.readFileSync(path.join('src', 'core', 'harness.ts'), 'utf-8');
+
+  assert.match(message, /Autochequeo permitido/);
+  assert.match(body('self-healing-verify'), /"Autochequeo permitido"/);
+  assert.match(body('self-healing-verify'), /No ejecutes validación ni tests/);
+  assert.match(harness, /'auditoría de cambios'/);
+  assert.match(body('failure-triage'), /`auditoría de cambios`/);
+  assert.match(body('code-review'), /auditoría determinista/);
+  assert.doesNotMatch(body('bounded-scope'), /pide el alcance/);
+  assert.match(body('clean-code'), /`as const`/);
 });

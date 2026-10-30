@@ -25,22 +25,38 @@ export const SKILLS: SkillDefinition[] = [
     name: 'consult-graphify-ast',
     description: 'Minimiza el uso de tokens prohibiendo la lectura a ciegas de archivos enteros.',
     scope: 'project',
-    body: `Para arquitectura y símbolos usa \`graphify query "<término>" --budget 1200\`, \`graphify explain "<concepto>"\` o \`graphify path "<A>" "<B>"\`. Usa \`graphify-out/wiki/index.md\` si existe. Abre un archivo solo si vas a editarlo o el grafo ya localizó el rango exacto.
+    body: `Si el mensaje del orquestador ya trae el archivo o el diff, no consultes el grafo para eso.
+
+Para arquitectura y símbolos usa \`graphify query "<término>" --budget 1200\`, \`graphify explain "<concepto>"\` o \`graphify path "<A>" "<B>"\`. Usa \`graphify-out/wiki/index.md\` si existe. Abre un archivo solo si vas a editarlo o el grafo ya localizó el rango exacto.
 
 - No leas \`graphify-out/GRAPH_REPORT.md\` ni pegues subgrafos completos; pide solo el nodo, la ruta o el rango.
-- No ejecutes \`graphify update\`. Si el grafo falta o está desactualizado, dilo y usa \`rg\`, \`grep\` o \`sed -n\`.
+- No ejecutes \`graphify update\`. Si no existe \`graphify-out/graph.json\`, no invoques \`graphify\`: usa \`rg\`, \`grep\` o \`sed -n\`. Si el grafo parece desactualizado, dilo y confirma en el código.
 - Si la salida se trunca, estrecha la consulta en vez de subir el presupuesto.`
   },
   {
     name: 'self-healing-verify',
-    description: 'Enseña al agente a auto-corregir errores usando Vite-Plus en local.',
+    description: 'Define cuándo puede validar un subagente y cómo corregir sin gastar ciclos de más.',
     scope: 'project',
-    body: `Valida con Vite-Plus: \`vp check\` y \`vp test\`; fallback \`pnpm exec vp check|test\`. Usa \`npx\` solo si el proyecto declara \`packageManager: "npm"\`.
+    body: `La validación final es del orquestador: corre después de tu turno con los comandos del proyecto. Tú solo validas lo justo para no devolver un cambio roto. El mensaje del orquestador manda sobre esta skill.
 
-- Si el comando falla, lee el error real, corrige la causa y revalida una vez. Máximo dos ciclos.
+## Implementer
+
+- No ejecutes validación ni tests.
+- Excepción: si el mensaje incluye "Autochequeo permitido", ejecuta ese comando exacto una vez, al final.
+- Si el autochequeo falla por tu cambio, corrígelo y termina sin repetirlo; el orquestador revalida.
+
+## Fixer
+
+- No reproduzcas el fallo antes de corregir: el error exacto ya viene en el mensaje.
+- Corrige la causa y revalida una vez solo el comando que falló, y solo si es rápido (tipos o lint). Los tests completos los revalida el orquestador. Máximo dos ciclos.
 - Si el mismo error se repite o falta una herramienta, detente y devuelve el fallo exacto; no reinstales ni cambies el gestor ni la configuración.
+
+## Siempre
+
+- Usa el comando exacto que dio el orquestador; no inventes otro ni cambies sus flags. Fallback de Vite-Plus: \`pnpm exec vp check|test\`; \`npx\` solo si el proyecto declara \`packageManager: "npm"\`.
+- Nunca modo watch, \`--fix\`, \`-u\` ni \`--update\`.
 - Si el permiso deniega el comando, no lo reintentes: reporta \`needs-orchestrator\`.
-- No silencies errores con \`--no-verify\`, \`any\` ni \`@ts-ignore\`.`
+- No silencies errores con \`--no-verify\`, \`any\`, \`@ts-ignore\` ni \`eslint-disable\`.`
   },
   {
     name: 'clean-code',
@@ -64,7 +80,7 @@ export const SKILLS: SkillDefinition[] = [
 
 ## Funciones
 
-- Una responsabilidad por función, 4-6 líneas como objetivo. Si pasa de ~20, divide por pasos con nombre.
+- Una responsabilidad por función. Si pasa de ~30 líneas o mezcla pasos, divídela en funciones con nombre; no partas una función clara solo por contar líneas.
 - Guard clauses para el caso raro; deja el camino feliz plano. Evita anidar más de dos niveles.
 - Sin flags booleanos que cambien el comportamiento (\`render(x, true)\`): usa dos funciones o un objeto de opciones con nombre.
 - Objeto como argumento cuando hay más de dos parámetros o varios opcionales (\`runTask({ root, taskId })\`).
@@ -74,7 +90,7 @@ export const SKILLS: SkillDefinition[] = [
 ## Tipos (TypeScript)
 
 - Sin \`any\`: usa \`unknown\` en la frontera y valida con un type guard real.
-- Sin \`as\` ni \`@ts-ignore\` para apagar el compilador. Si no entiende el tipo, corrígelo.
+- Sin \`as\` ni \`@ts-ignore\` para apagar el compilador; si no entiende el tipo, corrígelo. \`as const\` y \`satisfies\` sí están permitidos.
 - Prefiere uniones discriminadas a bolsas de campos opcionales.
 - Usa \`satisfies\` para comprobar una forma sin perder el tipo literal.
 - Trata \`undefined\` como parte del contrato; no lo escondas con \`!\`.
@@ -88,7 +104,8 @@ export const SKILLS: SkillDefinition[] = [
 
 ## Ruido y errores
 
-- Cero comentarios narradores, separadores, \`TODO/FIXME\` o JSDoc de relleno. Conserva los existentes.
+- Cero comentarios narradores, separadores, \`TODO/FIXME\` o JSDoc de relleno. Conserva los existentes. Solo escribe JSDoc o docstrings si el mensaje del orquestador lo autoriza porque la tarea pide documentar.
+- La auditoría del orquestador rechaza comentarios nuevos, \`TODO/FIXME\`, tests con \`.skip\`/\`.only\` y cambios en lockfiles; cada uno cuesta una ronda de reparación.
 - No dejes \`console.log\`, código muerto, imports sin usar ni ramas imposibles.
 - No captures un error para ignorarlo: propágalo o transfórmalo con contexto.
 - No añadas comprobaciones defensivas que el tipo ya garantiza.
@@ -96,7 +113,7 @@ export const SKILLS: SkillDefinition[] = [
 
 ## Antes de terminar
 
-- Lee tu diff como si lo hubiera escrito otra persona.
+- Repasa lo que cambiaste como si lo hubiera escrito otra persona. No ejecutes \`git diff\` para eso: ya sabes qué editaste.
 - Pregúntate: ¿algún string o número debería tener nombre?, ¿algún nombre miente?, ¿hay dos funciones que hacen lo mismo?`
   },
   {
@@ -194,9 +211,9 @@ alvaress learn add solution "Validar migraciones en seco" \\
     scope: 'project',
     body: `Trabajas con alcance cerrado: la lista de archivos del orquestador es el contrato.
 
-- Si no hay lista, pide el alcance y no empieces.
+- Si no hay lista, no empieces: devuelve \`scope: blocked\`. El run no es interactivo y nadie responderá una pregunta.
 - Modifica solo los archivos listados; crea uno nuevo solo si el orquestador lo autorizó por nombre.
-- Sin refactors, renombres, formateos masivos, dependencias nuevas ni cambios de CI/build.
+- Sin refactors, renombres, formateos masivos, dependencias nuevas ni cambios de CI/build. Un lockfile modificado o un test borrado bloquean el run en la auditoría.
 - No toques tests para que pasen: corrige el código o reporta.
 - No uses \`git checkout|restore|clean\`, \`rm\` ni \`mv\` para deshacer; reporta.
 - Lee solo el rango necesario; no leas \`node_modules/\`, \`dist/\`, \`coverage/\` ni lockfiles.
@@ -216,7 +233,7 @@ alvaress learn add solution "Validar migraciones en seco" \\
 
 ## Cómo leerlo
 
-1. Si recibiste solo el \`--stat\` o el diff viene truncado, pide solo el archivo que necesites: \`git diff -- <ruta>\`.
+1. Si recibiste solo el \`--stat\` o el diff viene truncado, pide solo el archivo que necesites: \`git diff -- <ruta>\`. Nunca \`git diff\` sin ruta: vuelca todo el árbol.
 2. Los archivos nuevos ya vienen incluidos; no ejecutes \`git status\` para buscarlos.
 3. Contrasta el diff con la lista de archivos asignados; lo que quede fuera es contexto, no permiso.
 
@@ -231,7 +248,7 @@ alvaress learn add solution "Validar migraciones en seco" \\
     name: 'vite-plus-verify',
     description: 'Ejecuta Vite-Plus como validador local y devuelve el error exacto sin ruido.',
     scope: 'project',
-    body: `Vite-Plus es el validador local. Filtra su salida: no vuelques logs completos.
+    body: `Vite-Plus es el validador local por defecto. Si el orquestador te dio otro comando de validación, usa ese. Filtra su salida: no vuelques logs completos.
 
 ## Comandos
 
@@ -263,6 +280,15 @@ Nunca uses modo watch, \`--fix\`, \`--update\`, \`-u\` ni \`--no-verify\`.
 
 Si un test falla porque el contrato cambió, no lo edites: devuelve \`needs-orchestrator\`.
 
+## Fallo de auditoría
+
+Si el comando fallido es \`auditoría de cambios\`, no hay error de compilación: la auditoría encontró líneas añadidas que el arnés no acepta. Cada hallazgo trae \`archivo:línea\`.
+
+- Comentarios o \`TODO/FIXME\` nuevos: bórralos. Si explicaban algo, expresa la intención con un nombre.
+- Tests con \`.skip\` u \`.only\`: quita el modificador. Si el test falla sin él, corrige el código.
+- Test eliminado o lockfile modificado: no puedes revertirlo sin \`git restore\`; devuelve \`needs-orchestrator\`.
+- No toques líneas que la auditoría no señala.
+
 ## Nuclear (HALT)
 
 - Arquitectura, límites entre módulos o diseño de datos.
@@ -274,7 +300,7 @@ Si un test falla porque el contrato cambió, no lo edites: devuelve \`needs-orch
 
 ## Límites
 
-- Máximo 2 intentos por run. No edites ni borres tests, no relajes aserciones y no uses \`any\`, \`@ts-ignore\`, \`eslint-disable\` ni \`--no-verify\`.
+- Máximo 2 intentos por run; los cuenta el orquestador y en cada invocación haces uno solo. No edites ni borres tests, no relajes aserciones y no uses \`any\`, \`@ts-ignore\`, \`eslint-disable\` ni \`--no-verify\`.
 - No cambies la configuración de validación ni reinstales dependencias.
 
 ## Contrato de respuesta
@@ -312,7 +338,7 @@ Proporcionalidad: elige la opción más simple que cubra requisitos, equipo y op
 
 1. Lee la spec o la tarea y localiza el código con \`graphify query\`, \`graphify explain\` o \`graphify path\`.
 2. Escribe las restricciones: equipo, latencia, volumen, consistencia, operación y plazo.
-3. Propón 2-3 opciones con coste, riesgo y la condición en que gana cada una.
+3. Si el cambio es local y el patrón existente alcanza, sáltate las opciones: responde solo \`decision:\`, \`files:\` e \`implementation-notes:\` en ≤8 líneas. Si no, propón 2-3 opciones con coste, riesgo y la condición en que gana cada una.
 4. Elige una y declara explícitamente qué **no** se hace.
 5. Define límites, contratos, flujo de datos, migración y rollback.
 6. Deja preguntas abiertas solo si bloquean la decisión.
@@ -391,7 +417,7 @@ No uses la cobertura como objetivo. Mide comportamientos y riesgos cubiertos.
 
 ## Contrato de respuesta
 
-Máximo 20 líneas: \`plan:\` (given/when/then), \`files:\`, \`command:\`, \`risks:\` y \`verdict:\`.`
+Máximo 20 líneas: \`plan:\` (given/when/then), \`files:\`, \`command:\`, \`risks:\` y \`verdict:\`. En cambios pequeños, 2-4 casos bastan.`
   },
   {
     name: 'code-review',
@@ -415,6 +441,8 @@ Busca smells concretos:
 - Comentarios que narran, nombres genéricos e interfaces de una sola implementación.
 - \`any\`, \`as\`, \`@ts-ignore\`, \`catch\` que ignora y defensas que el tipo ya garantiza.
 - Anidamiento profundo, flags booleanos y magic strings/numbers.
+
+La auditoría determinista del orquestador ya rechaza comentarios nuevos, \`TODO/FIXME\`, \`console.log\`, \`any\`, tests omitidos y lockfiles. No gastes hallazgos en eso; céntrate en lo que solo un revisor ve: lógica, contratos, casos sin cubrir y nombres que mienten.
 
 ## Cómo reportar
 
