@@ -1,8 +1,8 @@
 {
   "package.json": {
-    "mtime": 1793235862.5843284,
-    "seen": 1793235961.7857084,
-    "ast_hash": "73228f2074e7616946ec74441148bb26",
+    "mtime": 1793390154.0946758,
+    "seen": 1793390290.8508816,
+    "ast_hash": "1554894ce896c5446b14651ac85bb0e3",
     "semantic_hash": ""
   },
   "src/cli.ts": {
@@ -138,9 +138,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793376712.0380714,
-    "seen": 1793389967.0960224,
-    "ast_hash": "d7247d6877839b67056eb92c76e96b36",
+    "mtime": 1793390288.4737113,
+    "seen": 1793390290.8510041,
+    "ast_hash": "48795ec4c7af7b0d1769e7128fc7b02e",
     "semantic_hash": ""
   },
   "test/apply.test.ts": {
@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "tsconfig.test.json": {
-    "mtime": 1792804492.428055,
-    "seen": 1792805278.248587,
-    "ast_hash": "1eeb4764258fec78ca4de6b6d612a690",
+    "mtime": 1793390145.3798146,
+    "seen": 1793390290.8510005,
+    "ast_hash": "03641f5df50221acae29ada5b3aeb316",
     "semantic_hash": ""
   },
   "docs/spec.md": {
@@ -657,6 +657,138 @@
     "mtime": 1793376679.255013,
     "seen": 1793389967.0960138,
     "ast_hash": "641c2e4a0c41b4adbfc0fc3ba754c603",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/fix-overlap/project/package.json": {
+    "mtime": 1793390069.584649,
+    "seen": 1793390290.8508496,
+    "ast_hash": "7e6c28bee2b8b8213bd94074d746d78e",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/fix-overlap/project/src/range.ts": {
+    "mtime": 1793390069.6118176,
+    "seen": 1793390290.8508554,
+    "ast_hash": "55ba158b5efc28fe93db144b44957063",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/fix-overlap/project/test/range.test.ts": {
+    "mtime": 1793390069.6126492,
+    "seen": 1793390290.8508582,
+    "ast_hash": "81767b0a68eb4dc49284014faddcbd89",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/fix-overlap/project/tsconfig.json": {
+    "mtime": 1793390069.584649,
+    "seen": 1793390290.8508599,
+    "ast_hash": "c46881c4df224d705edb9dc1ab51cd23",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/fix-overlap/solution/src/range.ts": {
+    "mtime": 1793390088.2379515,
+    "seen": 1793390290.8508608,
+    "ast_hash": "dc8f68fc6a08b4ba9e39956fc19ca3d1",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/fix-overlap/task.json": {
+    "mtime": 1793390069.617629,
+    "seen": 1793390290.8508618,
+    "ast_hash": "bd217e7b2cb82608d119d52bb4a7a802",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/medium-cart/project/package.json": {
+    "mtime": 1793390069.5806491,
+    "seen": 1793390290.8508627,
+    "ast_hash": "05d26b8b3e5bdf78878756c1924baa12",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/medium-cart/project/src/cart.ts": {
+    "mtime": 1793390069.6016197,
+    "seen": 1793390290.850864,
+    "ast_hash": "395fe0fbe650361905c51a217c5a6c35",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/medium-cart/project/test/cart.test.ts": {
+    "mtime": 1793390069.605884,
+    "seen": 1793390290.8508646,
+    "ast_hash": "4afacbbbd25add7ba3f1528de6568360",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/medium-cart/project/tsconfig.json": {
+    "mtime": 1793390069.5806491,
+    "seen": 1793390290.8508654,
+    "ast_hash": "c46881c4df224d705edb9dc1ab51cd23",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/medium-cart/solution/src/cart.ts": {
+    "mtime": 1793390088.220644,
+    "seen": 1793390290.8508663,
+    "ast_hash": "3b5950dfbc421a975a00d61fdafa0a41",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/medium-cart/solution/src/discounts.ts": {
+    "mtime": 1793390088.204644,
+    "seen": 1793390290.8508673,
+    "ast_hash": "17ca5202186cd7137ff877bb82effc6e",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/medium-cart/task.json": {
+    "mtime": 1793390069.6090255,
+    "seen": 1793390290.850868,
+    "ast_hash": "efa3c23df0dccf767f25457090ff1562",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/small-slugify/project/package.json": {
+    "mtime": 1793390069.5766492,
+    "seen": 1793390290.8508687,
+    "ast_hash": "1254052cd4696289868c6d6aa558534f",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/small-slugify/project/src/slug.ts": {
+    "mtime": 1793390069.588649,
+    "seen": 1793390290.8508697,
+    "ast_hash": "025262a76557441bcb56599acf1cc000",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/small-slugify/project/test/slug.test.ts": {
+    "mtime": 1793390069.592649,
+    "seen": 1793390290.8508706,
+    "ast_hash": "fef57c410e8eafa22f0a286028e27d5e",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/small-slugify/project/tsconfig.json": {
+    "mtime": 1793390069.5766492,
+    "seen": 1793390290.8508713,
+    "ast_hash": "c46881c4df224d705edb9dc1ab51cd23",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/small-slugify/solution/src/slug.ts": {
+    "mtime": 1793390088.1966438,
+    "seen": 1793390290.8508723,
+    "ast_hash": "98754d573fffa5df5ffebf44cc24e979",
+    "semantic_hash": ""
+  },
+  "bench/fixtures/small-slugify/task.json": {
+    "mtime": 1793390069.5983632,
+    "seen": 1793390290.8508732,
+    "ast_hash": "681c135f8e28a02e0ecd7dfd943596d5",
+    "semantic_hash": ""
+  },
+  "bench/run.ts": {
+    "mtime": 1793390134.4393914,
+    "seen": 1793390290.8508742,
+    "ast_hash": "f3a00284c9b2aec742cc1e87fde9f460",
+    "semantic_hash": ""
+  },
+  "bench/runner.ts": {
+    "mtime": 1793390154.1262236,
+    "seen": 1793390290.8508756,
+    "ast_hash": "d4de773ea56f7d2f179ef9a56ec243d1",
+    "semantic_hash": ""
+  },
+  "test/bench.test.ts": {
+    "mtime": 1793390244.9647985,
+    "seen": 1793390290.8509676,
+    "ast_hash": "cf31c8d6614eca1182c5fa5268c33968",
     "semantic_hash": ""
   }
 }

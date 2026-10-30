@@ -1,0 +1,7 @@
+{
+  "request": "Corrige overlaps en src/range.ts: el fin de un rango es exclusivo, así que [1,3) y [3,5) no se solapan. merge debe seguir uniendo solo los rangos que realmente se solapan.",
+  "complexity": "small",
+  "files": ["src/range.ts"],
+  "acceptance": ["Los tests de test/range.test.ts pasan", "No se modifican los tests"],
+  "validation": ["{{tsc}} --noEmit -p .", "node --test test/*.test.ts"]
+}

@@ -1,22 +1,22 @@
 # Graph Report - alvaress  (2026-10-30)
 
 ## Corpus Check
-- 106 files · ~90,990 words
+- 128 files · ~94,132 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 5 file(s) not represented in the graph (top: (none) 5)
 
 ## Summary
-- 1221 nodes · 3753 edges · 49 communities (42 shown, 7 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 92 edges (avg confidence: 0.87)
+- 1331 nodes · 3972 edges · 67 communities (61 shown, 6 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 105 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `74df7735`
+- Built from commit: `a1d2f8c2`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- loader.ts
+- constants.ts
 - laya.ts
 - package.json
 - install.ts
@@ -24,12 +24,12 @@
 - contracts.ts
 - compilerOptions
 - alvaress
-- reliability.test.ts
+- helpers.ts
 - obsidian/installer.ts
 - manifest.ts
 - tsconfig.test.json
-- usage.ts
-- explore.ts
+- reliability.test.ts
+- DecisionEngine
 - repository
 - bugs
 - scripts
@@ -39,123 +39,140 @@
 - bin
 - lint-staged
 - final-report.ts
-- apply.ts
+- ref_node_assert
 - orchestrator/report.ts
-- constants.ts
+- harness.ts
 - laya/index.ts
 - publishConfig
-- vault.ts
-- RunLog
-- Worker
+- pathExists
+- fs.ts
+- run.test.ts
+- runner.ts
+- solution/src/cart.ts
 - workers.ts
-- config/models.ts
-- audit.ts
 - learnings.ts
-- locks.ts
+- compilerOptions
+- uv.ts
+- .run
+- errorMessage
 - Avisos de terceros
-- HarnessConfig
+- cli.ts
+- compilerOptions
+- package-manager.ts
 - ensureDir
+- loader.ts
 - Subagentes y worker de código
+- Aprendizaje continuo
+- Agente, subagentes y skills
 - agent/installer.ts
 - Especificación del arnés alvaress
+- Configuración
 - doctor.ts
-- pathExists
+- Instalación
+- Comandos
 - Artefacto int8 de Laya
+- compilerOptions
 - modules.ts
-- run-log.ts
+- commit.ts
+- cli.test.ts
+- range.test.ts
+- fix-overlap/project/package.json
+- solution/src/range.ts
+- medium-cart/project/package.json
+- small-slugify/project/package.json
 
 ## God Nodes (most connected - your core abstractions)
 1. `pathExists()` - 44 edges
 2. `runHarnessCommand()` - 41 edges
-3. `errorMessage()` - 33 edges
-4. `runInstall()` - 31 edges
-5. `HarnessConfig` - 31 edges
-6. `loadConfig()` - 31 edges
+3. `loadConfig()` - 33 edges
+4. `errorMessage()` - 33 edges
+5. `HarnessConfig` - 32 edges
+6. `runInstall()` - 31 edges
 7. `ensureDir()` - 29 edges
-8. `loadManifest()` - 27 edges
-9. `makeTempDir()` - 27 edges
+8. `makeTempDir()` - 28 edges
+9. `loadManifest()` - 27 edges
 10. `runDoctor()` - 26 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Inspiración y benchmark frente a Aider` --references--> `WorkPlan`  [INFERRED]
-  README.md → src/core/contracts.ts
-- `Qué cuantiza` --references--> `verifyBundle()`  [INFERRED]
-  docs/laya-int8.md → src/decision/vendor/laya/bundle.ts
 - `Orquestación` --references--> `Worker`  [INFERRED]
   docs/spec.md → src/core/contracts.ts
+- `Qué cuantiza` --references--> `verifyBundle()`  [INFERRED]
+  docs/laya-int8.md → src/decision/vendor/laya/bundle.ts
+- `Contrato del worker` --references--> `WorkPlan`  [INFERRED]
+  docs/subagents.md → src/core/contracts.ts
+- `Inspiración y benchmark frente a Aider` --references--> `WorkPlan`  [INFERRED]
+  README.md → src/core/contracts.ts
 - `Subagentes y worker de código` --references--> `Worker`  [INFERRED]
   docs/subagents.md → src/core/contracts.ts
-- `Proporcionalidad` --references--> `heuristicFlow()`  [INFERRED]
-  docs/subagents.md → src/decision/heuristics.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (49 total, 7 thin omitted)
+## Communities (67 total, 6 thin omitted)
 
-### Community 0 - "loader.ts"
-Cohesion: 0.12
-Nodes (23): assertBoolean(), assertModelSelection(), assertPositiveInteger(), assertString(), ConfigPaths, HarnessConfigFile, isRecord(), ModelSelection (+15 more)
+### Community 0 - "constants.ts"
+Cohesion: 0.07
+Nodes (29): COMMAND_SEPARATOR, DEFAULT_LAYA_TIMEOUT_MS, DEFAULT_MAX_ATTEMPTS, DEFAULT_MAX_FIX_ATTEMPTS, DEFAULT_OBSIDIAN_VAULT, DEFAULT_SCOPE, DEFAULT_VALIDATION_COMMANDS, DEFAULT_VITE_PLUS_CHECK (+21 more)
 
 ### Community 1 - "laya.ts"
-Cohesion: 0.07
-Nodes (38): Precisión, Decisión, LayaConfig, Complexity, DecisionEngine, FailureInput, FailureVerdict, FlowInput (+30 more)
+Cohesion: 0.10
+Nodes (26): fixedDecisions(), LayaConfig, Complexity, FailureInput, FlowInput, LearningScopeDecision, LearningScopeInput, RiskAssessment (+18 more)
 
 ### Community 2 - "package.json"
 Cohesion: 0.09
-Nodes (21): author, description, files, homepage, keywords, license, main, name (+13 more)
+Nodes (22): author, description, files, homepage, keywords, license, main, name (+14 more)
 
 ### Community 3 - "install.ts"
-Cohesion: 0.06
-Nodes (61): @clack/prompts, askMaxAttempts(), askModel(), askPackageManager(), askRequired(), askText(), askValidationCommands(), CHECKLIST (+53 more)
+Cohesion: 0.09
+Nodes (43): askMaxAttempts(), askModel(), askPackageManager(), askRequired(), askText(), askValidationCommands(), CHECKLIST, ChecklistEntry (+35 more)
 
 ### Community 4 - "quantize-laya.py"
 Cohesion: 0.16
 Nodes (6): count_nodes(), main(), parse_args(), quantize_embedding(), quantize_matmuls(), sha256_file()
 
 ### Community 5 - "contracts.ts"
-Cohesion: 0.09
-Nodes (37): RunCommandDeps, ChangeKind, CommitResult, ConsultInput, Exploration, FileChange, FlowPlan, HaltCode (+29 more)
+Cohesion: 0.16
+Nodes (20): ChangeKind, ConsultInput, Exploration, FailureVerdict, FixResult, FlowPlan, HaltReason, HarnessState (+12 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.11
 Nodes (18): compilerOptions, declaration, esModuleInterop, forceConsistentCasingInFileNames, lib, module, moduleResolution, noFallthroughCasesInSwitch (+10 more)
 
 ### Community 7 - "alvaress"
-Cohesion: 0.06
-Nodes (36): Agente, subagentes y skills, alvaress, Aprendizaje continuo, Cada clave, Checklist de componentes, Comandos, Comandos, Confiabilidad y seguridad (+28 more)
+Cohesion: 0.13
+Nodes (15): alvaress, Confiabilidad y seguridad, Contenido, Desarrollo, Estados de un `run`, Estructura del paquete, Flujo del agente, Herramientas que instala y por qué (+7 more)
 
-### Community 8 - "reliability.test.ts"
-Cohesion: 0.09
-Nodes (33): SUBAGENTS, interpolateCommands(), interpolateEnv(), mergeConfig(), setupProject(), git(), repo(), CLI (+25 more)
+### Community 8 - "helpers.ts"
+Cohesion: 0.21
+Nodes (9): setupProject(), fakeOpencode(), makeTempDir(), TempDir, withPathAsync(), writeExecutable(), writeJson(), projectWith() (+1 more)
 
 ### Community 9 - "obsidian/installer.ts"
-Cohesion: 0.07
-Nodes (52): GRAPHIFY_DIR, GRAPHIFY_GRAPH_FILENAME, GraphStatus, IGNORED_DIRECTORIES, SOURCE_EXTENSIONS, updateGraph(), detectObsidian(), downloadFile() (+44 more)
+Cohesion: 0.14
+Nodes (25): InstallRuntime, detectObsidian(), downloadFile(), ensureObsidian(), fetchRelease(), installLinux(), installLinuxTarball(), installMac() (+17 more)
 
 ### Community 10 - "manifest.ts"
-Cohesion: 0.15
-Nodes (20): TASKS_DIR, buildTaskDocument(), createScaffoldManifest(), defaultAcceptance(), ensureHarnessDirs(), ensureTaskFile(), getTasksDir(), inferBoundedContexts() (+12 more)
+Cohesion: 0.07
+Nodes (54): TASKS_DIR, buildTaskDocument(), collectWorkItems(), contextPath(), createScaffoldManifest(), defaultAcceptance(), ensureTaskFile(), findWorkItem() (+46 more)
 
 ### Community 11 - "tsconfig.test.json"
 Cohesion: 0.29
 Nodes (6): ./tsconfig.json, compilerOptions, noEmit, rootDir, extends, include
 
-### Community 12 - "usage.ts"
-Cohesion: 0.23
-Nodes (11): RunUsage, TokenUsage, UsagePhase, addUsage(), emptyUsage(), formatUsage(), numberOf(), OpencodeOutput (+3 more)
+### Community 12 - "reliability.test.ts"
+Cohesion: 0.19
+Nodes (17): runArchiveCommand(), runRestoreCommand(), completeTask(), HARNESS_BACKUPS_DIR, archiveSpec(), loadManifest(), parseManifest(), saveManifest() (+9 more)
 
-### Community 13 - "explore.ts"
-Cohesion: 0.25
-Nodes (15): markOddDone(), exploreOdd(), extractAssignedFiles(), extractOpenRisks(), extractSection(), markChecklistDone(), normalize(), parseAcceptance() (+7 more)
+### Community 13 - "DecisionEngine"
+Cohesion: 0.14
+Nodes (13): Precisión, Decisión, DecisionEngine, choice(), describeFlow(), flowConfidence(), LayaAgentLike, LayaDecisionEngine (+5 more)
 
 ### Community 14 - "repository"
 Cohesion: 0.67
 Nodes (3): repository, type, url
 
 ### Community 16 - "scripts"
-Cohesion: 0.13
-Nodes (15): scripts, build, clean, commitlint, dev, lint, prepack, prepare (+7 more)
+Cohesion: 0.12
+Nodes (16): scripts, bench, build, clean, commitlint, dev, lint, prepack (+8 more)
 
 ### Community 17 - "devDependencies"
 Cohesion: 0.22
@@ -174,112 +191,188 @@ Cohesion: 0.67
 Nodes (3): lint-staged, src/**/*.{ts,tsx,js,mjs,cjs}, test/**/*.{ts,tsx,js,mjs,cjs}
 
 ### Community 23 - "final-report.ts"
-Cohesion: 0.08
-Nodes (29): HarnessState, ANSI_PATTERN, background(), colorEnabled(), createPalette(), defaultPalette(), ESCAPE, foreground() (+21 more)
+Cohesion: 0.09
+Nodes (23): ANSI_PATTERN, background(), colorEnabled(), createPalette(), defaultPalette(), ESCAPE, foreground(), Palette (+15 more)
 
-### Community 24 - "apply.ts"
-Cohesion: 0.07
-Nodes (68): installAgent(), renderAgent(), runCli(), runAgentCommand(), runArchiveCommand(), runConfigCommand(), runInit(), InstallRuntime (+60 more)
+### Community 24 - "ref_node_assert"
+Cohesion: 0.14
+Nodes (7): Cart, CartItem, cart(), slugify(), VERSION, pkg, root
 
 ### Community 25 - "orchestrator/report.ts"
-Cohesion: 0.09
-Nodes (38): describe(), isHarnessReport(), runReportCommand(), HARNESS_DIR, HARNESS_LOCK_FILENAME, TaskOutcome, AnyRunReport, getRunsDir() (+30 more)
+Cohesion: 0.18
+Nodes (23): describe(), isHarnessReport(), runReportCommand(), writeHalt(), TaskOutcome, AnyRunReport, getRunsDir(), listAllReports() (+15 more)
 
-### Community 26 - "constants.ts"
-Cohesion: 0.09
-Nodes (21): DEFAULT_MAX_FIX_ATTEMPTS, DEFAULT_OBSIDIAN_VAULT, DEFAULT_VALIDATION_COMMANDS, GLOBAL_CONFIG_FILENAME, HARNESS_CACHE_DIR, HARNESS_RUNS_DIR, LAYA_DIR, LAYA_FP32_MODEL_CACHE_ROOT (+13 more)
+### Community 26 - "harness.ts"
+Cohesion: 0.15
+Nodes (18): effectiveVault(), failureText(), MODES, withVault(), CommitResult, FileChange, Risk, RunMode (+10 more)
 
 ### Community 27 - "laya/index.ts"
 Cohesion: 0.05
-Nodes (72): buildBundleManifest(), BUNDLE_BYTES, BUNDLE_FILES, BUNDLE_KIND, BUNDLE_MANIFEST, BUNDLE_RELEASE_REPO, BUNDLE_RELEASE_TAG, BUNDLE_REVISION (+64 more)
+Nodes (74): buildBundleManifest(), BUNDLE_BYTES, BUNDLE_FILES, BUNDLE_KIND, BUNDLE_MANIFEST, BUNDLE_RELEASE_REPO, BUNDLE_RELEASE_TAG, BUNDLE_REVISION (+66 more)
 
-### Community 29 - "vault.ts"
-Cohesion: 0.26
-Nodes (17): flagValue(), runObsidianCommand(), runState(), summarizeRun(), closeObsidian(), appendVaultNoteEntry(), connectObsidianVault(), getVaultNotePath() (+9 more)
+### Community 29 - "pathExists"
+Cohesion: 0.20
+Nodes (25): InitOptions, runInit(), flagValue(), runObsidianCommand(), runState(), summarizeRun(), closeObsidian(), appendVaultNoteEntry() (+17 more)
 
-### Community 31 - "Worker"
+### Community 30 - "fs.ts"
+Cohesion: 0.28
+Nodes (14): markOddDone(), ensureDir(), isDirectory(), linkDirectory(), linkFile(), linkPath(), LinkType, readTextFile() (+6 more)
+
+### Community 31 - "run.test.ts"
 Cohesion: 0.22
-Nodes (4): Orquestación, Worker, ExecutionContext, VerifyOptions
+Nodes (10): git(), repo(), baseConfig(), writeFile(), git(), initRepo(), manifest(), oddNote() (+2 more)
 
-### Community 32 - "workers.ts"
-Cohesion: 0.12
-Nodes (25): Contrato del worker, FixInput, FixResult, SpecialistRole, WorkPlan, WorkResult, heuristicVerdict(), FileContents (+17 more)
+### Community 32 - "runner.ts"
+Cohesion: 0.06
+Nodes (48): csv(), main(), parseRoles(), ROLES, BENCH_DIR, benchConfig(), BenchOptions, BenchResult (+40 more)
 
-### Community 34 - "audit.ts"
-Cohesion: 0.08
-Nodes (45): OPENSPEC_FILENAME, addedLines(), AuditOptions, auditWorkspace(), C_STYLE, CODE_COMMENTS, CommentLines, CommentSyntax (+37 more)
+### Community 33 - "solution/src/cart.ts"
+Cohesion: 0.28
+Nodes (6): Cart, CartItem, assertValidCoupon(), Coupon, discountFor(), InvalidCouponError
+
+### Community 34 - "workers.ts"
+Cohesion: 0.05
+Nodes (72): FixInput, heuristicVerdict(), addedLines(), AuditOptions, auditWorkspace(), C_STYLE, CODE_COMMENTS, CommentLines (+64 more)
 
 ### Community 35 - "learnings.ts"
-Cohesion: 0.06
-Nodes (75): flagValue(), parseLimit(), parseScope(), printLearning(), rebuildAll(), rebuildForScope(), resolveDecisionEngine(), resolveStores() (+67 more)
+Cohesion: 0.08
+Nodes (61): flagValue(), parseLimit(), parseScope(), printLearning(), rebuildAll(), rebuildForScope(), resolveDecisionEngine(), resolveStores() (+53 more)
 
-### Community 36 - "locks.ts"
-Cohesion: 0.39
-Nodes (8): createsConflict(), dependsOn(), describeGroups(), groupWorkItems(), normalizeFile(), orderGroup(), pathsOverlap(), sharesFiles()
+### Community 36 - "compilerOptions"
+Cohesion: 0.18
+Nodes (10): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, module, moduleResolution, noEmit, skipLibCheck, strict (+2 more)
+
+### Community 37 - "uv.ts"
+Cohesion: 0.29
+Nodes (12): enableGraphifyHooks(), ensureUv(), installGraphify(), RunOptions, ensureUvPath(), installUv(), shellPlan(), UvInstallDeps (+4 more)
+
+### Community 38 - ".run"
+Cohesion: 0.10
+Nodes (18): Correr el benchmark, Inspiración y benchmark frente a Aider, RunCommandDeps, HaltCode, HarnessHandlers, HarnessUI, RunResult, ValidationCommandResult (+10 more)
+
+### Community 39 - "errorMessage"
+Cohesion: 0.06
+Nodes (39): DoctorCommandDeps, LayaPlan, LearnCommandDeps, ObsidianCommandDeps, HarnessConfig, HARNESS_DIR, HARNESS_LOCK_FILENAME, Worker (+31 more)
 
 ### Community 40 - "Avisos de terceros"
 Cohesion: 0.50
 Nodes (3): Avisos de terceros, Laya (motor de decisión), Licencia MIT de `@receptron/laya`
 
-### Community 42 - "HarnessConfig"
+### Community 41 - "cli.ts"
+Cohesion: 0.22
+Nodes (16): renderAgent(), runCli(), runAgentCommand(), runDoctorCommand(), applyModel(), installCurrentAgent(), ModelRole, runModelsCommand() (+8 more)
+
+### Community 42 - "compilerOptions"
+Cohesion: 0.18
+Nodes (10): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, module, moduleResolution, noEmit, skipLibCheck, strict (+2 more)
+
+### Community 43 - "package-manager.ts"
 Cohesion: 0.17
-Nodes (12): DoctorCommandDeps, LayaPlan, LearnCommandDeps, ObsidianCommandDeps, HarnessConfig, Validator, ExploreContext, collectWarnings() (+4 more)
+Nodes (11): DEFAULT_PACKAGE_MANAGER, updateGraph(), defaultValidationCommands(), localCommand(), PackageManager, packageManagerAvailable(), packageManagerExec(), packageManagerInstallArgs() (+3 more)
 
 ### Community 44 - "ensureDir"
 Cohesion: 0.16
-Nodes (15): AgentInstallReport, InitOptions, InitReport, CLAUDE_SKILLS_DIR, OPENCODE_SKILLS_DIR, SKILLS_DIR, VaultConnection, renderSkill() (+7 more)
+Nodes (15): AgentInstallReport, InitReport, CLAUDE_SKILLS_DIR, OPENCODE_SKILLS_DIR, SKILLS_DIR, VaultConnection, installSkills(), renderSkill() (+7 more)
+
+### Community 45 - "loader.ts"
+Cohesion: 0.15
+Nodes (27): runConfigCommand(), ModelsCommandDeps, assertBoolean(), assertModelSelection(), assertPositiveInteger(), assertString(), ConfigPaths, displayConfig() (+19 more)
 
 ### Community 46 - "Subagentes y worker de código"
 Cohesion: 0.15
-Nodes (11): Contrato de handoff, Contrato de respuesta, Eficiencia, Flujo de especialistas, HALT, Motor de decisión, Proporcionalidad, Reparto de subagentes (+3 more)
+Nodes (13): Contrato de handoff, Contrato de respuesta, Contrato del worker, Eficiencia, Flujo de especialistas, HALT, Motor de decisión, Proporcionalidad (+5 more)
+
+### Community 47 - "Aprendizaje continuo"
+Cohesion: 0.33
+Nodes (6): Aprendizaje continuo, Comandos, Cómo decidir si un aprendizaje aplica, Dónde se consultan en el flujo, Quién decide el scope, Tipos
+
+### Community 48 - "Agente, subagentes y skills"
+Cohesion: 0.67
+Nodes (3): Agente, subagentes y skills, Permisos, Skills
 
 ### Community 49 - "agent/installer.ts"
-Cohesion: 0.13
-Nodes (14): AgentInstallOptions, DANGEROUS_SHELL_DENY, DISCOVERY_COMMANDS, GIT_READ_COMMANDS, installSubagents(), LEARN_READ_COMMANDS, modelLine(), PermissionRule (+6 more)
+Cohesion: 0.12
+Nodes (20): agentFilePath(), AgentInstallOptions, DANGEROUS_SHELL_DENY, DISCOVERY_COMMANDS, GIT_READ_COMMANDS, installAgent(), installSubagents(), LEARN_READ_COMMANDS (+12 more)
 
 ### Community 50 - "Especificación del arnés alvaress"
-Cohesion: 0.17
-Nodes (12): Bóveda Obsidian, Configuración, Especificación del arnés alvaress, Flujo del run, Manifiesto `openspec.yaml`, Objetivo, Principios, Restricciones de generación de código (+4 more)
+Cohesion: 0.15
+Nodes (13): Bóveda Obsidian, Configuración, Especificación del arnés alvaress, Flujo del run, Manifiesto `openspec.yaml`, Objetivo, Orquestación, Principios (+5 more)
+
+### Community 51 - "Configuración"
+Cohesion: 0.50
+Nodes (4): Cada clave, Configuración, JSON completo, Valores por defecto y ejemplos
 
 ### Community 52 - "doctor.ts"
-Cohesion: 0.18
-Nodes (19): agentFilePath(), subagentFilePath(), check(), DoctorCheck, DoctorDeps, DoctorStatus, frontmatterModel(), missingBundleFiles() (+11 more)
+Cohesion: 0.14
+Nodes (19): check(), DoctorCheck, DoctorDeps, DoctorStatus, frontmatterModel(), missingBundleFiles(), modelLabel(), runDoctor() (+11 more)
 
-### Community 55 - "pathExists"
-Cohesion: 0.31
-Nodes (13): configureObsidian(), ensureDir(), isDirectory(), linkDirectory(), linkFile(), linkPath(), LinkType, pathExists() (+5 more)
+### Community 53 - "Instalación"
+Cohesion: 0.50
+Nodes (4): Checklist de componentes, Instalación, Instalación desatendida, Qué hace el instalador
+
+### Community 55 - "Comandos"
+Cohesion: 0.67
+Nodes (3): Comandos, Ejemplos, Subcomandos
 
 ### Community 56 - "Artefacto int8 de Laya"
 Cohesion: 0.22
 Nodes (8): Artefacto int8 de Laya, Identidad del artefacto, Publicación, Qué cuantiza, Regenerar el artefacto, Uso, Velocidad, Verificación
 
-### Community 58 - "modules.ts"
-Cohesion: 0.36
-Nodes (5): CONDITIONS, findPackageDir(), packageName(), pickEntry(), resolveModuleUrl()
+### Community 57 - "compilerOptions"
+Cohesion: 0.18
+Nodes (10): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, module, moduleResolution, noEmit, skipLibCheck, strict (+2 more)
 
-### Community 59 - "run-log.ts"
-Cohesion: 0.28
-Nodes (7): writeHalt(), assessLearning(), updateCurrentState(), RunLogMeta, redactSecrets(), redactValue(), SECRET_PATTERNS
+### Community 58 - "modules.ts"
+Cohesion: 0.33
+Nodes (6): CONDITIONS, findPackageDir(), moduleAvailableFrom(), packageName(), pickEntry(), resolveModuleUrl()
+
+### Community 59 - "commit.ts"
+Cohesion: 0.36
+Nodes (8): OPENSPEC_FILENAME, buildCommitMessage(), CommitOptions, commitRun(), git(), normalize(), openspecChanged(), shortRequest()
+
+### Community 60 - "cli.test.ts"
+Cohesion: 0.40
+Nodes (4): CLI, CliResult, manifest(), project()
+
+### Community 61 - "range.test.ts"
+Cohesion: 0.70
+Nodes (3): merge(), overlaps(), Range
+
+### Community 62 - "fix-overlap/project/package.json"
+Cohesion: 0.50
+Nodes (3): name, private, type
+
+### Community 63 - "solution/src/range.ts"
+Cohesion: 0.67
+Nodes (3): merge(), overlaps(), Range
+
+### Community 64 - "medium-cart/project/package.json"
+Cohesion: 0.50
+Nodes (3): name, private, type
+
+### Community 65 - "small-slugify/project/package.json"
+Cohesion: 0.50
+Nodes (3): name, private, type
 
 ## Knowledge Gaps
 - **9 isolated node(s):** `@commitlint/cli`, `@commitlint/config-conventional`, `@types/node`, `husky`, `lint-staged` (+4 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 321 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 372 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `@clack/prompts` connect `install.ts` to `package.json`?**
-  _High betweenness centrality (0.056) - this node is a cross-community bridge._
+- **Why does `@clack/prompts` connect `package.json` to `install.ts`?**
+  _High betweenness centrality (0.057) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `runHarnessCommand()` (e.g. with `.run()` and `.begin()`) actually correct?**
   _`runHarnessCommand()` has 5 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `@commitlint/cli`, `@commitlint/config-conventional`, `@types/node` to the rest of the system?**
   _9 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `loader.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.12333333333333334 - nodes in this community are weakly interconnected._
-- **Why does `verifyBundle()` connect `install.ts` to `Artefacto int8 de Laya`, `laya.ts`, `laya/index.ts`, `alvaress`?**
-  _High betweenness centrality (0.055) - this node is a cross-community bridge._
-- **Should `laya.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.07191316146540028 - nodes in this community are weakly interconnected._
-- **Why does `alvaress` connect `alvaress` to `Especificación del arnés alvaress`, `Subagentes y worker de código`?**
+- **Should `constants.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.06881720430107527 - nodes in this community are weakly interconnected._
+- **Why does `Worker` connect `errorMessage` to `workers.ts`, `contracts.ts`, `.run`, `manifest.ts`, `Subagentes y worker de código`, `Especificación del arnés alvaress`, `harness.ts`, `run.test.ts`?**
   _High betweenness centrality (0.054) - this node is a cross-community bridge._
+- **Should `laya.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.1 - nodes in this community are weakly interconnected._
+- **Why does `alvaress` connect `alvaress` to `Aprendizaje continuo`, `Agente, subagentes y skills`, `Especificación del arnés alvaress`, `Configuración`, `Instalación`, `spec.md`, `Comandos`?**
+  _High betweenness centrality (0.045) - this node is a cross-community bridge._

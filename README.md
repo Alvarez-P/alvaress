@@ -527,9 +527,30 @@ Lectura:
   cerrar. Igualarlo exigiría un worker que parseara diffs, fuera del alcance
   actual.
 
-El benchmark vive fuera del repo (`/tmp/opencode/alvaress-bench`) para no
-ensuciar el proyecto. Los números son de una máquina y un modelo concretos, no
-una garantía.
+Los números de esta tabla son de una máquina y un modelo concretos, no una
+garantía, y se midieron antes del diff en dos niveles, las sesiones por
+especialista y el recorte de briefs.
+
+#### Correr el benchmark
+
+`bench/` trae fixtures reproducibles (`small-slugify`, `medium-cart`,
+`fix-overlap`), cada uno con su proyecto, su tarea y una solución de referencia.
+El runner usa el `HarnessCore` real (auditoría, reparación y reviewer → fixer)
+con decisiones fijas, para que dos corridas sean comparables, y lee los tokens
+reales de OpenCode. **Gasta tokens.**
+
+```bash
+pnpm bench                                   # todos los fixtures, una vez
+pnpm bench --fixture medium-cart --repeat 3  # promedia tres corridas
+pnpm bench --model openai/gpt-5-mini         # cambia el modelo de subagentes
+pnpm bench --roles architect,reviewer        # mide el costo de especialistas
+pnpm bench --self-check                      # compara con autochequeo
+```
+
+Requiere `opencode` en el `PATH` y los subagentes instalados
+(`alvaress agent install`). Imprime una tabla con Ready, llamadas, tokens de
+entrada/salida/caché, reparaciones y tiempo, y guarda el detalle en
+`bench/results/` (ignorado por git).
 
 ### Skills
 
@@ -835,6 +856,7 @@ src/
 ├── obsidian/        conexión con la bóveda
 └── utils/           args, errores, FS, lock, gestor de paquetes, uv, redacción, logger y procesos
 test/                pruebas con node:test
+bench/               benchmark reproducible de tokens (pnpm bench)
 assets/              animación y diagramas SVG del README
 docs/laya-int8.md    artefacto int8, hashes y mediciones
 docs/subagents.md    contrato y permisos de los subagentes

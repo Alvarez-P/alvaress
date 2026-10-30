@@ -4,6 +4,8 @@ dist/
 .DS_Store
 npm-debug.log*
 graphify-out/cache/
+graphify-out/.rebuild.lock
+bench/results/
 package-lock.json
 __pycache__/
 *.pyc

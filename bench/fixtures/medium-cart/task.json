@@ -1,0 +1,11 @@
+{
+  "request": "Agrega cupones de descuento al carrito. Crea src/discounts.ts con el tipo Coupon ({ code, kind: 'percent' | 'fixed', value, minSubtotal? }), la clase InvalidCouponError y una función pura que calcule el descuento. En Cart añade applyCoupon(coupon): valida el cupón (porcentaje entre 0 y 100, mínimo de subtotal), reemplaza al cupón anterior y hace que total() reste el descuento sin bajar de cero.",
+  "complexity": "medium",
+  "files": ["src/cart.ts", "src/discounts.ts"],
+  "acceptance": [
+    "Los tests de test/cart.test.ts pasan",
+    "El cálculo del descuento vive en src/discounts.ts",
+    "No se modifican los tests"
+  ],
+  "validation": ["{{tsc}} --noEmit -p .", "node --test test/*.test.ts"]
+}
