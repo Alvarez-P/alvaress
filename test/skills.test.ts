@@ -16,6 +16,7 @@ test('define las skills del estándar híbrido SDD/ODD', () => {
       'obsidian-sdd',
       'continuous-learning',
       'bounded-scope',
+      'git-diff-context',
       'vite-plus-verify',
       'failure-triage',
       'architecture-decisions',

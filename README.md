@@ -65,7 +65,7 @@ proyecto; la fuente SDD es `openspec.yaml` más la tarea.
 | --- | --- | --- |
 | **Qué es** | **Organic Driven Development**: flujo orgánico y orientado al resultado. El contexto mínimo necesario, sin ceremonia extra. | **Spec-Driven Development**: especificación formal con tareas, dependencias, archivos y validación. |
 | **Cuándo** | Cambios pequeños o medianos, un solo contexto, alcance claro. | Cambios grandes, multi-contexto, contratos, migraciones o varias tareas. |
-| **Fuente** | Una nota de tarea o de proyecto: objetivo, checklist de aceptación, archivos asignados y riesgos. En alvaress vive en Obsidian o, con `--task`, en `.harness/tasks/<TASK>.md`. | `openspec.yaml` y `.harness/tasks/<TASK>.md`. |
+| **Fuente** | Una nota de tarea o de proyecto: objetivo, checklist de aceptación, archivos asignados y riesgos. En alvaress vive en la bóveda Markdown (compatible con Obsidian) o, con `--task`, en `.harness/tasks/<TASK>.md`. | `openspec.yaml` y `.harness/tasks/<TASK>.md`. |
 | **Cierre** | Marca el checklist, actualiza la nota y hace commit de los archivos del run. | Marca la tarea `Done`, actualiza el spec y hace commit de los archivos del run. |
 
 En ambos modos el agente escribe el código, valida y deja rastro. La diferencia
@@ -127,8 +127,8 @@ decisión humana.
 - **OpenCode.** Lo instalas tú; alvaress añade el agente y sus skills.
 
 El resto lo resuelve `alvaress install`: Laya, ONNX Runtime, tokenizers,
-Vite-Plus, Graphify (con `uv`), Obsidian (si se puede) y las dependencias de
-validación.
+Vite-Plus, Graphify (con `uv`) y las dependencias de validación. Obsidian es
+opcional: el instalador crea la bóveda en Markdown, pero no instala la app.
 
 ## Instalación
 
@@ -150,6 +150,26 @@ npx alvaress --help
 Si tu proyecto usa npm, no pasa nada: `alvaress install` seguirá usando pnpm
 para sus dependencias Node y solo usará npm si pnpm no está en el PATH.
 
+### Checklist de componentes
+
+El instalador interactivo muestra una sola lista con todo lo que va a instalar:
+
+```text
+🧠 Laya          decisión local · ONNX Runtime, tokenizers y modelo int8 (488 MB) · obligatorio
+⚡ Vite-Plus     vp check y vp test · obligatorio
+📊 Graphify      grafo AST del repositorio · instala uv si falta · hooks de git · obligatorio
+🧩 Skills        15 skills del proyecto y sus enlaces globales · obligatorio
+🧭 Orquestador   agente alvaress en OpenCode · obligatorio
+🤖 Subagentes    explorer, researcher, architect, designer, implementer, implementer-lite,
+                 tester, verifier, reviewer, fixer · obligatorio
+🗂️ Obsidian     (solo para que tú visualices; los agentes no lo usan)
+```
+
+Los obligatorios se pueden intentar desmarcar, pero el instalador los restaura y
+avisa: sin ellos el arnés no funciona. Obsidian es la única casilla opcional y
+la bóveda Markdown se crea igual. `typescript` y `@types/node` no aparecen en la
+lista porque son implícitos: se instalan si faltan, sin ocupar casilla.
+
 ### Instalación desatendida
 
 Para dejar el equipo listo sin preguntas:
@@ -158,28 +178,34 @@ Para dejar el equipo listo sin preguntas:
 alvaress install --yes
 ```
 
-`--yes` instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y
-validación), usa la configuración existente o los valores por defecto y no
-pregunta nada. Instala lo que falte, crea `openspec.yaml` si el proyecto es un
-repositorio y no crea `.alvaressrc.json`.
+`--yes` instala el set fijo (agente, Laya, Graphify, Vite-Plus y validación),
+usa la configuración existente o los valores por defecto y no pregunta nada.
+Instala lo que falte, crea `openspec.yaml` si el proyecto es un repositorio y no
+crea `.alvaressrc.json`. No instala la app Obsidian; añade `--with-obsidian` si
+quieres que también la instale.
 
 ### Qué hace el instalador
 
-1. Instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y
-   validación).
+1. Instala el set fijo (agente, Laya, Graphify, Vite-Plus y validación). La app
+   Obsidian queda fuera salvo que marques esa casilla o pases
+   `--with-obsidian`.
 2. Pregunta lo que necesita decisión humana antes del trabajo pesado: bóveda,
    ruta del modelo de Laya y modelos de orquestador y subagentes.
 3. Guarda `~/.alvaressconfig.json` para no perder tus elecciones si algo falla.
-4. Instala en paralelo Obsidian, Graphify (con `uv tool install`), las
-   dependencias Node y el bundle int8 de Laya. Las dependencias Node van en una
-   sola llamada a pnpm; los archivos pequeños del bundle se bajan en paralelo y
-   el progreso es agregado.
-5. Crea o actualiza `.alvaressrc.json` si aceptas overrides locales.
-6. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
-7. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
-8. Escribe las skills en `.harness/skills/` y sus enlaces globales.
-9. Instala el agente `alvaress` y sus diez subagentes en OpenCode con el
-   modelo elegido en su frontmatter.
+4. Instala en paralelo Graphify (con `uv tool install`), las dependencias Node y
+   el bundle int8 de Laya; la app Obsidian solo si la pediste. Las dependencias
+   Node van en una sola llamada a pnpm; los archivos pequeños del bundle se bajan
+   en paralelo y el progreso es agregado.
+5. Activa los hooks de Graphify con `graphify hook install` si el proyecto es un
+   repositorio git. El grafo se reconstruye tras `commit`, `checkout`, `merge` y
+   `rewrite`, y se registra el merge driver de `graphify-out/graph.json`. Si
+   husky está configurado, los hooks se escriben en `.husky/` junto a los tuyos.
+6. Crea o actualiza `.alvaressrc.json` si aceptas overrides locales.
+7. Crea `openspec.yaml` si el proyecto es un repositorio y no lo tiene.
+8. Conecta `<bóveda>/Harness/` con enlaces a `.harness/tasks` y `openspec.yaml`.
+9. Escribe las skills en `.harness/skills/` y sus enlaces globales.
+10. Instala el agente `alvaress` y sus diez subagentes en OpenCode con el
+    modelo elegido en su frontmatter.
 
 Al final el instalador resume proyecto, rutas, configuración y los modelos
 efectivos, para que no tengas que abrir el JSON.
@@ -222,7 +248,7 @@ subagente de código, validará y actualizará el estado de la tarea.
 | --- | --- | --- |
 | `alvaress run "<petición>"` | Ejecuta el arnés de principio a fin: explora, decide, trabaja, valida y cierra. | `--task`, `--files`, `--mode odd\|sdd\|auto`, `--dry-run`, `--no-commit`, `--no-learn`, `--force` |
 | `alvaress -i` / `--inspect-last-run` | Muestra el log completo del último run (`.laya/last_run.log`). | — |
-| `alvaress install` | Instala el set fijo (agente, Laya, Obsidian, Graphify, Vite-Plus y validación). | `--yes`, `-y` |
+| `alvaress install` | Instala el set fijo (agente, Laya, Graphify, Vite-Plus y validación) y crea la bóveda Markdown. | `--yes`, `-y`, `--with-obsidian` |
 | `alvaress init` | Crea `.harness/`, `openspec.yaml`, skills y agente del proyecto. | `--no-link` |
 | `alvaress apply [TASK...]` | Ejecuta tareas pendientes (o las indicadas) con el worker de subagentes, en grupos aislados. | `--dry-run`, `--force`, `--update-graph`, `--no-lock` |
 | `alvaress verify <TASK_ID>` | Ejecuta la validación de la tarea y, si falla, pide reparación automática al fixer. | — |
@@ -398,10 +424,10 @@ modelo, el run sigue con heurísticas y `doctor` lo indica.
 | **ONNX Runtime** | Ejecuta el modelo de Laya en CPU, sin servicio remoto ni API key. | `pnpm add -D onnxruntime-node` (lo hace `alvaress install`). |
 | **Hugging Face Tokenizers** | Tokeniza el resumen de estado que recibe Laya. | `pnpm add -D @huggingface/tokenizers` (lo hace `alvaress install`). |
 | **Vite-Plus** | `vp check` y `vp test`: lint, tipos y pruebas en un solo comando. | `pnpm add -D vite-plus` (lo hace `alvaress install`). |
-| **oxlint + TypeScript** | Validación de respaldo para proyectos sin Vite-Plus. | `pnpm add -D oxlint typescript @types/node` (lo hace `alvaress install`). |
+| **TypeScript + @types/node** | Tipos de Node y `tsc` como respaldo. Se instalan sin fila propia en el checklist; el lint no se instala aparte porque Vite-Plus ya incluye `oxlint`. | `pnpm add -D typescript @types/node` (lo hace `alvaress install`). |
 | **Graphify** | Grafo AST del repositorio para localizar código sin leerlo entero. Lo usa el agente OpenCode y los subagentes. | `uv tool install graphifyy` (lo hace `alvaress install`). |
 | **uv** | Instala Graphify en un entorno Python aislado. | Instalador oficial, `brew install uv` o `python3 -m pip install --user uv`. |
-| **Obsidian** | Nota ODD y espejo del estado SDD. | El instalador intenta instalarla; si falla, la bóveda se crea igual. |
+| **Obsidian** | Nota ODD y espejo del estado SDD. | Opcional: `alvaress install` crea la bóveda en Markdown; la app la instalas tú desde `obsidian.md/download` o con `--with-obsidian`. |
 | **OpenSpec** | Formato de manifiesto y tareas SDD. | No se instala: alvaress usa el formato y crea `openspec.yaml`. |
 
 Las dependencias Node se instalan con **pnpm**. **uv** solo se usa para Graphify,
@@ -499,7 +525,7 @@ una garantía.
 
 ### Skills
 
-El instalador escribe catorce skills en `.harness/skills/<nombre>/SKILL.md` y
+El instalador escribe quince skills en `.harness/skills/<nombre>/SKILL.md` y
 crea enlaces en `~/.config/opencode/skills/<nombre>` y
 `~/.claude/skills/<nombre>`:
 
@@ -517,6 +543,7 @@ crea enlaces en `~/.config/opencode/skills/<nombre>` y
 | `obsidian-sdd` | Define el uso de Obsidian por fase y el acceso de solo lectura de los subagentes. |
 | `continuous-learning` | Consulta títulos relevantes y guarda aprendizajes en el store global o del proyecto sin inflar el contexto. |
 | `bounded-scope` | Mantiene al subagente en los archivos asignados y le enseña a detenerse. |
+| `git-diff-context` | Lee el diff del árbol de trabajo como contexto, sin tocar el historial ni ampliar el alcance. |
 | `vite-plus-verify` | Ejecuta `vp check`/`vp test` y devuelve el error exacto sin ruido. |
 | `failure-triage` | Clasifica un fallo como trivial o nuclear antes de repararlo. |
 
@@ -550,17 +577,29 @@ El orquestador es el único que ejecuta `alvaress apply`, `alvaress verify`,
 
 ## Obsidian
 
-Obsidian es opcional. Si lo seleccionas, `alvaress install`:
+Obsidian es opcional y **no se instala por defecto**: el arnés escribe Markdown
+compatible, así que la bóveda funciona con o sin la app. `alvaress install`:
 
-1. Comprueba si está instalado (binario, escritorio, Flatpak, Snap, AppImage,
-   `.app` de macOS o instalación de Windows).
-2. Si falta, intenta instalarlo con el gestor del sistema o el paquete oficial.
-3. Usa la bóveda configurada o `~/Obsidian`, la crea si no existe y la conecta
-   al proyecto.
+1. Pregunta la ruta de la bóveda (o usa `obsidianVaultPath` si ya existe), la
+   crea y la conecta al proyecto.
+2. Prepara `Harness/` con la nota del proyecto, el índice de tareas y enlaces
+   `[[...]]`, el mismo formato que Obsidian indexa.
+3. Si marcas la casilla de Obsidian en el checklist (o pasas `--with-obsidian`),
+   intenta instalar la app con el gestor del sistema o el paquete oficial. Si
+   falla, avisa y continúa.
 
-Si la instalación automática falla, el instalador avisa y continúa: la bóveda se
-crea igualmente y puedes instalar Obsidian después desde
-[obsidian.md/download](https://obsidian.md/download).
+La bóveda se configura en dos niveles: `obsidianVaultPath` global en
+`~/.alvaressconfig.json` y, si quieres una bóveda distinta para un repositorio,
+el override en `.alvaressrc.json`; el local gana.
+
+Si más adelante quieres la UI (grafo, backlinks, búsqueda):
+
+1. Instala Obsidian desde [obsidian.md/download](https://obsidian.md/download).
+2. Ábrelo y elige **Open folder as vault** con la ruta que configuraste
+   (por defecto `~/Obsidian`).
+3. Ejecuta `alvaress obsidian sync` si quieres recrear la nota y los enlaces.
+
+No hace falta migrar nada: los `.md` y los enlaces ya son los definitivos.
 
 Dentro de la bóveda se crea:
 

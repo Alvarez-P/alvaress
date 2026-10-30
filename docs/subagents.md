@@ -132,16 +132,16 @@ el diff y rechaza cualquier comentario nuevo antes de validar y commitear.
 
 | Subagente | Skills disponibles |
 | --- | --- |
-| `alvaress-explorer` | `consult-graphify-ast`, `obsidian-sdd`, `bounded-scope` |
+| `alvaress-explorer` | `consult-graphify-ast`, `obsidian-sdd`, `git-diff-context`, `bounded-scope` |
 | `alvaress-researcher` | `technical-research`, `consult-graphify-ast`, `bounded-scope` |
 | `alvaress-architect` | `read-spec-first`, `architecture-decisions`, `consult-graphify-ast`, `bounded-scope` |
 | `alvaress-designer` | `read-spec-first`, `ui-design`, `clean-code`, `bounded-scope` |
-| `alvaress-implementer` | `read-spec-first`, `clean-code`, `bounded-scope`, `self-healing-verify` |
+| `alvaress-implementer` | `read-spec-first`, `clean-code`, `git-diff-context`, `bounded-scope`, `self-healing-verify` |
 | `alvaress-implementer-lite` | `read-spec-first`, `clean-code`, `bounded-scope` |
 | `alvaress-tester` | `read-spec-first`, `testing-strategy`, `vite-plus-verify`, `bounded-scope` |
 | `alvaress-verifier` | `vite-plus-verify`, `bounded-scope` |
-| `alvaress-reviewer` | `read-spec-first`, `code-review`, `clean-code`, `bounded-scope` |
-| `alvaress-fixer` | `failure-triage`, `clean-code`, `self-healing-verify`, `bounded-scope` |
+| `alvaress-reviewer` | `read-spec-first`, `code-review`, `clean-code`, `git-diff-context`, `bounded-scope` |
+| `alvaress-fixer` | `failure-triage`, `clean-code`, `git-diff-context`, `self-healing-verify`, `bounded-scope` |
 
 El frontmatter de cada subagente limita la acción `skill` a esa lista: cualquier
 otra skill se deniega. No es obligatorio cargarlas: el mensaje del worker ya

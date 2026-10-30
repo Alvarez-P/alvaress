@@ -323,9 +323,9 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
   (enlace a \`.harness/tasks\`) y \`openspec.yaml\` (enlace al manifiesto)
 - Skills disponibles: \`read-spec-first\`, \`consult-graphify-ast\`,
   \`self-healing-verify\`, \`clean-code\`, \`obsidian-sdd\`,
-  \`continuous-learning\`, \`bounded-scope\`, \`vite-plus-verify\`,
-  \`failure-triage\`, \`architecture-decisions\`, \`ui-design\`,
-  \`testing-strategy\`, \`code-review\` y \`technical-research\`
+  \`continuous-learning\`, \`bounded-scope\`, \`git-diff-context\`,
+  \`vite-plus-verify\`, \`failure-triage\`, \`architecture-decisions\`,
+  \`ui-design\`, \`testing-strategy\`, \`code-review\` y \`technical-research\`
 
 ## Flujo obligatorio
 
@@ -788,11 +788,16 @@ export const SUBAGENTS: SubagentDefinition[] = [
     description: 'Explorador de solo lectura que localiza código y contexto y propone un alcance cerrado.',
     mode: 'subagent',
     steps: 12,
-    skills: ['consult-graphify-ast', 'obsidian-sdd', 'bounded-scope'],
+    skills: ['consult-graphify-ast', 'obsidian-sdd', 'git-diff-context', 'bounded-scope'],
     permissions: [
       ...baseSubagentPermissions({ externalRead: true }),
       { action: 'edit', resource: '*', effect: 'deny' },
-      ...skillPermissions(['consult-graphify-ast', 'obsidian-sdd', 'bounded-scope']),
+      ...skillPermissions([
+        'consult-graphify-ast',
+        'obsidian-sdd',
+        'git-diff-context',
+        'bounded-scope'
+      ]),
       ...shellPermissions([
         'graphify *',
         ...GIT_READ_COMMANDS,
@@ -951,13 +956,14 @@ Máximo 25 líneas: \`layout:\`, \`components:\`, \`tokens:\`, \`states:\`, \`re
     description: 'Implementa una micro-tarea ODD o una tarea SDD dentro de un alcance cerrado.',
     mode: 'subagent',
     steps: 30,
-    skills: ['read-spec-first', 'clean-code', 'bounded-scope', 'self-healing-verify'],
+    skills: ['read-spec-first', 'clean-code', 'git-diff-context', 'bounded-scope', 'self-healing-verify'],
     permissions: [
       ...baseSubagentPermissions({ externalRead: false }),
       { action: 'edit', resource: '*', effect: 'allow' },
       ...skillPermissions([
         'read-spec-first',
         'clean-code',
+        'git-diff-context',
         'bounded-scope',
         'self-healing-verify'
       ]),
@@ -1101,11 +1107,17 @@ Máximo 12 líneas por comando: \`verdict:\`, \`command:\`, \`exit:\`, \`error: 
     description: 'Revisa el diff contra la spec y los estándares con hallazgos accionables; no reescribe.',
     mode: 'subagent',
     steps: 16,
-    skills: ['read-spec-first', 'code-review', 'clean-code', 'bounded-scope'],
+    skills: ['read-spec-first', 'code-review', 'clean-code', 'git-diff-context', 'bounded-scope'],
     permissions: [
       ...baseSubagentPermissions({ externalRead: false }),
       { action: 'edit', resource: '*', effect: 'deny' },
-      ...skillPermissions(['read-spec-first', 'code-review', 'clean-code', 'bounded-scope']),
+      ...skillPermissions([
+        'read-spec-first',
+        'code-review',
+        'clean-code',
+        'git-diff-context',
+        'bounded-scope'
+      ]),
       ...shellPermissions([
         'graphify *',
         ...GIT_READ_COMMANDS,
@@ -1148,11 +1160,17 @@ Máximo 20 líneas: \`verdict:\`, \`blockers:\`, \`majors:\`, \`minors:\`, \`spe
     description: 'Repara un fallo de validación trivial dentro del alcance, con máximo dos intentos.',
     mode: 'subagent',
     steps: 20,
-    skills: ['failure-triage', 'clean-code', 'self-healing-verify', 'bounded-scope'],
+    skills: ['failure-triage', 'clean-code', 'git-diff-context', 'self-healing-verify', 'bounded-scope'],
     permissions: [
       ...baseSubagentPermissions({ externalRead: false }),
       { action: 'edit', resource: '*', effect: 'allow' },
-      ...skillPermissions(['failure-triage', 'clean-code', 'self-healing-verify', 'bounded-scope']),
+      ...skillPermissions([
+        'failure-triage',
+        'clean-code',
+        'git-diff-context',
+        'self-healing-verify',
+        'bounded-scope'
+      ]),
       ...shellPermissions([
         ...VALIDATION_COMMANDS,
         ...GIT_READ_COMMANDS,

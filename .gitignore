@@ -7,3 +7,9 @@ graphify-out/cache/
 package-lock.json
 __pycache__/
 *.pyc
+
+# Hooks de Graphify: se regeneran por máquina con `graphify hook install`
+.husky/post-commit
+.husky/post-checkout
+.husky/post-merge
+.husky/post-rewrite

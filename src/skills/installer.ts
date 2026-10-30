@@ -203,6 +203,32 @@ alvaress learn add solution "Validar migraciones en seco" \\
 - Devuelve \`scope: blocked\` con la ruta exacta si la causa está fuera del alcance, hace falta una dependencia o migración, o el error se repitió dos veces. No inventes el archivo que falta.`
   },
   {
+    name: 'git-diff-context',
+    description: 'Usa el diff del árbol de trabajo como contexto de solo lectura, sin tocar el historial.',
+    scope: 'project',
+    body: `El orquestador te envía el diff del árbol de trabajo frente a HEAD, igual que hace Aider. Es contexto, no una invitación a salir del alcance.
+
+## Para qué sirve
+
+- Ver qué cambió ya (tuyo, de otra tarea o del usuario) y no pisarlo ni duplicarlo.
+- Comprobar si un cambio ya está aplicado antes de reportar un bloqueo.
+- Revisar el estado real del run sin volver a leer los archivos completos.
+
+## Cómo leerlo
+
+1. Si el diff viene truncado, pide solo el archivo: \`git diff -- <ruta>\`.
+2. Para un mapa rápido: \`git diff --stat\`.
+3. Los archivos nuevos sin seguimiento no aparecen en el diff: \`git status --porcelain\` los lista.
+4. Contrasta el diff con la lista de archivos asignados; lo que quede fuera es contexto, no permiso.
+
+## Límites
+
+- Solo lectura: nunca \`git add\`, \`commit\`, \`checkout\`, \`restore\`, \`stash\`, \`reset\`, \`clean\`, \`apply\` ni \`rm\`.
+- No pegues el diff completo en tu respuesta final: cita \`archivo:línea\` y resume.
+- No reproduzcas secretos, tokens ni rutas personales que aparezcan en el diff.
+- Si el diff contradice la fuente o la spec, gana la fuente y dilo.`
+  },
+  {
     name: 'vite-plus-verify',
     description: 'Ejecuta Vite-Plus como validador local y devuelve el error exacto sin ruido.',
     scope: 'project',

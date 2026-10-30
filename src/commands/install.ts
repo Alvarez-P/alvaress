@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { unlink } from 'node:fs/promises';
 import * as p from '@clack/prompts';
-import { installAgent } from '../agent/installer.js';
+import { installAgent, SUBAGENTS } from '../agent/installer.js';
 import { loadConfig, getConfigPaths, readConfigFile, saveGlobalConfig } from '../config/loader.js';
 import type {
   HarnessConfig,
@@ -20,13 +20,13 @@ import {
   LAYA_TOKENIZER_PACKAGE,
   VITE_PLUS_PACKAGE
 } from '../constants.js';
-import { detectObsidian, installObsidian } from '../obsidian/installer.js';
+import { detectObsidian, installObsidian, OBSIDIAN_DOWNLOAD_URL } from '../obsidian/installer.js';
 import { connectObsidianVault } from '../obsidian/vault.js';
 import { BUNDLE_BYTES, BUNDLE_REVISION, ensureBundle, verifyBundle } from '../decision/vendor/laya/index.js';
 import { errorMessage } from '../utils/errors.js';
 import { moduleAvailableFrom } from '../utils/modules.js';
 import { ensureHarnessDirs, getManifestPath, inferProjectName, scaffoldManifest } from '../openspec/manifest.js';
-import { installSkills } from '../skills/installer.js';
+import { installSkills, SKILLS } from '../skills/installer.js';
 import { ensureDir, pathExists, relativeTo, writeJsonFile } from '../utils/fs.js';
 import { logger } from '../utils/logger.js';
 import { runCommand } from '../utils/process.js';
@@ -44,19 +44,86 @@ import {
 } from '../utils/uv.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
-const COMPONENT_VALUES = ['agent', 'laya', 'obsidian', 'graphify', 'vite-plus', 'validation'] as const;
+const COMPONENT_VALUES = ['agent', 'laya', 'skills', 'obsidian', 'graphify', 'vite-plus', 'validation'] as const;
 type Component = (typeof COMPONENT_VALUES)[number];
 
-const REQUIRED_COMPONENTS: Component[] = [...COMPONENT_VALUES];
+/** La app Obsidian es opcional; la bóveda Markdown se crea siempre. */
+const OBSIDIAN_APP_COMPONENT: Component = 'obsidian';
 
-const FIXED_COMPONENT_SUMMARY = [
-  '🧭 Agente alvaress · orquestador y subagentes en OpenCode',
-  '🧠 Laya · decisión local, riesgo y triaje',
-  '🗂️ Obsidian · notas ODD y reporte de cierre',
-  '📊 Graphify · navegación del agente',
-  '⚡ Vite-Plus · vp check / vp test',
-  '🧪 Validación · oxlint, TypeScript y tipos de Node'
-].join('\n');
+/** Fila del checklist: `components` es lo que instala, `id` es lo que se marca. */
+type ChecklistId =
+  | 'laya'
+  | 'vite-plus'
+  | 'graphify'
+  | 'skills'
+  | 'orchestrator'
+  | 'subagents'
+  | 'obsidian';
+
+interface ChecklistEntry {
+  id: ChecklistId;
+  components: Component[];
+  label: string;
+  hint: string;
+  required: boolean;
+}
+
+const SUBAGENT_ROLES = SUBAGENTS.map(({ name }) => name.replace(/^alvaress-/, '')).join(', ');
+
+/** Requisitos implícitos: se instalan siempre y no ocupan fila en el checklist. */
+const IMPLICIT_COMPONENTS: Component[] = ['validation'];
+
+const CHECKLIST: ChecklistEntry[] = [
+  {
+    id: 'laya',
+    components: ['laya'],
+    label: '🧠 Laya',
+    hint: `decisión local · ONNX Runtime, tokenizers y modelo int8 (${formatBytes(BUNDLE_BYTES)})`,
+    required: true
+  },
+  {
+    id: 'vite-plus',
+    components: ['vite-plus'],
+    label: '⚡ Vite-Plus',
+    hint: 'vp check y vp test',
+    required: true
+  },
+  {
+    id: 'graphify',
+    components: ['graphify'],
+    label: '📊 Graphify',
+    hint: 'grafo AST del repositorio · instala uv si falta',
+    required: true
+  },
+  {
+    id: 'skills',
+    components: ['skills'],
+    label: '🧩 Skills',
+    hint: `${SKILLS.length} skills del proyecto y sus enlaces globales`,
+    required: true
+  },
+  {
+    id: 'orchestrator',
+    components: ['agent'],
+    label: '🧭 Orquestador',
+    hint: 'agente alvaress en OpenCode',
+    required: true
+  },
+  {
+    id: 'subagents',
+    components: ['agent'],
+    label: '🤖 Subagentes',
+    hint: SUBAGENT_ROLES,
+    required: true
+  },
+  {
+    id: 'obsidian',
+    components: ['obsidian'],
+    label: '🗂️ Obsidian',
+    hint: '(solo para que tú visualices; los agentes no lo usan)',
+    required: false
+  }
+];
 
 export interface InstallRuntime {
   commandExists: typeof commandExists;
@@ -93,6 +160,8 @@ const DEFAULT_RUNTIME: InstallRuntime = {
 
 export interface InstallOptions {
   yes?: boolean;
+  /** Fuerza la instalación de la app Obsidian; por defecto se pregunta o se omite. */
+  withObsidian?: boolean;
   runtime?: Partial<InstallRuntime>;
 }
 
@@ -136,23 +205,17 @@ export async function runInstall(
     );
   }
 
-  const selected: Component[] = [...REQUIRED_COMPONENTS];
+  const selected = await pickComponents(options.withObsidian, yes);
+  const installObsidianApp = selected.has(OBSIDIAN_APP_COMPONENT);
 
-  if (!yes) {
-    p.note(FIXED_COMPONENT_SUMMARY, 'Se instalarán siempre');
-  }
-
-  let obsidianVaultPath: string | undefined;
-  if (selected.includes('obsidian')) {
-    obsidianVaultPath = await configureObsidian(config.obsidianVaultPath, yes);
-    if (obsidianVaultPath !== config.obsidianVaultPath) {
-      config = { ...config, obsidianVaultPath };
-      configDirty = true;
-    }
+  const obsidianVaultPath = await configureObsidian(config.obsidianVaultPath, yes);
+  if (obsidianVaultPath !== config.obsidianVaultPath) {
+    config = { ...config, obsidianVaultPath };
+    configDirty = true;
   }
 
   let layaPlan: LayaPlan | undefined;
-  if (selected.includes('laya')) {
+  if (selected.has('laya')) {
     layaPlan = await promptLaya(config, yes, root);
     config = layaPlan.config;
     configDirty = true;
@@ -194,12 +257,12 @@ export async function runInstall(
     );
   }
 
-  const needsUv = selected.includes('graphify');
+  const needsUv = selected.has('graphify');
   const uvReady = needsUv ? await ensureUv(runtime, yes) : false;
 
   const nodePlan = planNodeDependencies(root, runtime, {
-    vitePlus: selected.includes('vite-plus'),
-    validation: selected.includes('validation'),
+    vitePlus: selected.has('vite-plus'),
+    validation: selected.has('validation'),
     laya: layaPlan?.enabled === true
   });
 
@@ -218,17 +281,17 @@ export async function runInstall(
   spinner.start('Instalando componentes en paralelo');
 
   const tasks: Array<Promise<ComponentResult | undefined>> = [];
-  if (selected.includes('obsidian')) {
+  if (selected.has('obsidian')) {
     tasks.push(installObsidianComponent(runtime, update));
   }
-  if (selected.includes('graphify')) {
-    tasks.push(installGraphify(runtime, uvReady, update));
+  if (selected.has('graphify')) {
+    tasks.push(installGraphify(root, runtime, uvReady, update));
   }
   if (nodePlan.packages.length > 0) {
     tasks.push(installNodeDependencies(root, manager, runtime, nodePlan, update));
   } else if (
-    selected.includes('vite-plus') ||
-    selected.includes('validation') ||
+    selected.has('vite-plus') ||
+    selected.has('validation') ||
     layaPlan?.enabled === true
   ) {
     update('Node', 'sin cambios');
@@ -297,26 +360,29 @@ export async function runInstall(
     }
   }
 
-  if (obsidianVaultPath !== undefined) {
-    const connection = runtime.connectObsidianVault(root, obsidianVaultPath);
-    p.log.success(`Bóveda conectada: ${connection.harnessDir}`);
-    p.log.info(`Enlace de tareas: ${connection.tasksLink} (${connection.tasksLinkResult})`);
-    if (connection.manifestLink !== undefined) {
-      p.log.info(`Enlace del manifiesto: ${connection.manifestLink} (${connection.manifestLinkResult})`);
+  const connection = runtime.connectObsidianVault(root, obsidianVaultPath);
+  p.log.success(`Bóveda conectada: ${connection.harnessDir}`);
+  p.log.info(`Enlace de tareas: ${connection.tasksLink} (${connection.tasksLinkResult})`);
+  if (connection.manifestLink !== undefined) {
+    p.log.info(`Enlace del manifiesto: ${connection.manifestLink} (${connection.manifestLinkResult})`);
+  }
+  if (!installObsidianApp && !runtime.detectObsidian().installed) {
+    p.log.info(obsidianAppHint(connection.harnessDir));
+  }
+
+  if (selected.has('skills')) {
+    const report = runtime.installSkills(root);
+    p.log.success(`Skills del proyecto escritas en ${relativeTo(root, report.skillsDir)}`);
+
+    const skipped = report.links.filter((link) => link.result === 'skipped');
+    for (const link of skipped) {
+      p.log.warn(`Se omitió el enlace ${link.link}: ya existe un archivo o directorio real.`);
     }
+    const linked = report.links.length - skipped.length;
+    p.log.info(`Enlaces globales de skills actualizados: ${linked}`);
   }
 
-  const report = runtime.installSkills(root);
-  p.log.success(`Skills del proyecto escritas en ${relativeTo(root, report.skillsDir)}`);
-
-  const skipped = report.links.filter((link) => link.result === 'skipped');
-  for (const link of skipped) {
-    p.log.warn(`Se omitió el enlace ${link.link}: ya existe un archivo o directorio real.`);
-  }
-  const linked = report.links.length - skipped.length;
-  p.log.info(`Enlaces globales de skills actualizados: ${linked}`);
-
-  if (selected.includes('agent')) {
+  if (selected.has('agent')) {
     const agent = runtime.installAgent(root, {
       global: true,
       project: true,
@@ -342,7 +408,7 @@ export async function runInstall(
       `Config: ${paths.global}`,
       `Orquestador: ${describeModel(config.models.orchestrator.modelName, 'hereda el de OpenCode')}`,
       `Subagentes: ${describeModel(config.models.subagents.modelName, 'heredan el del orquestador')}`,
-      ...(selected.includes('agent')
+      ...(selected.has('agent')
         ? []
         : ['Modelos guardados; ejecuta "alvaress agent install" para aplicarlos al frontmatter.']),
       'Siguiente paso: ejecuta "alvaress run \\"tu petición\\"" o define tareas en openspec.yaml y usa "alvaress run --task <TASK_ID>".'
@@ -446,33 +512,108 @@ async function ensureUv(runtime: InstallRuntime, yes: boolean): Promise<boolean>
 }
 
 async function installGraphify(
+  root: string,
   runtime: InstallRuntime,
   uvReady: boolean,
   update: (key: string, value: string) => void
 ): Promise<ComponentResult> {
   update('Graphify', 'comprobando');
-  if (runtime.commandExists('graphify')) {
-    update('Graphify', 'listo');
-    return { info: ['Graphify ya está instalado.'] };
-  }
-  if (!uvReady) {
-    update('Graphify', 'omitido');
-    return { warn: ['Sin uv no se puede instalar Graphify.'] };
+  const alreadyInstalled = runtime.commandExists('graphify');
+
+  if (!alreadyInstalled) {
+    if (!uvReady) {
+      update('Graphify', 'omitido');
+      return { warn: ['Sin uv no se puede instalar Graphify.'] };
+    }
+
+    update('Graphify', 'instalando');
+    const result = await runtime.runCommand('uv', uvToolInstallArgs('graphifyy'));
+    if (result.code !== 0) {
+      update('Graphify', 'falló');
+      return {
+        warn: [
+          `uv tool install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
+        ]
+      };
+    }
+    ensureUvPath();
   }
 
-  update('Graphify', 'instalando');
-  const result = await runtime.runCommand('uv', uvToolInstallArgs('graphifyy'));
-  if (result.code !== 0) {
-    update('Graphify', 'falló');
-    return {
-      warn: [
-        `uv tool install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
-      ]
-    };
-  }
-  ensureUvPath();
+  const hooks = await enableGraphifyHooks(root, runtime);
   update('Graphify', 'listo');
-  return { info: ['Graphify instalado correctamente.'] };
+  return {
+    info: [alreadyInstalled ? 'Graphify ya está instalado.' : 'Graphify instalado correctamente.', ...hooks]
+  };
+}
+
+/** Deja el grafo actualizado tras commit, checkout, merge y rewrite. */
+async function enableGraphifyHooks(root: string, runtime: InstallRuntime): Promise<string[]> {
+  if (!pathExists(path.join(root, '.git'))) {
+    return ['Sin repositorio git: hooks de Graphify omitidos.'];
+  }
+  if (!runtime.commandExists('graphify')) {
+    return ['Graphify no está en PATH: ejecuta "graphify hook install" cuando lo esté.'];
+  }
+
+  const result = await runtime.runCommand('graphify', ['hook', 'install'], { cwd: root });
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || result.stdout.trim() || result.error || `código ${result.code}`;
+    return [`graphify hook install falló: ${detail}`];
+  }
+  return ['Hooks de Graphify activos: el grafo se actualiza al cambiar de rama o commitear.'];
+}
+
+function obsidianAppHint(harnessDir: string): string {
+  return [
+    'Obsidian (app) no instalada: las notas son Markdown compatible y el flujo funciona sin ella.',
+    `Si quieres la UI (grafo, backlinks), instálala desde ${OBSIDIAN_DOWNLOAD_URL} y abre ${harnessDir}.`
+  ].join('\n');
+}
+
+function componentsFor(ids: readonly ChecklistId[]): Set<Component> {
+  const chosen = new Set(ids);
+  const components = CHECKLIST.filter((entry) => chosen.has(entry.id)).flatMap(
+    (entry) => entry.components
+  );
+  return new Set([...components, ...IMPLICIT_COMPONENTS]);
+}
+
+function requiredChecklistIds(): ChecklistId[] {
+  return CHECKLIST.filter((entry) => entry.required).map((entry) => entry.id);
+}
+
+async function pickComponents(
+  withObsidian: boolean | undefined,
+  yes: boolean
+): Promise<Set<Component>> {
+  const defaults = requiredChecklistIds();
+  if (withObsidian === true) {
+    defaults.push('obsidian');
+  }
+
+  if (yes) {
+    return componentsFor(defaults);
+  }
+
+  const answer = unwrap(
+    await p.multiselect<ChecklistId>({
+      message: 'Componentes a instalar · los obligatorios no se pueden desmarcar',
+      options: CHECKLIST.map((entry) => ({
+        value: entry.id,
+        label: entry.label,
+        hint: entry.required ? `${entry.hint} · obligatorio` : entry.hint
+      })),
+      initialValues: defaults,
+      required: true
+    })
+  );
+
+  const restored = CHECKLIST.filter((entry) => entry.required && !answer.includes(entry.id));
+  if (restored.length > 0) {
+    p.log.warn(`Obligatorios restaurados: ${restored.map((entry) => entry.label).join(', ')}.`);
+  }
+
+  return componentsFor([...answer, ...restored.map((entry) => entry.id)]);
 }
 
 function planNodeDependencies(
@@ -493,7 +634,7 @@ function planNodeDependencies(
   }
 
   if (needs.validation && !validationReady(root, runtime)) {
-    for (const dependency of ['oxlint', 'typescript', '@types/node']) {
+    for (const dependency of ['typescript', '@types/node']) {
       packages.add(dependency);
     }
     labels.push('validación');
@@ -513,7 +654,9 @@ function planNodeDependencies(
 }
 
 function validationReady(root: string, runtime: InstallRuntime): boolean {
-  return runtime.moduleAvailable('oxlint', root) && runtime.moduleAvailable('typescript', root);
+  return (
+    runtime.moduleAvailable('typescript', root) && runtime.moduleAvailable('@types/node', root)
+  );
 }
 
 async function installNodeDependencies(

@@ -18,6 +18,7 @@ import { heuristicVerdict } from '../decision/heuristics.js';
 import { runCommand } from '../utils/process.js';
 import type { CommandResult } from '../utils/process.js';
 import { diffSnapshots, scopeRisks, snapshotWorkspace } from './diff.js';
+import { workingTreeDiff } from './git-diff.js';
 import type { RunLog } from './run-log.js';
 
 const MAX_INLINE_FILE_BYTES = 8_000;
@@ -67,6 +68,7 @@ function list(items: string[]): string {
 export interface WorkMessageOptions {
   root?: string;
   inlineContext?: boolean;
+  diff?: string;
 }
 
 /**
@@ -149,6 +151,15 @@ export function buildWorkMessage(plan: WorkPlan, options: WorkMessageOptions = {
     ...(inline.length > 0
       ? ['Contexto ya leído por el orquestador (no lo releas):', ...inline, '']
       : []),
+    ...(options.diff !== undefined && options.diff.trim().length > 0
+      ? [
+          'Diff actual del árbol de trabajo (solo lectura; intégralo, no lo repitas):',
+          '```diff',
+          options.diff.trim(),
+          '```',
+          ''
+        ]
+      : []),
     'Aprendizajes relevantes:',
     list(plan.learnings.map((learning) => `${learning.id}: ${learning.title}`)),
     '',
@@ -163,7 +174,7 @@ export function buildWorkMessage(plan: WorkPlan, options: WorkMessageOptions = {
   ].join('\n');
 }
 
-export function buildFixMessage(input: FixInput): string {
+export function buildFixMessage(input: FixInput, diff?: string): string {
   const failure = input.failure.commands.find((command) => command.code !== 0);
   const output = [failure?.stdout ?? '', failure?.stderr ?? '', input.error]
     .filter((part) => part.trim().length > 0)
@@ -181,6 +192,15 @@ export function buildFixMessage(input: FixInput): string {
     'Archivos del alcance:',
     list(input.files),
     '',
+    ...(diff !== undefined && diff.trim().length > 0
+      ? [
+          'Diff actual del alcance (solo lectura; intégralo, no lo repitas):',
+          '```diff',
+          diff.trim(),
+          '```',
+          ''
+        ]
+      : []),
     ...(input.review !== undefined && input.review.trim().length > 0
       ? ['Revisión del diff (prioriza los blockers):', input.review.trim(), '']
       : []),
@@ -194,7 +214,7 @@ export function buildFixMessage(input: FixInput): string {
   ].join('\n');
 }
 
-export function buildConsultMessage(role: SpecialistRole, input: ConsultInput): string {
+export function buildConsultMessage(role: SpecialistRole, input: ConsultInput, diff?: string): string {
   const changes = input.changes
     .map((change) => `${change.kind ?? 'modified'} ${change.path}: ${change.change}`)
     .join('\n');
@@ -220,6 +240,9 @@ export function buildConsultMessage(role: SpecialistRole, input: ConsultInput): 
     list(input.validation),
     '',
     ...(changes.length > 0 ? ['Cambios implementados:', changes, ''] : []),
+    ...(diff !== undefined && diff.trim().length > 0
+      ? ['Diff del árbol de trabajo (solo lectura):', '```diff', diff.trim(), '```', '']
+      : []),
     ...(input.briefs.length > 0
       ? [
           'Briefs anteriores (no los repitas, intégralos):',
@@ -287,9 +310,10 @@ export class SubagentWorker implements Worker {
   }
 
   async work(plan: WorkPlan): Promise<WorkResult> {
+    const diff = await workingTreeDiff(this.root, plan.files);
     return this.invoke(
       implementerAgent(plan.complexity),
-      buildWorkMessage(plan, { root: this.root, inlineContext: true }),
+      buildWorkMessage(plan, { root: this.root, inlineContext: true, diff }),
       plan.files,
       'subagente',
       plan.runId
@@ -298,7 +322,8 @@ export class SubagentWorker implements Worker {
 
   async fix(input: FixInput): Promise<FixResult> {
     const before = snapshotWorkspace(this.root, input.files);
-    const run = await this.runOpenCode(FIXER_AGENT, buildFixMessage(input), input.runId);
+    const diff = await workingTreeDiff(this.root, input.files);
+    const run = await this.runOpenCode(FIXER_AGENT, buildFixMessage(input, diff), input.runId);
     const after = snapshotWorkspace(this.root, input.files);
     const changes = diffSnapshots(before, after, 'El subagente');
     const risks = scopeRisks(input.files, changes, this.config.scope ?? 'warn');
@@ -307,9 +332,10 @@ export class SubagentWorker implements Worker {
   }
 
   async consult(role: SpecialistRole, input: ConsultInput): Promise<SpecialistBrief> {
+    const diff = await workingTreeDiff(this.root, input.files);
     const run = await this.runOpenCode(
       SPECIALIST_AGENTS[role],
-      buildConsultMessage(role, input),
+      buildConsultMessage(role, input, diff),
       input.runId,
       'text'
     );

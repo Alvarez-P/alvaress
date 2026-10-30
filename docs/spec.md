@@ -7,9 +7,9 @@ el [README](../README.md); para el contrato de los subagentes, consulta
 ## Objetivo
 
 `alvaress` automatiza el ciclo híbrido **SDD + ODD** bajo el formato OpenSpec.
-Integra Obsidian como espejo del estado, Graphify como mapa AST, Laya como motor
-de decisión local, Vite-Plus como compuerta de validación y subagentes de
-OpenCode como ejecutores.
+Integra una bóveda Markdown compatible con Obsidian (la app es opcional) como
+espejo del estado, Graphify como mapa AST, Laya como motor de decisión local,
+Vite-Plus como compuerta de validación y subagentes de OpenCode como ejecutores.
 
 El orquestador conserva siempre cuatro responsabilidades que no delega:
 
@@ -77,6 +77,16 @@ Reglas de fusión:
 - Los escalares locales sustituyen a los globales.
 - La ruta de la bóveda y los comandos admiten `${VARIABLE}`.
 - `alvaress config show` muestra la configuración resuelta; las credenciales viven en OpenCode.
+
+## Bóveda Obsidian
+
+La bóveda es una carpeta de Markdown con enlaces `[[...]]`, legible por Obsidian
+y por cualquier editor. `alvaress install` la crea y la conecta siempre; la app
+Obsidian no se instala por defecto y solo aporta la capa visual (grafo,
+backlinks). El instalador la muestra como única casilla opcional de su checklist;
+el resto de componentes son obligatorios y se restauran si se desmarcan. La ruta
+se configura en global (`obsidianVaultPath`) y se puede sobrescribir por proyecto
+en `.alvaressrc.json`.
 
 ## Manifiesto `openspec.yaml`
 
@@ -150,7 +160,7 @@ Implementaciones:
 
 ## Skills
 
-El instalador escribe catorce skills y las enlaza en las rutas de OpenCode y
+El instalador escribe quince skills y las enlaza en las rutas de OpenCode y
 Claude:
 
 | Skill | Propósito |
@@ -162,6 +172,7 @@ Claude:
 | `obsidian-sdd` | Uso de la bóveda por fase y solo lectura para subagentes. |
 | `continuous-learning` | Consultar y guardar aprendizajes sin inflar el contexto. |
 | `bounded-scope` | Mantener el alcance cerrado y detenerse a tiempo. |
+| `git-diff-context` | Leer el diff del árbol de trabajo sin tocar el historial. |
 | `vite-plus-verify` | Ejecutar `vp check`/`vp test` sin ruido. |
 | `failure-triage` | Clasificar un fallo como trivial o nuclear. |
 | `architecture-decisions` | Límites, contratos y patrones proporcionales. |

@@ -14,7 +14,7 @@ import {
   VITE_PLUS_PACKAGE
 } from '../constants.js';
 import { BUNDLE_REVISION, bundleFilesFor } from '../decision/vendor/laya/index.js';
-import { detectObsidian } from '../obsidian/installer.js';
+import { detectObsidian, OBSIDIAN_DOWNLOAD_URL } from '../obsidian/installer.js';
 import { getManifestPath, getTasksDir, loadManifest, taskFilePath } from '../openspec/manifest.js';
 import { getGraphStatus } from '../graphify/status.js';
 import { moduleAvailableFrom } from '../utils/modules.js';
@@ -283,7 +283,11 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
     checks.push(
       obsidian.installed
         ? check('obsidian', 'ok', `Aplicación detectada (${obsidian.method ?? 'instalada'}).`)
-        : check('obsidian', 'warn', 'La aplicación Obsidian no está instalada.')
+        : check(
+            'obsidian',
+            'ok',
+            `App opcional no instalada; la bóveda Markdown funciona igual. Instálala desde ${OBSIDIAN_DOWNLOAD_URL} si quieres la UI.`
+          )
     );
     if (!pathExists(resolvedVault)) {
       checks.push(check('vault', 'error', `La bóveda configurada no existe: ${resolvedVault}.`));

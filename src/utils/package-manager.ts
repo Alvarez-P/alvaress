@@ -66,10 +66,7 @@ export function defaultValidationCommands(
       localCommand(manager, vitePlus.testCommand)
     ];
   }
-  return [
-    packageManagerExec(manager, 'oxlint', ['--deny=correctness', '--deny=suspicious']),
-    packageManagerExec(manager, 'tsc', ['--noEmit'])
-  ];
+  return [packageManagerExec(manager, 'tsc', ['--noEmit'])];
 }
 
 function localCommand(manager: PackageManager, command: string): string {

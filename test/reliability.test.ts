@@ -157,14 +157,8 @@ test('pnpm es el gestor y Vite-Plus manda en la validación por defecto', () => 
     'npx vp check',
     'npx vp test'
   ]);
-  assert.deepEqual(defaultValidationCommands('pnpm'), [
-    'pnpm exec oxlint --deny=correctness --deny=suspicious',
-    'pnpm exec tsc --noEmit'
-  ]);
-  assert.deepEqual(defaultValidationCommands('npm'), [
-    'npx oxlint --deny=correctness --deny=suspicious',
-    'npx tsc --noEmit'
-  ]);
+  assert.deepEqual(defaultValidationCommands('pnpm'), ['pnpm exec tsc --noEmit']);
+  assert.deepEqual(defaultValidationCommands('npm'), ['npx tsc --noEmit']);
   assert.equal(resolvePackageManager(mergeConfig({ packageManager: 'npm' }, {})), 'npm');
 });
 

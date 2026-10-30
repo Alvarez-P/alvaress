@@ -26,7 +26,7 @@ Uso:
   alvaress run --task TASK-01        Ejecuta una tarea SDD concreta.
   alvaress run --dry-run             Explora y muestra el plan sin invocar al worker.
   alvaress -i                        Inspecciona el log del último run (.laya/last_run.log).
-  alvaress install [--yes]            Instalador interactivo de componentes, agente y configuración.
+  alvaress install [--yes] [--with-obsidian]  Instalador de componentes, agente y configuración.
   alvaress init [--no-link]          Inicializa .harness, openspec.yaml, skills y agente del proyecto.
   alvaress apply [TASK...]           Ejecuta tareas pendientes (o las indicadas) con subagentes.
   alvaress apply --dry-run            Muestra los grupos de ejecución sin invocar al worker.
@@ -94,8 +94,10 @@ export async function runCli(argv: string[]): Promise<void> {
     }
     case 'install': {
       const { flags } = parseArgs(rest);
+      const withObsidian = flagEnabled(flags, 'with-obsidian') ? true : undefined;
       await runInstall(process.cwd(), {
-        yes: flagEnabled(flags, 'yes') || flagEnabled(flags, 'y')
+        yes: flagEnabled(flags, 'yes') || flagEnabled(flags, 'y'),
+        withObsidian
       });
       return;
     }

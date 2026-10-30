@@ -17,6 +17,7 @@ const BOOLEAN_FLAGS = new Set([
   'no-commit',
   'no-learn',
   'inspect-last-run',
+  'with-obsidian',
   'yes',
   'json',
   'no-install'

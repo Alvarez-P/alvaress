@@ -41,6 +41,49 @@ test('buildWorkMessage deja la validación al orquestador y evita reintentos', (
   assert.match(message, /error de permisos, no lo reintentes/i);
 });
 
+test('buildFixMessage adjunta el diff cuando lo recibe', () => {
+  const input: FixInput = {
+    runId: 'run-1',
+    attempt: 1,
+    files: ['src/helper.ts'],
+    failure: { ok: false, commands: [], warnings: [] },
+    error: 'falló',
+    review: undefined
+  };
+
+  const message = buildFixMessage(input, 'diff --git a/src/helper.ts b/src/helper.ts');
+
+  assert.match(message, /Diff actual del alcance/);
+  assert.match(message, /diff --git a\/src\/helper\.ts/);
+});
+
+test('buildConsultMessage adjunta el diff cuando lo recibe', () => {
+  const input: ConsultInput = {
+    runId: 'run-1',
+    request: 'Agregar un helper',
+    mode: 'sdd',
+    complexity: 'small',
+    source: 'openspec.yaml',
+    acceptance: ['El helper funciona'],
+    files: ['src/helper.ts'],
+    validation: ['pnpm test'],
+    briefs: [],
+    changes: []
+  };
+
+  const message = buildConsultMessage('reviewer', input, 'diff --git a/src/helper.ts b/src/helper.ts');
+
+  assert.match(message, /Diff del árbol de trabajo \(solo lectura\)/);
+  assert.match(message, /diff --git a\/src\/helper\.ts/);
+});
+
+test('buildWorkMessage incluye el diff del árbol de trabajo', () => {
+  const message = buildWorkMessage(plan(), { diff: 'diff --git a/src/helper.ts b/src/helper.ts' });
+
+  assert.match(message, /Diff actual del árbol de trabajo \(solo lectura; intégralo, no lo repitas\)/);
+  assert.match(message, /diff --git a\/src\/helper\.ts/);
+});
+
 test('buildWorkMessage incluye el contexto de archivos pequeños', () => {
   const temp = makeTempDir('alvaress-inline-');
   try {
