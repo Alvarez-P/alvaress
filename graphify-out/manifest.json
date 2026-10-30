@@ -30,9 +30,9 @@
     "semantic_hash": ""
   },
   "src/commands/skills.ts": {
-    "mtime": 1792771852.8899243,
-    "seen": 1792772098.1380699,
-    "ast_hash": "0ea70a54c0e15a6e15612cee12515d21",
+    "mtime": 1793390656.560132,
+    "seen": 1793390699.0744457,
+    "ast_hash": "a9c44b7c8e8b313b7e8cf6e2bf34a196",
     "semantic_hash": ""
   },
   "src/config/loader.ts": {
@@ -498,9 +498,9 @@
     "semantic_hash": ""
   },
   "src/orchestrator/workers.ts": {
-    "mtime": 1793376606.995731,
-    "seen": 1793389967.0959654,
-    "ast_hash": "1dd295f16f160ce62520458f813c98d7",
+    "mtime": 1793390646.7907186,
+    "seen": 1793390699.0744867,
+    "ast_hash": "ed8e5dc25351099561df26fb56cd2457",
     "semantic_hash": ""
   },
   "test/run.test.ts": {
@@ -582,9 +582,9 @@
     "semantic_hash": ""
   },
   "test/workers.test.ts": {
-    "mtime": 1793376679.2502584,
-    "seen": 1793389967.0960171,
-    "ast_hash": "acfb01ce56c8a14051c9cdd89b3a76ed",
+    "mtime": 1793390668.7965014,
+    "seen": 1793390699.0745409,
+    "ast_hash": "61408cfe3d0b9bd1b46fdced12ef7152",
     "semantic_hash": ""
   },
   "src/commands/models.ts": {
@@ -648,15 +648,15 @@
     "semantic_hash": ""
   },
   "src/orchestrator/usage.ts": {
-    "mtime": 1793376590.0623617,
-    "seen": 1793389967.0959613,
-    "ast_hash": "df25cd12a93520f9fa42e3c1e65dceed",
+    "mtime": 1793390646.790347,
+    "seen": 1793390699.074483,
+    "ast_hash": "aaec738843615aa7b012bfaa3f226c06",
     "semantic_hash": ""
   },
   "test/usage.test.ts": {
-    "mtime": 1793376679.255013,
-    "seen": 1793389967.0960138,
-    "ast_hash": "641c2e4a0c41b4adbfc0fc3ba754c603",
+    "mtime": 1793390668.7925012,
+    "seen": 1793390699.0745375,
+    "ast_hash": "5c550be23aaebd886712dfe887aafb12",
     "semantic_hash": ""
   },
   "bench/fixtures/fix-overlap/project/package.json": {
@@ -780,15 +780,105 @@
     "semantic_hash": ""
   },
   "bench/runner.ts": {
-    "mtime": 1793390154.1262236,
-    "seen": 1793390290.8508756,
-    "ast_hash": "d4de773ea56f7d2f179ef9a56ec243d1",
+    "mtime": 1793390682.5255578,
+    "seen": 1793390699.0744185,
+    "ast_hash": "52586c96fc6e77548c237434422cd21d",
     "semantic_hash": ""
   },
   "test/bench.test.ts": {
-    "mtime": 1793390244.9647985,
-    "seen": 1793390290.8509676,
-    "ast_hash": "cf31c8d6614eca1182c5fa5268c33968",
+    "mtime": 1793390682.525745,
+    "seen": 1793390699.0745091,
+    "ast_hash": "2cc26469cebfd90a52250f3bed8ba754",
+    "semantic_hash": ""
+  },
+  ".harness/skills/architecture-decisions/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.074547,
+    "ast_hash": "22d6231286abc6b68a9d369dec81820d",
+    "semantic_hash": ""
+  },
+  ".harness/skills/bounded-scope/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745482,
+    "ast_hash": "1f8edb0e553cbbe3b733ec0911c5b458",
+    "semantic_hash": ""
+  },
+  ".harness/skills/clean-code/SKILL.md": {
+    "mtime": 1793390563.86453,
+    "seen": 1793390699.074549,
+    "ast_hash": "ff08d7a060d86287b6b5b86a3fb561b2",
+    "semantic_hash": ""
+  },
+  ".harness/skills/code-review/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745497,
+    "ast_hash": "527d855266be69d3030f08ea176fc9a3",
+    "semantic_hash": ""
+  },
+  ".harness/skills/consult-graphify-ast/SKILL.md": {
+    "mtime": 1793390563.86453,
+    "seen": 1793390699.0745509,
+    "ast_hash": "224e5b0e1478224c8bd6d3154228e162",
+    "semantic_hash": ""
+  },
+  ".harness/skills/continuous-learning/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745516,
+    "ast_hash": "546ea24e7b242733605d096b763068c6",
+    "semantic_hash": ""
+  },
+  ".harness/skills/failure-triage/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745525,
+    "ast_hash": "b544510750d57925e6cd2ccf4214516b",
+    "semantic_hash": ""
+  },
+  ".harness/skills/git-diff-context/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745533,
+    "ast_hash": "c575cb43bd46b898734f575f3a8deb9f",
+    "semantic_hash": ""
+  },
+  ".harness/skills/obsidian-sdd/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745544,
+    "ast_hash": "1e93e87fc07377d94f5be39f91938654",
+    "semantic_hash": ""
+  },
+  ".harness/skills/read-spec-first/SKILL.md": {
+    "mtime": 1793390563.86453,
+    "seen": 1793390699.0745552,
+    "ast_hash": "c19d74bc09a5d3075fbf25a9e63d2c61",
+    "semantic_hash": ""
+  },
+  ".harness/skills/self-healing-verify/SKILL.md": {
+    "mtime": 1793390563.86453,
+    "seen": 1793390699.0745559,
+    "ast_hash": "71f876d8e5a0bc3aeb06a836e5335d48",
+    "semantic_hash": ""
+  },
+  ".harness/skills/technical-research/SKILL.md": {
+    "mtime": 1793390563.87253,
+    "seen": 1793390699.0745568,
+    "ast_hash": "df74164421180f9ea609b896933fa110",
+    "semantic_hash": ""
+  },
+  ".harness/skills/testing-strategy/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745578,
+    "ast_hash": "d04f90cee9b44f9dbd35d8e3f8ca0129",
+    "semantic_hash": ""
+  },
+  ".harness/skills/ui-design/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745587,
+    "ast_hash": "ae8d38e7f3a67b1320ef799e77a13712",
+    "semantic_hash": ""
+  },
+  ".harness/skills/vite-plus-verify/SKILL.md": {
+    "mtime": 1793390563.86853,
+    "seen": 1793390699.0745595,
+    "ast_hash": "efc9591e19c4ae1492bdc31d0b2fea31",
     "semantic_hash": ""
   }
 }

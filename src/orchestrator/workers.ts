@@ -527,7 +527,12 @@ export class SubagentWorker implements Worker {
     this.ledger.add(phase, output.usage);
     this.log?.line(`prompt: ${message.length} caracteres`);
     this.log?.line(`tokens (${phase}): ${formatUsage(output.usage)}`);
-    return { result, text: output.events > 0 ? output.text : result.stdout.trim() };
+    const spawnError = result.error !== undefined && result.error.length > 0 ? result.error : undefined;
+    const error = spawnError ?? output.error;
+    return {
+      result: error !== undefined ? { ...result, error } : result,
+      text: output.events > 0 ? output.text : result.stdout.trim()
+    };
   }
 }
 

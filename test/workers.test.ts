@@ -352,3 +352,24 @@ test('SubagentWorker separa la sesión de cada especialista y suma tokens por fa
     temp.cleanup();
   }
 });
+
+test('SubagentWorker reporta el error del proveedor en vez del JSON crudo', async () => {
+  const temp = makeTempDir('alvaress-provider-error-');
+  try {
+    const bin = path.join(temp.path, 'bin');
+    const event = '{"type":"error","sessionID":"s","error":{"message":"Free usage limit reached."}}';
+    fakeOpencode(bin, { action: `printf '%s\\n' '${event}'`, exitCode: 1 });
+    const worker = createWorker({
+      root: temp.path,
+      config: mergeConfig({}, {}),
+      env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` }
+    });
+
+    const result = await worker.work(plan());
+
+    assert.equal(result.status, 'failed');
+    assert.match(result.detail ?? '', /falló: Free usage limit reached\.$/);
+  } finally {
+    temp.cleanup();
+  }
+});

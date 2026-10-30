@@ -150,6 +150,7 @@ function failureText(validation: ValidationResult): string {
 export async function runFixture(fixture: string, options: BenchOptions): Promise<BenchResult> {
   const task = readTask(fixture);
   const workdir = prepareWorkdir(fixture);
+  const runId = `bench-${fixture}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const started = Date.now();
   try {
     const config = benchConfig(workdir, options);
@@ -185,7 +186,7 @@ export async function runFixture(fixture: string, options: BenchOptions): Promis
         }).validate(),
       fix: (failure, attempt, _work, review) =>
         worker.fix({
-          runId: 'bench',
+          runId,
           attempt,
           files: task.files,
           failure,
@@ -199,7 +200,7 @@ export async function runFixture(fixture: string, options: BenchOptions): Promis
       handlers,
       decisions: fixedDecisions(task, options.roles),
       ui: { start: (state) => states.push(state), setState: (state) => states.push(state), stop: () => {} },
-      runId: () => 'bench'
+      runId: () => runId
     });
 
     const result = await core.run({ request: task.request, mode: 'odd', files: task.files, commit: false });

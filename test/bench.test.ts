@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { FIXTURES_DIR, listFixtures, readTask, runFixture, summarize } from '../bench/runner.js';
 import { fakeOpencode, makeTempDir } from './helpers.js';
@@ -85,6 +86,29 @@ test('runFixture termina en HALT si el subagente no resuelve la tarea', async ()
 
     assert.equal(result.state, 'Halted');
     assert.equal(result.fixes, 2);
+  } finally {
+    temp.cleanup();
+  }
+});
+
+test('cada corrida del benchmark usa su propia sesión de OpenCode', async () => {
+  const temp = makeTempDir('alvaress-bench-sessions-');
+  try {
+    const bin = path.join(temp.path, 'bin');
+    const log = path.join(temp.path, 'calls.log');
+    const solution = path.join(FIXTURES_DIR, 'fix-overlap', 'solution');
+    fakeOpencode(bin, { log, action: `cp -R '${solution}/.' .` });
+
+    await runFixture('fix-overlap', { roles: [], selfCheck: false, env: fixtureEnv(bin) });
+    await runFixture('fix-overlap', { roles: [], selfCheck: false, env: fixtureEnv(bin) });
+
+    const sessions = fs
+      .readFileSync(log, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((line) => /--session (\S+)/.exec(line)?.[1]);
+    assert.equal(sessions.length, 2);
+    assert.notEqual(sessions[0], sessions[1]);
   } finally {
     temp.cleanup();
   }

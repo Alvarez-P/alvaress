@@ -28,16 +28,19 @@ export interface OpencodeOutput {
   text: string;
   usage: TokenUsage;
   events: number;
+  error?: string;
 }
 
 /**
  * Lee la salida de `opencode run --format json`: una línea JSON por evento con
  * `{ type, timestamp, sessionID, part }`. Suma los tokens de cada `step_finish`
- * y concatena los `text` para recuperar la respuesta del subagente.
+ * y concatena los `text` para recuperar la respuesta del subagente. Si el
+ * proveedor falla (límite de uso, 429, credenciales), devuelve su mensaje.
  */
 export function parseOpencodeOutput(stdout: string): OpencodeOutput {
   const usage = { ...emptyUsage(), calls: 1 };
   const texts: string[] = [];
+  const errors: string[] = [];
   let events = 0;
 
   for (const line of stdout.split('\n')) {
@@ -53,6 +56,10 @@ export function parseOpencodeOutput(stdout: string): OpencodeOutput {
     }
     events += 1;
     const part = record(event.part);
+    const message = record(event.error).message;
+    if (event.type === 'error' && typeof message === 'string') {
+      errors.push(message);
+    }
     if (event.type === 'text' && typeof part.text === 'string') {
       texts.push(part.text);
     }
@@ -68,7 +75,12 @@ export function parseOpencodeOutput(stdout: string): OpencodeOutput {
     }
   }
 
-  return { text: texts.join('\n').trim(), usage, events };
+  return {
+    text: texts.join('\n').trim(),
+    usage,
+    events,
+    ...(errors.length > 0 ? { error: errors.join('\n') } : {})
+  };
 }
 
 export class UsageLedger {

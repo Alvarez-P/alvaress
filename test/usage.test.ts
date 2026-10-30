@@ -58,3 +58,18 @@ test('UsageLedger agrupa por fase y calcula el total', () => {
   assert.equal(usage?.total.calls, 3);
   assert.match(formatUsage(usage!.total), /3 llamada\(s\): entrada 200, salida 20/);
 });
+
+test('parseOpencodeOutput expone el mensaje de error del proveedor', () => {
+  const output = parseOpencodeOutput(
+    [
+      JSON.stringify({ type: 'step_start', sessionID: 's', part: {} }),
+      JSON.stringify({
+        type: 'error',
+        sessionID: 's',
+        error: { type: 'provider.free-limit', message: 'Free usage limit reached.', status: 429 }
+      })
+    ].join('\n')
+  );
+
+  assert.equal(output.error, 'Free usage limit reached.');
+});
