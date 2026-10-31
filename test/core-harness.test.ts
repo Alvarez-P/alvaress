@@ -8,10 +8,12 @@ import {
   warningsToRisks
 } from '../src/core/harness.js';
 import type {
+  ConsultInput,
   DecisionEngine,
   Exploration,
   FailureVerdict,
   FixResult,
+  FlowPlan,
   HaltReason,
   HarnessHandlers,
   HarnessState,
@@ -21,6 +23,8 @@ import type {
   RiskAssessment,
   RouteDecision,
   RunRequest,
+  SpecialistBrief,
+  SpecialistRole,
   ValidationResult,
   WorkPlan,
   WorkResult
@@ -72,6 +76,8 @@ interface HarnessFixture {
   fixes: number;
   checks: number;
   workPlans: WorkPlan[];
+  reviews: Array<string | undefined>;
+  consults: Array<{ role: SpecialistRole; input: ConsultInput }>;
   closed: { handlers: boolean; decisions: boolean };
   decisions: DecisionEngine;
   handlers: HarnessHandlers;
@@ -84,6 +90,8 @@ interface FixtureOptions {
   check?: () => Promise<ValidationResult>;
   fix?: () => Promise<FixResult>;
   verdicts?: FailureVerdict[];
+  flow?: FlowPlan;
+  consult?: (role: SpecialistRole, input: ConsultInput) => Promise<SpecialistBrief>;
   ready?: (input: ReadyInput) => Promise<ReadyResult>;
   maxFixAttempts?: number;
 }
@@ -94,6 +102,8 @@ function makeFixture(options: FixtureOptions = {}): HarnessFixture {
   let stops = 0;
   const ready: ReadyInput[] = [];
   const workPlans: WorkPlan[] = [];
+  const reviews: Array<string | undefined> = [];
+  const consults: Array<{ role: SpecialistRole; input: ConsultInput }> = [];
   const verdicts = [...(options.verdicts ?? [])];
   const closed = { handlers: false, decisions: false };
   const fixture = {
@@ -101,6 +111,8 @@ function makeFixture(options: FixtureOptions = {}): HarnessFixture {
     halts,
     ready,
     workPlans,
+    reviews,
+    consults,
     fixes: 0,
     checks: 0,
     closed,
@@ -129,6 +141,16 @@ function makeFixture(options: FixtureOptions = {}): HarnessFixture {
           complexity: 'small',
           needsGraph: false,
           needsSubagents: false,
+          confidence: 0.8,
+          source: 'heuristic'
+        }
+      );
+    },
+    async planFlow(): Promise<FlowPlan> {
+      return (
+        options.flow ?? {
+          roles: [],
+          reason: 'cambio pequeño sin especialistas',
           confidence: 0.8,
           source: 'heuristic'
         }
@@ -165,6 +187,12 @@ function makeFixture(options: FixtureOptions = {}): HarnessFixture {
     async explore(request): Promise<Exploration> {
       return options.explore !== undefined ? options.explore(request) : exploration();
     },
+    async consult(role, input): Promise<SpecialistBrief> {
+      consults.push({ role, input });
+      return options.consult !== undefined
+        ? options.consult(role, input)
+        : { role, summary: `brief de ${role}` };
+    },
     async work(plan): Promise<WorkResult> {
       workPlans.push(plan);
       return options.work !== undefined ? options.work(plan) : work();
@@ -173,8 +201,9 @@ function makeFixture(options: FixtureOptions = {}): HarnessFixture {
       fixture.checks += 1;
       return options.check !== undefined ? options.check() : okValidation();
     },
-    async fix(): Promise<FixResult> {
+    async fix(_failure, _attempt, _work, review): Promise<FixResult> {
       fixture.fixes += 1;
+      reviews.push(review);
       return options.fix !== undefined ? options.fix() : fix();
     },
     async ready(input): Promise<ReadyResult> {
@@ -246,6 +275,24 @@ test('HarnessCore repara una vez y termina en Ready', async () => {
     'Checking',
     'Ready'
   ]);
+  assert.equal(fixture.ready[0]?.validation.ok, true);
+});
+
+test('HarnessCore trata un hallazgo alto de la auditoría como fallo y lo repara', async () => {
+  const blocker = {
+    title: 'La auditoría detectó comentarios nuevos',
+    description: 'Comentarios añadidos: src/a.ts:1 (// helper).',
+    source: 'audit' as const,
+    severity: 'high' as const
+  };
+  const fixture = makeFixture({
+    work: async () => work({ risks: [blocker] }),
+    check: async () => okValidation()
+  });
+  const result = await fixture.core.run({ request: 'agrega un helper' });
+
+  assert.equal(result.state, 'Ready');
+  assert.equal(fixture.fixes, 1);
   assert.equal(fixture.ready[0]?.validation.ok, true);
 });
 
@@ -453,4 +500,68 @@ test('warningsToRisks convierte warnings del linter en riesgos de severidad baja
   assert.deepEqual(warningsToRisks(['import sin usar']), [
     { title: 'import sin usar', source: 'linter', severity: 'low' }
   ]);
+});
+
+function flow(roles: SpecialistRole[]): FlowPlan {
+  return { roles, reason: 'flujo de prueba', confidence: 0.8, source: 'heuristic' };
+}
+
+test('HarnessCore ejecuta especialistas en orden y pasa sus briefs al implementer', async () => {
+  const roles: SpecialistRole[] = ['researcher', 'architect', 'designer', 'tester'];
+  const fixture = makeFixture({
+    flow: flow(roles),
+    consult: async (role) => ({ role, summary: `brief ${role}` })
+  });
+
+  const result = await fixture.core.run({ request: 'rediseña la pantalla de facturación' });
+
+  assert.equal(result.state, 'Ready');
+  assert.deepEqual(
+    fixture.consults.map((entry) => entry.role),
+    roles
+  );
+  assert.deepEqual(
+    fixture.workPlans[0]?.briefs?.map((brief) => brief.role),
+    roles
+  );
+  assert.deepEqual(
+    fixture.consults.at(-1)?.input.briefs.map((brief) => brief.role),
+    ['researcher', 'architect', 'designer']
+  );
+  assert.equal(fixture.workPlans[0]?.briefs?.[0]?.summary, 'brief researcher');
+});
+
+test('HarnessCore pide al reviewer revisar el diff y pasa la revisión al fixer', async () => {
+  const fixture = makeFixture({
+    flow: flow(['reviewer']),
+    consult: async (role, input) => ({ role, summary: `revision: ${input.focus ?? 'sin foco'}` }),
+    check: async () => (fixture.checks === 1 ? failedValidation() : okValidation())
+  });
+
+  const result = await fixture.core.run({ request: 'corrige el contrato del worker' });
+
+  assert.equal(result.state, 'Ready');
+  assert.equal(fixture.consults.length, 1);
+  assert.equal(fixture.consults[0]?.role, 'reviewer');
+  assert.deepEqual(
+    fixture.consults[0]?.input.changes.map((change) => change.path),
+    ['src/a.ts']
+  );
+  assert.match(fixture.reviews[0] ?? '', /revision:.*vp check/);
+  assert.match(fixture.ready[0]?.review ?? '', /revision:/);
+});
+
+test('HarnessCore no se detiene si un especialista falla', async () => {
+  const fixture = makeFixture({
+    flow: flow(['architect']),
+    consult: async () => {
+      throw new Error('modelo caído');
+    }
+  });
+
+  const result = await fixture.core.run({ request: 'refactoriza el cargador' });
+
+  assert.equal(result.state, 'Ready');
+  assert.equal(fixture.workPlans[0]?.briefs, undefined);
+  assert.ok(result.risks.some((risk) => /architect/.test(risk.title)));
 });

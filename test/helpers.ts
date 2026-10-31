@@ -53,7 +53,10 @@ export async function withPathAsync<T>(directories: string[], run: () => Promise
   }
 }
 
-export function fakeAider(binDir: string, options: { log?: string; exitCode?: number; action?: string } = {}): void {
+export function fakeOpencode(
+  binDir: string,
+  options: { log?: string; exitCode?: number; action?: string } = {}
+): void {
   const lines = ['#!/bin/sh'];
   if (options.log) {
     lines.push(`printf '%s\\n' "$*" | tr '\\n' ' ' >> '${options.log}'`);
@@ -63,7 +66,7 @@ export function fakeAider(binDir: string, options: { log?: string; exitCode?: nu
     lines.push(options.action);
   }
   lines.push(`exit ${options.exitCode ?? 0}`);
-  writeExecutable(path.join(binDir, 'aider'), `${lines.join('\n')}\n`);
+  writeExecutable(path.join(binDir, 'opencode'), `${lines.join('\n')}\n`);
 }
 
 export function baseConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -74,14 +77,6 @@ export function baseConfig(overrides: Record<string, unknown> = {}): Record<stri
       device: 'cpu',
       timeoutMs: 30000,
       fallbackToHeuristic: true
-    },
-    models: {
-      aiderImplementer: {
-        modelName: 'implementer-model',
-        apiKey: '',
-        apiBase: '',
-        env: {}
-      }
     },
     validation: {
       maxAttempts: 1,

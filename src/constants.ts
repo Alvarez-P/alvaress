@@ -17,17 +17,15 @@ export const TASKS_DIR = path.join(HARNESS_DIR, TASKS_DIRNAME);
 export const SKILLS_DIR = path.join(HARNESS_DIR, SKILLS_DIRNAME);
 
 export const OPENCODE_SKILLS_DIR = path.join(os.homedir(), '.config', 'opencode', 'skills');
-export const CLAUDE_SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
 export const OPENCODE_PROJECT_DIR = '.opencode';
 export const OPENCODE_AGENTS_DIRNAME = 'agents';
 
 export const DEFAULT_OBSIDIAN_VAULT = path.join(os.homedir(), 'Obsidian');
-export const DEFAULT_IMPLEMENTER_MODEL = 'deepseek/deepseek-chat';
 export const DEFAULT_VALIDATION_COMMANDS = ['pnpm exec oxlint --deny=correctness --deny=suspicious', 'pnpm exec tsc --noEmit'];
 export const DEFAULT_MAX_ATTEMPTS = 3;
 export const DEFAULT_PACKAGE_MANAGER = 'pnpm';
 export const DEFAULT_SCOPE = 'warn';
-export const DEFAULT_AIDER_TIMEOUT_MS = 10 * 60 * 1000;
+export const DEFAULT_WORKER_TIMEOUT_MS = 10 * 60 * 1000;
 export const COMMAND_SEPARATOR = ';;';
 
 export const HARNESS_LOCK_FILENAME = 'lock';

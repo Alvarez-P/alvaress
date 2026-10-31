@@ -14,7 +14,7 @@ import {
   VITE_PLUS_PACKAGE
 } from '../constants.js';
 import { BUNDLE_REVISION, bundleFilesFor } from '../decision/vendor/laya/index.js';
-import { detectObsidian } from '../obsidian/installer.js';
+import { detectObsidian, OBSIDIAN_DOWNLOAD_URL } from '../obsidian/installer.js';
 import { getManifestPath, getTasksDir, loadManifest, taskFilePath } from '../openspec/manifest.js';
 import { getGraphStatus } from '../graphify/status.js';
 import { moduleAvailableFrom } from '../utils/modules.js';
@@ -53,6 +53,12 @@ function missingBundleFiles(dir: string): string[] {
     }
   }
   return problems;
+}
+
+function sharesOrchestratorModel(config: HarnessConfig): boolean {
+  const orchestrator = config.models.orchestrator.modelName.trim();
+  const subagents = config.models.subagents.modelName.trim();
+  return orchestrator.length > 0 && (subagents.length === 0 || subagents === orchestrator);
 }
 
 function check(
@@ -104,10 +110,11 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
   }
 
   if (config !== undefined) {
-    const invalid = [
+    const models: Array<[string, string]> = [
       ['orchestrator', config.models.orchestrator.modelName],
       ['subagents', config.models.subagents.modelName]
-    ]
+    ];
+    const invalid = models
       .filter(([, value]) => !isModelReference(value))
       .map(([name]) => name);
     checks.push(
@@ -116,8 +123,11 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
             'models',
             'ok',
             `Orquestador: ${modelLabel(config.models.orchestrator.modelName, 'hereda')} · ` +
-              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')} · ` +
-              `Aider: ${config.models.aiderImplementer.modelName}`
+              `Subagentes: ${modelLabel(config.models.subagents.modelName, 'heredan')}` +
+              (sharesOrchestratorModel(config)
+                ? ' · Sugerencia: usa un modelo más rápido y barato para los subagentes ' +
+                  '("alvaress models set --subagents <provider/model>").'
+                : '')
           )
         : check(
             'models',
@@ -175,8 +185,7 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
       const localConfig = readConfigFile(path.join(root, '.alvaressrc.json'));
       const hasLocalModels =
         localConfig.models?.orchestrator !== undefined ||
-        localConfig.models?.subagents !== undefined ||
-        localConfig.models?.aiderImplementer !== undefined;
+        localConfig.models?.subagents !== undefined;
       if (hasLocalModels) {
         checks.push(
           check(
@@ -265,20 +274,15 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
         )
   );
 
-  for (const tool of ['aider', 'graphify']) {
-    const optional = tool === 'aider' && config?.aider?.enabled !== true;
-    checks.push(
-      hasCommand(tool)
-        ? check(tool, 'ok', `${tool} disponible.`)
-        : check(
-            tool,
-            'warn',
-            optional
-              ? 'Aider no está instalado; el modo sin Aider usará subagentes especializados.'
-              : `${tool} no está instalado; el flujo continuará con menos automatización.`
-          )
-    );
-  }
+  checks.push(
+    hasCommand('graphify')
+      ? check('graphify', 'ok', 'graphify disponible.')
+      : check(
+          'graphify',
+          'warn',
+          'Graphify no está instalado; ejecuta "alvaress install" o "uv tool install graphifyy".'
+        )
+  );
 
   const vaultPath = config?.obsidianVaultPath.trim() ?? '';
   if (vaultPath.length === 0) {
@@ -289,7 +293,11 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
     checks.push(
       obsidian.installed
         ? check('obsidian', 'ok', `Aplicación detectada (${obsidian.method ?? 'instalada'}).`)
-        : check('obsidian', 'warn', 'La aplicación Obsidian no está instalada.')
+        : check(
+            'obsidian',
+            'ok',
+            `App opcional no instalada; la bóveda Markdown funciona igual. Instálala desde ${OBSIDIAN_DOWNLOAD_URL} si quieres la UI.`
+          )
     );
     if (!pathExists(resolvedVault)) {
       checks.push(check('vault', 'error', `La bóveda configurada no existe: ${resolvedVault}.`));

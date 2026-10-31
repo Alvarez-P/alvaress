@@ -26,10 +26,10 @@ Uso:
   alvaress run --task TASK-01        Ejecuta una tarea SDD concreta.
   alvaress run --dry-run             Explora y muestra el plan sin invocar al worker.
   alvaress -i                        Inspecciona el log del último run (.laya/last_run.log).
-  alvaress install [--yes]            Instalador interactivo de componentes, agente y configuración.
+  alvaress install [--yes] [--with-obsidian]  Instalador de componentes, agente y configuración.
   alvaress init [--no-link]          Inicializa .harness, openspec.yaml, skills y agente del proyecto.
-  alvaress apply [TASK...]           Ejecuta tareas pendientes (o las indicadas) con Aider.
-  alvaress apply --dry-run            Muestra los grupos de ejecución sin invocar a Aider.
+  alvaress apply [TASK...]           Ejecuta tareas pendientes (o las indicadas) con subagentes.
+  alvaress apply --dry-run            Muestra los grupos de ejecución sin invocar al worker.
   alvaress apply --force              Ignora un lock huérfano de otra ejecución.
   alvaress apply --update-graph       Actualiza Graphify al terminar.
   alvaress verify <TASK_ID>           Ejecuta el bucle self-healing sobre una tarea.
@@ -37,7 +37,7 @@ Uso:
   alvaress skills [--no-link]         Reinstala las skills del proyecto y sus enlaces globales.
   alvaress learn [add|list|search|...]  Guarda y reutiliza aprendizajes globales y del proyecto.
   alvaress agent [install|show]       Instala o muestra el agente orquestador alvaress y sus subagentes.
-  alvaress models [show|set|configure]  Muestra o cambia los modelos de orquestador, subagentes y Aider.
+  alvaress models [show|set|configure]  Muestra o cambia los modelos de orquestador y subagentes.
   alvaress obsidian [status|sync|note]  Consulta o actualiza la bóveda Obsidian.
   alvaress doctor [--json]            Diagnóstico previo: configuración, herramientas, grafo y lock.
   alvaress report [latest|list|show]  Reportes de ejecución de .harness/runs.
@@ -94,8 +94,10 @@ export async function runCli(argv: string[]): Promise<void> {
     }
     case 'install': {
       const { flags } = parseArgs(rest);
+      const withObsidian = flagEnabled(flags, 'with-obsidian') ? true : undefined;
       await runInstall(process.cwd(), {
-        yes: flagEnabled(flags, 'yes') || flagEnabled(flags, 'y')
+        yes: flagEnabled(flags, 'yes') || flagEnabled(flags, 'y'),
+        withObsidian
       });
       return;
     }

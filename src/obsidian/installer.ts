@@ -7,7 +7,8 @@ import { commandExists, runCommand } from '../utils/process.js';
 import type { CommandResult, RunOptions } from '../utils/process.js';
 
 const RELEASE_API = 'https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest';
-const DOWNLOAD_URL = 'https://obsidian.md/download';
+/** Página oficial de descarga; la app es opcional y el usuario la instala a mano. */
+export const OBSIDIAN_DOWNLOAD_URL = 'https://obsidian.md/download';
 
 export type ObsidianInstallMethod =
   | 'binary'
@@ -217,7 +218,7 @@ export function detectObsidian(deps: ObsidianInstallerDeps = {}): ObsidianStatus
 }
 
 function manualMessage(detail: string): string {
-  return `${detail} Instálalo manualmente desde ${DOWNLOAD_URL}.`;
+  return `${detail} Instálalo manualmente desde ${OBSIDIAN_DOWNLOAD_URL}.`;
 }
 
 async function installLinux(deps: ObsidianInstallerDeps): Promise<ObsidianInstallResult> {

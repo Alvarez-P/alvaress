@@ -9,7 +9,7 @@ import {
   runValidationCommands,
   verifyAndRepairTask
 } from '../src/orchestrator/verify.js';
-import { makeTempDir, fakeAider } from './helpers.js';
+import { makeTempDir, fakeOpencode } from './helpers.js';
 
 function configWith(commands: string[], maxAttempts = 1): HarnessConfig {
   const base = mergeConfig({}, {});
@@ -66,13 +66,13 @@ test('formatValidationFailure incluye comando, código y salida', () => {
   assert.match(formatted, /stderr-detail/);
 });
 
-test('verifyAndRepairTask valida sin invocar Aider cuando no hay errores', async () => {
+test('verifyAndRepairTask valida sin invocar al worker cuando no hay errores', async () => {
   const temp = makeTempDir();
   try {
     const bin = path.join(temp.path, 'bin');
     fs.mkdirSync(bin);
-    const log = path.join(temp.path, 'aider.log');
-    fakeAider(bin, { log });
+    const log = path.join(temp.path, 'opencode.log');
+    fakeOpencode(bin, { log });
 
     const verified = await verifyAndRepairTask('TASK-01', {
       root: temp.path,
@@ -106,8 +106,8 @@ test('verifyAndRepairTask falla sin reparar cuando maxAttempts es 1', async () =
   try {
     const bin = path.join(temp.path, 'bin');
     fs.mkdirSync(bin);
-    const log = path.join(temp.path, 'aider.log');
-    fakeAider(bin, { log });
+    const log = path.join(temp.path, 'opencode.log');
+    fakeOpencode(bin, { log });
 
     const verified = await verifyAndRepairTask('TASK-01', {
       root: temp.path,
@@ -122,19 +122,20 @@ test('verifyAndRepairTask falla sin reparar cuando maxAttempts es 1', async () =
   }
 });
 
-test('verifyAndRepairTask repara con Aider y vuelve a validar', async () => {
+test('verifyAndRepairTask repara con el worker y vuelve a validar', async () => {
   const temp = makeTempDir();
   try {
     const bin = path.join(temp.path, 'bin');
     fs.mkdirSync(bin);
-    const log = path.join(temp.path, 'aider.log');
-    const marker = path.join(temp.path, 'fixed');
-    fakeAider(bin, { log, action: `touch '${marker}'` });
+    const log = path.join(temp.path, 'opencode.log');
+    const marker = path.join(temp.path, 'fixed.txt');
+    fakeOpencode(bin, { log, action: `touch '${marker}'` });
 
     const command = `node -e "process.exit(require('node:fs').existsSync('${marker.replaceAll('\\', '\\\\')}') ? 0 : 1)"`;
     const verified = await verifyAndRepairTask('TASK-01', {
       root: temp.path,
       config: configWith([command], 3),
+      files: ['fixed.txt'],
       env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` }
     });
 
@@ -142,8 +143,8 @@ test('verifyAndRepairTask repara con Aider y vuelve a validar', async () => {
     assert.equal(fs.existsSync(marker), true);
     const calls = fs.readFileSync(log, 'utf-8').trim().split('\n');
     assert.equal(calls.length, 1);
-    assert.match(calls[0] ?? '', /--model deepseek\/deepseek-chat/);
-    assert.match(calls[0] ?? '', /--no-auto-commits/);
+    assert.match(calls[0] ?? '', /--agent alvaress-fixer/);
+    assert.match(calls[0] ?? '', /--auto/);
   } finally {
     temp.cleanup();
   }
@@ -154,12 +155,13 @@ test('verifyAndRepairTask falla tras agotar los intentos', async () => {
   try {
     const bin = path.join(temp.path, 'bin');
     fs.mkdirSync(bin);
-    const log = path.join(temp.path, 'aider.log');
-    fakeAider(bin, { log });
+    const log = path.join(temp.path, 'opencode.log');
+    fakeOpencode(bin, { log, action: `touch '${path.join(temp.path, 'progress.txt')}'` });
 
     const verified = await verifyAndRepairTask('TASK-01', {
       root: temp.path,
       config: configWith(['false'], 3),
+      files: ['progress.txt'],
       env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` }
     });
 

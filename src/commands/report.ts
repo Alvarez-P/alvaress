@@ -20,7 +20,11 @@ function isHarnessReport(report: AnyRunReport): report is HarnessRunReport {
 function describe(report: AnyRunReport): string {
   if (isHarnessReport(report)) {
     const task = report.taskId !== undefined ? ` task=${report.taskId}` : '';
-    return `${report.id}  ${report.startedAt}  run ${report.state} mode=${report.mode}${task} changes=${report.changes.length}`;
+    const tokens =
+      report.usage !== undefined
+        ? ` tokens=${report.usage.total.input}/${report.usage.total.output}`
+        : '';
+    return `${report.id}  ${report.startedAt}  run ${report.state} mode=${report.mode}${task} changes=${report.changes.length}${tokens}`;
   }
   const apply = report as RunReport;
   return `${apply.id}  ${apply.startedAt}  total=${apply.total} verified=${apply.verified} failed=${apply.failed} skipped=${apply.skipped}`;

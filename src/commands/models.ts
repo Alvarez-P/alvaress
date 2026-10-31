@@ -1,12 +1,12 @@
 import { installAgent } from '../agent/installer.js';
 import { loadConfig, loadGlobalConfig, saveGlobalConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
-import { aiderEnvFor, aiderModelFor, validateModelReference } from '../config/models.js';
+import { validateModelReference } from '../config/models.js';
 import { flagEnabled, parseArgs } from '../utils/args.js';
 import { logger } from '../utils/logger.js';
 import { promptModels } from './install.js';
 
-type ModelRole = 'orchestrator' | 'subagents' | 'aider';
+type ModelRole = 'orchestrator' | 'subagents';
 
 export interface ModelsCommandDeps {
   loadConfig?: typeof loadConfig;
@@ -18,31 +18,8 @@ export interface ModelsCommandDeps {
 }
 
 function applyModel(config: HarnessConfig, role: ModelRole, value: string): HarnessConfig {
-  const trimmed = value.trim();
-  if (role === 'aider') {
-    if (trimmed.length === 0) {
-      throw new Error('El modelo de Aider no puede estar vacío.');
-    }
-    const modelName = aiderModelFor(trimmed);
-    return {
-      ...config,
-      models: {
-        ...config.models,
-        aiderImplementer: {
-          ...config.models.aiderImplementer,
-          modelName,
-          env: {
-            ...config.models.aiderImplementer.env,
-            ...(config.models.aiderImplementer.apiKey
-              ? aiderEnvFor(modelName, config.models.aiderImplementer.apiKey)
-              : {})
-          }
-        }
-      }
-    };
-  }
-
-  const invalid = validateModelReference(trimmed);
+  const modelName = value.trim();
+  const invalid = validateModelReference(modelName);
   if (invalid !== undefined) {
     throw new Error(invalid);
   }
@@ -50,7 +27,7 @@ function applyModel(config: HarnessConfig, role: ModelRole, value: string): Harn
     ...config,
     models: {
       ...config.models,
-      [role]: { modelName: trimmed }
+      [role]: { modelName }
     }
   };
 }
@@ -101,8 +78,7 @@ export async function runModelsCommand(
       JSON.stringify(
         {
           orchestrator: config.models.orchestrator.modelName || null,
-          subagents: config.models.subagents.modelName || null,
-          aider: config.models.aiderImplementer.modelName
+          subagents: config.models.subagents.modelName || null
         },
         null,
         2
@@ -116,10 +92,9 @@ export async function runModelsCommand(
     const all = typeof flags.all === 'string' ? flags.all : undefined;
     const orchestrator = typeof flags.orchestrator === 'string' ? flags.orchestrator : all;
     const subagents = typeof flags.subagents === 'string' ? flags.subagents : all;
-    const aider = typeof flags.aider === 'string' ? flags.aider : all;
-    if (orchestrator === undefined && subagents === undefined && aider === undefined) {
+    if (orchestrator === undefined && subagents === undefined) {
       throw new Error(
-        'Uso: alvaress models set --all <provider/model> o --orchestrator <m> --subagents <m> --aider <m>'
+        'Uso: alvaress models set --all <provider/model> o --orchestrator <m> --subagents <m>'
       );
     }
 
@@ -130,9 +105,6 @@ export async function runModelsCommand(
     if (subagents !== undefined) {
       next = applyModel(next, 'subagents', subagents);
     }
-    if (aider !== undefined) {
-      next = applyModel(next, 'aider', aider);
-    }
 
     runtime.saveGlobalConfig(next);
     logger.success('Modelos guardados en la configuración global.');
@@ -141,9 +113,7 @@ export async function runModelsCommand(
   }
 
   if (subcommand === undefined || subcommand === 'configure') {
-    const next = await runtime.promptModels(runtime.loadGlobalConfig(), {
-      askAiderCredentials: true
-    });
+    const next = await runtime.promptModels(runtime.loadGlobalConfig());
     runtime.saveGlobalConfig(next);
     logger.success('Modelos guardados en la configuración global.');
     installCurrentAgent(next, root, {}, runtime);

@@ -1,15 +1,14 @@
 import path from 'node:path';
 import { unlink } from 'node:fs/promises';
 import * as p from '@clack/prompts';
-import { installAgent } from '../agent/installer.js';
+import { installAgent, SUBAGENTS } from '../agent/installer.js';
 import { loadConfig, getConfigPaths, readConfigFile, saveGlobalConfig } from '../config/loader.js';
 import type {
   HarnessConfig,
   HarnessConfigFile,
-  ModelProviderConfig,
   PackageManager
 } from '../config/loader.js';
-import { aiderEnvFor, aiderModelFor, validateModelReference } from '../config/models.js';
+import { validateModelReference } from '../config/models.js';
 import {
   COMMAND_SEPARATOR,
   DEFAULT_LAYA_TIMEOUT_MS,
@@ -21,13 +20,13 @@ import {
   LAYA_TOKENIZER_PACKAGE,
   VITE_PLUS_PACKAGE
 } from '../constants.js';
-import { detectObsidian, installObsidian } from '../obsidian/installer.js';
+import { detectObsidian, installObsidian, OBSIDIAN_DOWNLOAD_URL } from '../obsidian/installer.js';
 import { connectObsidianVault } from '../obsidian/vault.js';
 import { BUNDLE_BYTES, BUNDLE_REVISION, ensureBundle, verifyBundle } from '../decision/vendor/laya/index.js';
 import { errorMessage } from '../utils/errors.js';
 import { moduleAvailableFrom } from '../utils/modules.js';
 import { ensureHarnessDirs, getManifestPath, inferProjectName, scaffoldManifest } from '../openspec/manifest.js';
-import { installSkills } from '../skills/installer.js';
+import { installSkills, SKILLS } from '../skills/installer.js';
 import { ensureDir, pathExists, relativeTo, writeJsonFile } from '../utils/fs.js';
 import { logger } from '../utils/logger.js';
 import { runCommand } from '../utils/process.js';
@@ -37,26 +36,94 @@ import {
   resolveInstallerPackageManager
 } from '../utils/package-manager.js';
 import {
-  ensurePipxPath,
-  installPipx,
-  pipxInstallHint,
-  pipxInstallPlan
-} from '../utils/pipx.js';
+  ensureUvPath,
+  installUv,
+  uvInstallHint,
+  uvInstallPlan,
+  uvToolInstallArgs
+} from '../utils/uv.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
-const COMPONENT_VALUES = ['agent', 'laya', 'obsidian', 'graphify', 'vite-plus', 'validation'] as const;
+const COMPONENT_VALUES = ['agent', 'laya', 'skills', 'obsidian', 'graphify', 'vite-plus', 'validation'] as const;
 type Component = (typeof COMPONENT_VALUES)[number];
 
-const REQUIRED_COMPONENTS: Component[] = [...COMPONENT_VALUES];
+/** La app Obsidian es opcional; la bóveda Markdown se crea siempre. */
+const OBSIDIAN_APP_COMPONENT: Component = 'obsidian';
 
-const FIXED_COMPONENT_SUMMARY = [
-  '🧭 Agente alvaress · orquestador y subagentes en OpenCode',
-  '🧠 Laya · decisión local, riesgo y triaje',
-  '🗂️ Obsidian · notas ODD y reporte de cierre',
-  '📊 Graphify · navegación del agente',
-  '⚡ Vite-Plus · vp check / vp test',
-  '🧪 Validación · oxlint, TypeScript y tipos de Node'
-].join('\n');
+/** Fila del checklist: `components` es lo que instala, `id` es lo que se marca. */
+type ChecklistId =
+  | 'laya'
+  | 'vite-plus'
+  | 'graphify'
+  | 'skills'
+  | 'orchestrator'
+  | 'subagents'
+  | 'obsidian';
+
+interface ChecklistEntry {
+  id: ChecklistId;
+  components: Component[];
+  label: string;
+  hint: string;
+  required: boolean;
+}
+
+const SUBAGENT_ROLES = SUBAGENTS.map(({ name }) => name.replace(/^alvaress-/, '')).join(', ');
+
+/** Requisitos implícitos: se instalan siempre y no ocupan fila en el checklist. */
+const IMPLICIT_COMPONENTS: Component[] = ['validation'];
+
+const CHECKLIST: ChecklistEntry[] = [
+  {
+    id: 'laya',
+    components: ['laya'],
+    label: '🧠 Laya',
+    hint: `decisión local · ONNX Runtime, tokenizers y modelo int8 (${formatBytes(BUNDLE_BYTES)})`,
+    required: true
+  },
+  {
+    id: 'vite-plus',
+    components: ['vite-plus'],
+    label: '⚡ Vite-Plus',
+    hint: 'vp check y vp test',
+    required: true
+  },
+  {
+    id: 'graphify',
+    components: ['graphify'],
+    label: '📊 Graphify',
+    hint: 'grafo AST del repositorio · instala uv si falta',
+    required: true
+  },
+  {
+    id: 'skills',
+    components: ['skills'],
+    label: '🧩 Skills',
+    hint: `${SKILLS.length} skills del proyecto y sus enlaces globales`,
+    required: true
+  },
+  {
+    id: 'orchestrator',
+    components: ['agent'],
+    label: '🧭 Orquestador',
+    hint: 'agente alvaress en OpenCode',
+    required: true
+  },
+  {
+    id: 'subagents',
+    components: ['agent'],
+    label: '🤖 Subagentes',
+    hint: SUBAGENT_ROLES,
+    required: true
+  },
+  {
+    id: 'obsidian',
+    components: ['obsidian'],
+    label: '🗂️ Obsidian',
+    hint: '(solo para que tú visualices; los agentes no lo usan)',
+    required: false
+  }
+];
 
 export interface InstallRuntime {
   commandExists: typeof commandExists;
@@ -71,7 +138,7 @@ export interface InstallRuntime {
   connectObsidianVault: typeof connectObsidianVault;
   installSkills: typeof installSkills;
   installAgent: typeof installAgent;
-  installPipx: typeof installPipx;
+  installUv: typeof installUv;
   ensureLayaBundle: typeof ensureBundle;
 }
 
@@ -87,12 +154,14 @@ const DEFAULT_RUNTIME: InstallRuntime = {
   connectObsidianVault,
   installSkills,
   installAgent,
-  installPipx,
+  installUv,
   ensureLayaBundle: ensureBundle
 };
 
 export interface InstallOptions {
   yes?: boolean;
+  /** Fuerza la instalación de la app Obsidian; por defecto se pregunta o se omite. */
+  withObsidian?: boolean;
   runtime?: Partial<InstallRuntime>;
 }
 
@@ -130,47 +199,23 @@ export async function runInstall(
   let configDirty = !hadGlobalConfig;
 
   const localModels = readConfigFile(paths.local).models;
-  if (
-    localModels?.orchestrator !== undefined ||
-    localModels?.subagents !== undefined ||
-    localModels?.aiderImplementer !== undefined
-  ) {
+  if (localModels?.orchestrator !== undefined || localModels?.subagents !== undefined) {
     p.log.warn(
       'Este proyecto define modelos en .alvaressrc.json; ganan sobre los globales que guarde el instalador.'
     );
   }
 
-  const selected: Component[] = [...REQUIRED_COMPONENTS];
-  let aiderSelected = config.aider?.enabled === true;
+  const selected = await pickComponents(options.withObsidian, yes);
+  const installObsidianApp = selected.has(OBSIDIAN_APP_COMPONENT);
 
-  if (!yes) {
-    p.note(FIXED_COMPONENT_SUMMARY, 'Se instalarán siempre');
-    if (!aiderSelected) {
-      aiderSelected = unwrap(
-        await p.confirm({
-          message:
-            '¿Instalar y habilitar Aider como worker opcional? Si no, trabajan los subagentes.',
-          initialValue: false
-        })
-      );
-      if (aiderSelected) {
-        config = { ...config, aider: { ...config.aider, enabled: true } };
-        configDirty = true;
-      }
-    }
-  }
-
-  let obsidianVaultPath: string | undefined;
-  if (selected.includes('obsidian')) {
-    obsidianVaultPath = await configureObsidian(config.obsidianVaultPath, yes);
-    if (obsidianVaultPath !== config.obsidianVaultPath) {
-      config = { ...config, obsidianVaultPath };
-      configDirty = true;
-    }
+  const obsidianVaultPath = await configureObsidian(config.obsidianVaultPath, yes);
+  if (obsidianVaultPath !== config.obsidianVaultPath) {
+    config = { ...config, obsidianVaultPath };
+    configDirty = true;
   }
 
   let layaPlan: LayaPlan | undefined;
-  if (selected.includes('laya')) {
+  if (selected.has('laya')) {
     layaPlan = await promptLaya(config, yes, root);
     config = layaPlan.config;
     configDirty = true;
@@ -179,14 +224,12 @@ export async function runInstall(
   if (!yes) {
     const configureModels = unwrap(
       await p.confirm({
-        message: '¿Configurar los modelos de orquestador, subagentes y Aider ahora?',
+        message: '¿Configurar los modelos de orquestador y subagentes ahora?',
         initialValue: true
       })
     );
     if (configureModels) {
-      config = await promptModels(config, {
-        askAiderCredentials: aiderSelected
-      });
+      config = await promptModels(config);
       configDirty = true;
     }
   }
@@ -214,12 +257,12 @@ export async function runInstall(
     );
   }
 
-  const needsPipx = selected.includes('graphify') || aiderSelected;
-  const pipxReady = needsPipx ? await ensurePipx(runtime, yes) : false;
+  const needsUv = selected.has('graphify');
+  const uvReady = needsUv ? await ensureUv(runtime, yes) : false;
 
   const nodePlan = planNodeDependencies(root, runtime, {
-    vitePlus: selected.includes('vite-plus'),
-    validation: selected.includes('validation'),
+    vitePlus: selected.has('vite-plus'),
+    validation: selected.has('validation'),
     laya: layaPlan?.enabled === true
   });
 
@@ -238,20 +281,17 @@ export async function runInstall(
   spinner.start('Instalando componentes en paralelo');
 
   const tasks: Array<Promise<ComponentResult | undefined>> = [];
-  if (selected.includes('obsidian')) {
+  if (selected.has('obsidian')) {
     tasks.push(installObsidianComponent(runtime, update));
   }
-  if (selected.includes('graphify')) {
-    tasks.push(installGraphify(runtime, pipxReady, update));
-  }
-  if (aiderSelected) {
-    tasks.push(installAider(runtime, pipxReady, update));
+  if (selected.has('graphify')) {
+    tasks.push(installGraphify(root, runtime, uvReady, update));
   }
   if (nodePlan.packages.length > 0) {
     tasks.push(installNodeDependencies(root, manager, runtime, nodePlan, update));
   } else if (
-    selected.includes('vite-plus') ||
-    selected.includes('validation') ||
+    selected.has('vite-plus') ||
+    selected.has('validation') ||
     layaPlan?.enabled === true
   ) {
     update('Node', 'sin cambios');
@@ -320,26 +360,29 @@ export async function runInstall(
     }
   }
 
-  if (obsidianVaultPath !== undefined) {
-    const connection = runtime.connectObsidianVault(root, obsidianVaultPath);
-    p.log.success(`Bóveda conectada: ${connection.harnessDir}`);
-    p.log.info(`Enlace de tareas: ${connection.tasksLink} (${connection.tasksLinkResult})`);
-    if (connection.manifestLink !== undefined) {
-      p.log.info(`Enlace del manifiesto: ${connection.manifestLink} (${connection.manifestLinkResult})`);
+  const connection = runtime.connectObsidianVault(root, obsidianVaultPath);
+  p.log.success(`Bóveda conectada: ${connection.harnessDir}`);
+  p.log.info(`Enlace de tareas: ${connection.tasksLink} (${connection.tasksLinkResult})`);
+  if (connection.manifestLink !== undefined) {
+    p.log.info(`Enlace del manifiesto: ${connection.manifestLink} (${connection.manifestLinkResult})`);
+  }
+  if (!installObsidianApp && !runtime.detectObsidian().installed) {
+    p.log.info(obsidianAppHint(connection.harnessDir));
+  }
+
+  if (selected.has('skills')) {
+    const report = runtime.installSkills(root);
+    p.log.success(`Skills del proyecto escritas en ${relativeTo(root, report.skillsDir)}`);
+
+    const skipped = report.links.filter((link) => link.result === 'skipped');
+    for (const link of skipped) {
+      p.log.warn(`Se omitió el enlace ${link.link}: ya existe un archivo o directorio real.`);
     }
+    const linked = report.links.length - skipped.length;
+    p.log.info(`Enlaces globales de skills actualizados: ${linked}`);
   }
 
-  const report = runtime.installSkills(root);
-  p.log.success(`Skills del proyecto escritas en ${relativeTo(root, report.skillsDir)}`);
-
-  const skipped = report.links.filter((link) => link.result === 'skipped');
-  for (const link of skipped) {
-    p.log.warn(`Se omitió el enlace ${link.link}: ya existe un archivo o directorio real.`);
-  }
-  const linked = report.links.length - skipped.length;
-  p.log.info(`Enlaces globales de skills actualizados: ${linked}`);
-
-  if (selected.includes('agent')) {
+  if (selected.has('agent')) {
     const agent = runtime.installAgent(root, {
       global: true,
       project: true,
@@ -357,18 +400,6 @@ export async function runInstall(
     p.log.info('En OpenCode, selecciona el agente "alvaress" con Tab o con --agent alvaress.');
   }
 
-  const implementer = config.models.aiderImplementer;
-  const hasImplementerKey =
-    (implementer.apiKey ?? '').length > 0 ||
-    Object.entries(implementer.env ?? {}).some(
-      ([key, value]) => /KEY|TOKEN|SECRET/i.test(key) && value.length > 0
-    );
-  if (config.aider?.enabled === true && yes && !hasImplementerKey) {
-    p.log.warn(
-      'Aider está habilitado pero no hay API key del implementador. Añádela en ~/.alvaressconfig.json o define la variable del proveedor.'
-    );
-  }
-
   p.note(
     [
       `Proyecto: ${inferProjectName(root)}`,
@@ -377,15 +408,10 @@ export async function runInstall(
       `Config: ${paths.global}`,
       `Orquestador: ${describeModel(config.models.orchestrator.modelName, 'hereda el de OpenCode')}`,
       `Subagentes: ${describeModel(config.models.subagents.modelName, 'heredan el del orquestador')}`,
-      `Aider: ${
-        aiderSelected
-          ? config.models.aiderImplementer.modelName
-          : 'no instalado; trabajan los subagentes'
-      }`,
-      ...(selected.includes('agent')
+      ...(selected.has('agent')
         ? []
         : ['Modelos guardados; ejecuta "alvaress agent install" para aplicarlos al frontmatter.']),
-      'Siguiente paso: ejecuta "alvaress run \\"tu petición\\"" o define tareas en openspec.yaml y usa "alvaress apply".'
+      'Siguiente paso: ejecuta "alvaress run \\"tu petición\\"" o define tareas en openspec.yaml y usa "alvaress run --task <TASK_ID>".'
     ].join('\n'),
     'alvaress listo'
   );
@@ -444,14 +470,14 @@ async function configureObsidian(currentVault: string, yes: boolean): Promise<st
   return vaultPath;
 }
 
-async function ensurePipx(runtime: InstallRuntime, yes: boolean): Promise<boolean> {
-  if (runtime.commandExists('pipx')) {
+async function ensureUv(runtime: InstallRuntime, yes: boolean): Promise<boolean> {
+  if (runtime.commandExists('uv')) {
     return true;
   }
 
-  const plan = pipxInstallPlan(process.platform, runtime.commandExists);
+  const plan = uvInstallPlan(process.platform, runtime.commandExists);
   if (plan === undefined) {
-    p.log.warn(`pipx no está disponible y hace falta para Aider y Graphify. ${pipxInstallHint()}`);
+    p.log.warn(`uv no está disponible y hace falta para instalar Graphify. ${uvInstallHint()}`);
     return false;
   }
 
@@ -459,89 +485,135 @@ async function ensurePipx(runtime: InstallRuntime, yes: boolean): Promise<boolea
     ? true
     : unwrap(
         await p.confirm({
-          message: 'pipx no está instalado y hace falta para Aider y Graphify. ¿Instalarlo ahora?',
+          message: 'uv no está instalado y hace falta para instalar Graphify. ¿Instalarlo ahora?',
           initialValue: true
         })
       );
   if (!shouldInstall) {
-    p.log.warn(`Sin pipx no se pueden instalar Aider ni Graphify. ${pipxInstallHint()}`);
+    p.log.warn(`Sin uv no se puede instalar Graphify. ${uvInstallHint()}`);
     return false;
   }
 
   const spinner = p.spinner();
-  spinner.start('Instalando pipx');
-  const result = await runtime.installPipx();
+  spinner.start('Instalando uv');
+  const result = await runtime.installUv();
   if (result.code === 0) {
-    ensurePipxPath();
-    if (runtime.commandExists('pipx')) {
-      spinner.stop('pipx instalado.');
+    ensureUvPath();
+    if (runtime.commandExists('uv')) {
+      spinner.stop('uv instalado.');
       return true;
     }
   }
 
-  spinner.stop('No se pudo instalar pipx automáticamente.');
+  spinner.stop('No se pudo instalar uv automáticamente.');
   p.log.warn(result.error ?? result.stderr.trim() ?? 'Instalación cancelada.');
-  p.log.info(pipxInstallHint());
+  p.log.info(uvInstallHint());
   return false;
 }
 
 async function installGraphify(
+  root: string,
   runtime: InstallRuntime,
-  pipxReady: boolean,
+  uvReady: boolean,
   update: (key: string, value: string) => void
 ): Promise<ComponentResult> {
   update('Graphify', 'comprobando');
-  if (runtime.commandExists('graphify')) {
-    update('Graphify', 'listo');
-    return { info: ['Graphify ya está instalado.'] };
-  }
-  if (!pipxReady) {
-    update('Graphify', 'omitido');
-    return { warn: ['Sin pipx no se puede instalar Graphify.'] };
+  const alreadyInstalled = runtime.commandExists('graphify');
+
+  if (!alreadyInstalled) {
+    if (!uvReady) {
+      update('Graphify', 'omitido');
+      return { warn: ['Sin uv no se puede instalar Graphify.'] };
+    }
+
+    update('Graphify', 'instalando');
+    const result = await runtime.runCommand('uv', uvToolInstallArgs('graphifyy'));
+    if (result.code !== 0) {
+      update('Graphify', 'falló');
+      return {
+        warn: [
+          `uv tool install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
+        ]
+      };
+    }
+    ensureUvPath();
   }
 
-  update('Graphify', 'instalando');
-  const result = await runtime.runCommand('pipx', ['install', 'graphifyy']);
-  if (result.code !== 0) {
-    update('Graphify', 'falló');
-    return {
-      warn: [
-        `pipx install graphifyy falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
-      ]
-    };
-  }
+  const hooks = await enableGraphifyHooks(root, runtime);
   update('Graphify', 'listo');
-  return { info: ['Graphify instalado correctamente.'] };
+  return {
+    info: [alreadyInstalled ? 'Graphify ya está instalado.' : 'Graphify instalado correctamente.', ...hooks]
+  };
 }
 
-async function installAider(
-  runtime: InstallRuntime,
-  pipxReady: boolean,
-  update: (key: string, value: string) => void
-): Promise<ComponentResult> {
-  update('Aider', 'comprobando');
-  const version = await runtime.runCommand('aider', ['--version']);
-  if (version.code === 0) {
-    update('Aider', 'listo');
-    return { info: [`Aider ya está instalado: ${version.stdout.trim() || 'versión desconocida'}`] };
+/** Deja el grafo actualizado tras commit, checkout, merge y rewrite. */
+async function enableGraphifyHooks(root: string, runtime: InstallRuntime): Promise<string[]> {
+  if (!pathExists(path.join(root, '.git'))) {
+    return ['Sin repositorio git: hooks de Graphify omitidos.'];
   }
-  if (!pipxReady) {
-    update('Aider', 'omitido');
-    return { warn: ['Sin pipx no se puede instalar Aider.'] };
+  if (!runtime.commandExists('graphify')) {
+    return ['Graphify no está en PATH: ejecuta "graphify hook install" cuando lo esté.'];
   }
 
-  update('Aider', 'instalando');
-  const result = await runtime.runCommand('pipx', ['install', 'aider-chat']);
+  const result = await runtime.runCommand('graphify', ['hook', 'install'], { cwd: root });
   if (result.code !== 0) {
-    update('Aider', 'falló');
-    return {
-      warn: [
-        `pipx install aider-chat falló: ${result.stderr.trim() || result.stdout.trim() || result.error}`
-      ]
-    };
+    const detail = result.stderr.trim() || result.stdout.trim() || result.error || `código ${result.code}`;
+    return [`graphify hook install falló: ${detail}`];
   }
-  update('Aider', 'listo');
-  return { info: ['Aider instalado correctamente.'] };
+  return ['Hooks de Graphify activos: el grafo se actualiza al cambiar de rama o commitear.'];
+}
+
+function obsidianAppHint(harnessDir: string): string {
+  return [
+    'Obsidian (app) no instalada: las notas son Markdown compatible y el flujo funciona sin ella.',
+    `Si quieres la UI (grafo, backlinks), instálala desde ${OBSIDIAN_DOWNLOAD_URL} y abre ${harnessDir}.`
+  ].join('\n');
+}
+
+function componentsFor(ids: readonly ChecklistId[]): Set<Component> {
+  const chosen = new Set(ids);
+  const components = CHECKLIST.filter((entry) => chosen.has(entry.id)).flatMap(
+    (entry) => entry.components
+  );
+  return new Set([...components, ...IMPLICIT_COMPONENTS]);
+}
+
+function requiredChecklistIds(): ChecklistId[] {
+  return CHECKLIST.filter((entry) => entry.required).map((entry) => entry.id);
+}
+
+async function pickComponents(
+  withObsidian: boolean | undefined,
+  yes: boolean
+): Promise<Set<Component>> {
+  const defaults = requiredChecklistIds();
+  if (withObsidian === true) {
+    defaults.push('obsidian');
+  }
+
+  if (yes) {
+    return componentsFor(defaults);
+  }
+
+  const answer = unwrap(
+    await p.multiselect<ChecklistId>({
+      message: 'Componentes a instalar · los obligatorios no se pueden desmarcar',
+      options: CHECKLIST.map((entry) => ({
+        value: entry.id,
+        label: entry.label,
+        hint: entry.required ? `${entry.hint} · obligatorio` : entry.hint
+      })),
+      initialValues: defaults,
+      required: true
+    })
+  );
+
+  const restored = CHECKLIST.filter((entry) => entry.required && !answer.includes(entry.id));
+  if (restored.length > 0) {
+    p.log.warn(`Obligatorios restaurados: ${restored.map((entry) => entry.label).join(', ')}.`);
+  }
+
+  return componentsFor([...answer, ...restored.map((entry) => entry.id)]);
 }
 
 function planNodeDependencies(
@@ -562,7 +634,7 @@ function planNodeDependencies(
   }
 
   if (needs.validation && !validationReady(root, runtime)) {
-    for (const dependency of ['oxlint', 'typescript', '@types/node']) {
+    for (const dependency of ['typescript', '@types/node']) {
       packages.add(dependency);
     }
     labels.push('validación');
@@ -582,7 +654,9 @@ function planNodeDependencies(
 }
 
 function validationReady(root: string, runtime: InstallRuntime): boolean {
-  return runtime.moduleAvailable('oxlint', root) && runtime.moduleAvailable('typescript', root);
+  return (
+    runtime.moduleAvailable('typescript', root) && runtime.moduleAvailable('@types/node', root)
+  );
 }
 
 async function installNodeDependencies(
@@ -814,65 +888,50 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
   };
 }
 
-export async function promptModels(
-  base: HarnessConfig,
-  options: { askAiderCredentials: boolean }
-): Promise<HarnessConfig> {
+export const MODEL_RECOMMENDATION = [
+  'Orquestador: el modelo más capaz que tengas (familia Opus, GPT-5 o equivalente).',
+  '  Conversa contigo, cierra el alcance y resuelve los HALT; gasta pocos tokens,',
+  '  así que aquí la calidad rinde más que el precio.',
+  'Subagentes: un modelo rápido y barato con tool-calling fiable (familia Haiku,',
+  '  GPT-5 mini, Gemini Flash, DeepSeek o Qwen Coder). Implementan con alcance',
+  '  cerrado, contexto en el mensaje y validación del orquestador.',
+  'Evita razonamiento extendido en subagentes: encarece cada llamada sin mejorar',
+  '  ediciones acotadas. Un solo modelo para todo solo conviene si es barato o local.'
+].join('\n');
+
+export async function promptModels(base: HarnessConfig): Promise<HarnessConfig> {
+  p.note(MODEL_RECOMMENDATION, 'Recomendación de modelos');
   const mode = unwrap(
     await p.select<'single' | 'per-role'>({
       message: '¿Cómo quieres configurar los modelos?',
       options: [
         {
-          value: 'single',
-          label: 'Un solo modelo para los tres roles',
-          hint: 'orquestador, subagentes y Aider'
+          value: 'per-role',
+          label: 'Un modelo por rol (recomendado)',
+          hint: 'orquestador capaz y subagentes rápidos'
         },
         {
-          value: 'per-role',
-          label: 'Un modelo por rol',
-          hint: 'orquestador, subagentes y Aider por separado'
+          value: 'single',
+          label: 'Un solo modelo para orquestador y subagentes',
+          hint: 'mismo modelo para ambos roles'
         }
       ],
-      initialValue: 'single'
+      initialValue: 'per-role'
     })
   );
 
-  const credentials = async (): Promise<{ apiKey?: string; apiBase: string }> => {
-    if (!options.askAiderCredentials) {
-      return { apiBase: base.models.aiderImplementer.apiBase ?? '' };
-    }
-    const apiBase = await askText(
-      'API base para Aider (vacío = la del proveedor)',
-      base.models.aiderImplementer.apiBase ?? ''
-    );
-    const apiKey = await askSecret(
-      base.models.aiderImplementer.apiKey
-        ? 'API key para Aider (Enter conserva la actual)'
-        : 'API key para Aider (Enter para vacío)'
-    );
-    return { apiKey, apiBase };
-  };
-
   if (mode === 'single') {
     const model = await askModel(
-      'Modelo para orquestador y subagentes (Aider usará el mismo o su equivalente)',
-      base.models.orchestrator.modelName ||
-        base.models.subagents.modelName ||
-        base.models.aiderImplementer.modelName,
+      'Modelo para orquestador y subagentes',
+      base.models.orchestrator.modelName || base.models.subagents.modelName,
       { required: true }
     );
-    const aiderModel = aiderModelFor(model);
-    if (aiderModel !== model) {
-      p.log.info(`Aider usará ${aiderModel} en lugar de ${model}.`);
-    }
-    const { apiKey, apiBase } = await credentials();
 
     return {
       ...base,
       models: {
         orchestrator: { modelName: model },
-        subagents: { modelName: model },
-        aiderImplementer: buildAiderConfig(base, aiderModel, apiKey, apiBase)
+        subagents: { modelName: model }
       }
     };
   }
@@ -887,39 +946,12 @@ export async function promptModels(
     base.models.subagents.modelName,
     { required: false }
   );
-  const implementer = await askRequired(
-    'Modelo de Aider (provider/model recomendado)',
-    base.models.aiderImplementer.modelName
-  );
-  const aiderModel = aiderModelFor(implementer);
-  if (aiderModel !== implementer) {
-    p.log.info(`Aider usará ${aiderModel} en lugar de ${implementer}.`);
-  }
-  const { apiKey, apiBase } = await credentials();
 
   return {
     ...base,
     models: {
       orchestrator: { modelName: orchestrator },
-      subagents: { modelName: subagents },
-      aiderImplementer: buildAiderConfig(base, aiderModel, apiKey, apiBase)
-    }
-  };
-}
-
-function buildAiderConfig(
-  base: HarnessConfig,
-  modelName: string,
-  apiKey: string | undefined,
-  apiBase: string
-): ModelProviderConfig {
-  return {
-    modelName,
-    apiKey: apiKey ?? base.models.aiderImplementer.apiKey ?? '',
-    apiBase,
-    env: {
-      ...base.models.aiderImplementer.env,
-      ...(apiKey ? aiderEnvFor(modelName, apiKey) : {})
+      subagents: { modelName: subagents }
     }
   };
 }
@@ -1002,11 +1034,6 @@ async function askRequired(message: string, defaultValue: string): Promise<strin
   );
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : defaultValue.trim();
-}
-
-async function askSecret(message: string): Promise<string | undefined> {
-  const value = unwrap(await p.password({ message }));
-  return value.trim().length > 0 ? value.trim() : undefined;
 }
 
 async function askPackageManager(defaultValue: PackageManager): Promise<PackageManager> {

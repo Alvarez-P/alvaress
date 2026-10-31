@@ -4,70 +4,67 @@ import path from 'node:path';
 import { commandExists, runCommand } from './process.js';
 import type { CommandResult, RunOptions } from './process.js';
 
-export interface PipxInstallPlan {
+export interface UvInstallPlan {
   command: string;
   args: string[];
   shell: boolean;
 }
 
-export interface PipxInstallDeps {
+export interface UvInstallDeps {
   platform?: NodeJS.Platform;
   hasCommand?: (command: string) => boolean;
   run?: (command: string, args: string[], options?: RunOptions) => Promise<CommandResult>;
   runShell?: (command: string, options?: RunOptions) => CommandResult;
 }
 
-function withSudo(
-  command: string,
-  args: string[],
-  hasCommand: (value: string) => boolean
-): PipxInstallPlan {
-  const prefix = hasCommand('sudo') ? 'sudo ' : '';
-  return { command: `${prefix}${command}`, args, shell: true };
+const UV_INSTALL_SH = 'curl -LsSf https://astral.sh/uv/install.sh | sh';
+const UV_INSTALL_SH_WGET = 'wget -qO- https://astral.sh/uv/install.sh | sh';
+const UV_INSTALL_PS1 =
+  'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"';
+
+function shellPlan(command: string): UvInstallPlan {
+  return { command, args: [], shell: true };
 }
 
-export function pipxInstallPlan(
+export function uvInstallPlan(
   platform: NodeJS.Platform = process.platform,
   hasCommand: (command: string) => boolean = commandExists
-): PipxInstallPlan | undefined {
+): UvInstallPlan | undefined {
   if (platform === 'darwin') {
     if (hasCommand('brew')) {
-      return { command: 'brew', args: ['install', 'pipx'], shell: false };
+      return { command: 'brew', args: ['install', 'uv'], shell: false };
+    }
+    if (hasCommand('curl')) {
+      return shellPlan(UV_INSTALL_SH);
     }
     if (hasCommand('python3')) {
-      return { command: 'python3 -m pip install --user pipx', args: [], shell: true };
+      return shellPlan('python3 -m pip install --user uv');
     }
     return undefined;
   }
 
   if (platform === 'win32') {
+    if (hasCommand('powershell')) {
+      return shellPlan(UV_INSTALL_PS1);
+    }
     if (hasCommand('py')) {
-      return { command: 'py -m pip install --user pipx', args: [], shell: true };
+      return shellPlan('py -m pip install --user uv');
     }
     if (hasCommand('python')) {
-      return { command: 'python -m pip install --user pipx', args: [], shell: true };
+      return shellPlan('python -m pip install --user uv');
     }
     return undefined;
   }
 
   if (platform === 'linux') {
-    if (hasCommand('apt-get')) {
-      return withSudo('apt-get', ['install', '-y', 'pipx'], hasCommand);
+    if (hasCommand('curl')) {
+      return shellPlan(UV_INSTALL_SH);
     }
-    if (hasCommand('dnf')) {
-      return withSudo('dnf', ['install', '-y', 'pipx'], hasCommand);
-    }
-    if (hasCommand('pacman')) {
-      return withSudo('pacman', ['-S', '--noconfirm', 'pipx'], hasCommand);
-    }
-    if (hasCommand('zypper')) {
-      return withSudo('zypper', ['install', '-y', 'pipx'], hasCommand);
-    }
-    if (hasCommand('apk')) {
-      return withSudo('apk', ['add', 'pipx'], hasCommand);
+    if (hasCommand('wget')) {
+      return shellPlan(UV_INSTALL_SH_WGET);
     }
     if (hasCommand('python3')) {
-      return { command: 'python3 -m pip install --user pipx', args: [], shell: true };
+      return shellPlan('python3 -m pip install --user uv');
     }
     return undefined;
   }
@@ -75,10 +72,10 @@ export function pipxInstallPlan(
   return undefined;
 }
 
-export async function installPipx(deps: PipxInstallDeps = {}): Promise<CommandResult> {
-  const plan = pipxInstallPlan(deps.platform, deps.hasCommand);
+export async function installUv(deps: UvInstallDeps = {}): Promise<CommandResult> {
+  const plan = uvInstallPlan(deps.platform, deps.hasCommand);
   if (plan === undefined) {
-    return { code: 1, stdout: '', stderr: '', error: pipxInstallHint() };
+    return { code: 1, stdout: '', stderr: '', error: uvInstallHint() };
   }
 
   const timeout = 15 * 60 * 1000;
@@ -103,7 +100,7 @@ export async function installPipx(deps: PipxInstallDeps = {}): Promise<CommandRe
   return run(plan.command, plan.args, { timeout });
 }
 
-export function pipxUserBinDirs(
+export function uvUserBinDirs(
   platform: NodeJS.Platform = process.platform,
   homedir: string = os.homedir(),
   env: NodeJS.ProcessEnv = process.env
@@ -115,13 +112,13 @@ export function pipxUserBinDirs(
   return dirs;
 }
 
-export function ensurePipxPath(
+export function ensureUvPath(
   platform: NodeJS.Platform = process.platform,
   homedir: string = os.homedir(),
   env: NodeJS.ProcessEnv = process.env
 ): string[] {
   const current = (env.PATH ?? '').split(path.delimiter).filter((entry) => entry.length > 0);
-  const additions = pipxUserBinDirs(platform, homedir, env).filter(
+  const additions = uvUserBinDirs(platform, homedir, env).filter(
     (directory) => !current.includes(directory)
   );
   if (additions.length > 0) {
@@ -130,12 +127,16 @@ export function ensurePipxPath(
   return additions;
 }
 
-export function pipxInstallHint(): string {
+export function uvToolInstallArgs(packageName: string): string[] {
+  return ['tool', 'install', packageName];
+}
+
+export function uvInstallHint(): string {
   if (process.platform === 'darwin') {
-    return 'Instala pipx con "brew install pipx" o "python3 -m pip install --user pipx".';
+    return 'Instala uv con "brew install uv" o "curl -LsSf https://astral.sh/uv/install.sh | sh".';
   }
   if (process.platform === 'win32') {
-    return 'Instala pipx con "py -m pip install --user pipx".';
+    return 'Instala uv con "powershell -c \\"irm https://astral.sh/uv/install.ps1 | iex\\"".';
   }
-  return 'Instala pipx con el gestor de tu distro o "python3 -m pip install --user pipx".';
+  return 'Instala uv con "curl -LsSf https://astral.sh/uv/install.sh | sh" o "python3 -m pip install --user uv".';
 }

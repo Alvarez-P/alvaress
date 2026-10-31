@@ -415,3 +415,120 @@ test('LayaDecisionEngine cae a la heurística si el scope falla', async () => {
   assert.equal(decision.scope, 'project');
   assert.equal(decision.source, 'heuristic');
 });
+
+function flowInput(overrides: Partial<import('../src/core/contracts.js').FlowInput> = {}) {
+  return {
+    request: 'refactoriza el cargador de configuración',
+    mode: 'odd' as const,
+    complexity: 'medium' as const,
+    files: ['src/config/loader.ts'],
+    acceptance: ['la configuración sigue funcionando'],
+    ...overrides
+  };
+}
+
+test('heuristicFlow no paga especialistas para un cambio trivial', async () => {
+  const plan = await new HeuristicDecisionEngine().planFlow(
+    flowInput({
+      request: 'corrige la operación matemática',
+      complexity: 'trivial',
+      files: ['src/math.ts']
+    })
+  );
+
+  assert.deepEqual(plan.roles, []);
+  assert.equal(plan.source, 'heuristic');
+});
+
+test('heuristicFlow pide arquitecto y reviewer solo en cambios ODD grandes', async () => {
+  const medium = await new HeuristicDecisionEngine().planFlow(flowInput());
+  const large = await new HeuristicDecisionEngine().planFlow(flowInput({ complexity: 'large' }));
+
+  assert.deepEqual(medium.roles, []);
+  assert.deepEqual(large.roles, ['architect', 'reviewer']);
+});
+
+test('heuristicFlow suma especialistas de dominio sin reordenarlos', async () => {
+  const plan = await new HeuristicDecisionEngine().planFlow(
+    flowInput({
+      request: 'actualiza las dependencias y migra el formulario responsive',
+      mode: 'sdd'
+    })
+  );
+
+  assert.deepEqual(plan.roles, ['researcher', 'architect', 'designer', 'tester', 'reviewer']);
+});
+
+test('heuristicFlow deja un cambio pequeño de UI en manos del designer', async () => {
+  const plan = await new HeuristicDecisionEngine().planFlow(
+    flowInput({
+      request: 'ajusta el botón del formulario',
+      complexity: 'small',
+      files: ['src/ui/button.ts']
+    })
+  );
+
+  assert.deepEqual(plan.roles, ['designer']);
+});
+
+test('LayaDecisionEngine selecciona especialistas y conserva el orden del flujo', async () => {
+  const agent = fakeAgent({
+    researcher: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    architect: { type: 'noul', noul: 0.8, answer_confidence: 0.9 },
+    designer: { type: 'noul', noul: 0.2, answer_confidence: 0.9 },
+    tester: { type: 'noul', noul: 0.7, answer_confidence: 0.9 },
+    reviewer: { type: 'noul', noul: 0.9, answer_confidence: 0.9 }
+  });
+  const plan = await new LayaDecisionEngine(agent).planFlow(
+    flowInput({ mode: 'sdd', request: 'migra la pantalla de facturación' })
+  );
+
+  assert.deepEqual(plan.roles, ['researcher', 'architect', 'tester', 'reviewer']);
+  assert.equal(plan.source, 'laya');
+  assert.equal(agent.calls[0]?.questions.architect !== undefined, true);
+});
+
+test('LayaDecisionEngine no permite especialistas en un cambio trivial', async () => {
+  const agent = fakeAgent({
+    researcher: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    architect: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    designer: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    tester: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    reviewer: { type: 'noul', noul: 0.9, answer_confidence: 0.9 }
+  });
+  const plan = await new LayaDecisionEngine(agent).planFlow(
+    flowInput({ complexity: 'trivial', request: 'corrige la operación matemática' })
+  );
+
+  assert.deepEqual(plan.roles, []);
+});
+
+test('LayaDecisionEngine cae a la heurística si la confianza del flujo es baja', async () => {
+  const agent = fakeAgent({
+    architect: { type: 'noul', noul: 1, answer_confidence: 0.4 },
+    reviewer: { type: 'noul', noul: 1, answer_confidence: 0.9 }
+  });
+  const plan = await new LayaDecisionEngine(agent).planFlow(flowInput({ complexity: 'large' }));
+
+  assert.equal(plan.source, 'heuristic');
+  assert.deepEqual(plan.roles, ['architect', 'reviewer']);
+});
+
+test('heuristicFlow trata un SDD pequeño como flujo formal', async () => {
+  const plan = await new HeuristicDecisionEngine().planFlow(
+    flowInput({ mode: 'sdd', complexity: 'small', files: ['src/config/loader.ts'] })
+  );
+
+  assert.deepEqual(plan.roles, ['architect', 'tester', 'reviewer']);
+});
+
+test('LayaDecisionEngine no paga arquitecto ni reviewer en un ODD mediano', async () => {
+  const agent = fakeAgent({
+    architect: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    tester: { type: 'noul', noul: 0.9, answer_confidence: 0.9 },
+    reviewer: { type: 'noul', noul: 0.9, answer_confidence: 0.9 }
+  });
+  const plan = await new LayaDecisionEngine(agent).planFlow(flowInput());
+
+  assert.deepEqual(plan.roles, ['tester']);
+});

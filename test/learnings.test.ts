@@ -18,6 +18,9 @@ function decisionsWith(scope: 'global' | 'project', calls: string[] = []): Decis
     async route() {
       throw new Error('route no debería usarse en learn');
     },
+    async planFlow() {
+      throw new Error('planFlow no debería usarse en learn');
+    },
     async assessRisk() {
       throw new Error('assessRisk no debería usarse en learn');
     },
@@ -186,8 +189,8 @@ test('learn promote copia el aprendizaje del proyecto al global', async () => {
     const created = addLearning(
       {
         kind: 'solution',
-        title: 'Reintentar pipx tras un fallo de red',
-        body: 'Repetir pipx install graphifyy cuando la descarga falla por timeout.'
+        title: 'Reintentar uv tras un fallo de red',
+        body: 'Repetir uv tool install graphifyy cuando la descarga falla por timeout.'
       },
       stores.project
     );

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeTempDir, writeFile, writeJson, fakeAider, baseConfig } from './helpers.js';
+import { makeTempDir, writeFile, writeJson, fakeOpencode, baseConfig } from './helpers.js';
 
 const CLI = path.join(process.cwd(), 'dist', 'index.js');
 
@@ -138,7 +138,7 @@ test('agent show imprime el prompt y agent install escribe las dos ubicaciones',
   }
 });
 
-test('config paths y config show respetan HOME y enmascaran secretos', () => {
+test('config paths y config show respetan HOME', () => {
   const temp = makeTempDir('harness-config-');
   const home = path.join(temp.path, 'home');
   const root = path.join(temp.path, 'project');
@@ -146,7 +146,8 @@ test('config paths y config show respetan HOME y enmascaran secretos', () => {
   fs.mkdirSync(root);
   writeJson(path.join(home, '.alvaressconfig.json'), baseConfig({
     models: {
-      aiderImplementer: { modelName: 'global-implementer', apiKey: 'implementer-secret', env: {} }
+      orchestrator: { modelName: 'openai/gpt-5' },
+      subagents: { modelName: 'openai/gpt-5-mini' }
     }
   }));
   writeJson(path.join(root, '.alvaressrc.json'), baseConfig());
@@ -160,14 +161,13 @@ test('config paths y config show respetan HOME y enmascaran secretos', () => {
 
     const show = runCli(['config', 'show'], { cwd: root, home });
     assert.equal(show.status, 0);
-    assert.match(show.stdout, /\*{8}/);
-    assert.doesNotMatch(show.stdout, /implementer-secret/);
+    assert.match(show.stdout, /openai\/gpt-5/);
   } finally {
     temp.cleanup();
   }
 });
 
-test('apply --dry-run no invoca Aider', () => {
+test('apply --dry-run no invoca al worker', () => {
   const temp = makeTempDir('harness-dry-');
   const home = path.join(temp.path, 'home');
   fs.mkdirSync(home);
@@ -183,13 +183,13 @@ test('apply --dry-run no invoca Aider', () => {
   }
 });
 
-test('apply ejecuta Aider y verifica la tarea', () => {
+test('apply ejecuta el worker y verifica la tarea', () => {
   const temp = makeTempDir('harness-apply-');
   const home = path.join(temp.path, 'home');
   const bin = path.join(temp.path, 'bin');
   fs.mkdirSync(home);
   fs.mkdirSync(bin);
-  fakeAider(bin, { log: path.join(temp.path, 'aider.log') });
+  fakeOpencode(bin, { log: path.join(temp.path, 'opencode.log') });
   const root = project();
 
   try {
@@ -245,7 +245,7 @@ test('report y restore list muestran los artefactos de la ejecución', () => {
   const bin = path.join(temp.path, 'bin');
   fs.mkdirSync(home);
   fs.mkdirSync(bin);
-  fakeAider(bin, { log: path.join(temp.path, 'aider.log') });
+  fakeOpencode(bin, { log: path.join(temp.path, 'opencode.log') });
   const root = project();
 
   try {

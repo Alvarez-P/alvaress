@@ -1,11 +1,10 @@
-import path from 'node:path';
 import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
+import type { ValidationResult, Worker } from '../core/contracts.js';
 import { commandOutput, logger, truncate } from '../utils/logger.js';
-import { pathExists } from '../utils/fs.js';
 import { runShellCommand } from '../utils/process.js';
 import type { CommandResult } from '../utils/process.js';
-import { buildAiderEnv, runAider } from './aider.js';
+import { createWorker } from './workers.js';
 
 export interface VerifyOptions {
   root?: string;
@@ -14,8 +13,7 @@ export interface VerifyOptions {
   config?: HarnessConfig;
   commands?: string[];
   requireCommands?: boolean;
-  aiderTimeoutMs?: number;
-  logFile?: string;
+  worker?: Worker;
 }
 
 export interface ValidationFailure {
@@ -49,12 +47,31 @@ export function formatValidationFailure(failure: ValidationFailure): string {
   return `Comando fallido: ${failure.command}\nCódigo de salida: ${failure.result.code}\nLog de error:\n${truncate(output)}`;
 }
 
-export async function verifyAndRepairTask(taskId: string, options: VerifyOptions = {}): Promise<boolean> {
+function asValidationResult(failure: ValidationFailure): ValidationResult {
+  return {
+    ok: false,
+    commands: [
+      {
+        command: failure.command,
+        code: failure.result.code,
+        stdout: failure.result.stdout,
+        stderr: failure.result.stderr
+      }
+    ],
+    warnings: []
+  };
+}
+
+export async function verifyAndRepairTask(
+  taskId: string,
+  options: VerifyOptions = {}
+): Promise<boolean> {
   const root = options.root ?? process.cwd();
   const config = options.config ?? loadConfig(root);
   const commands = options.commands ?? config.validation.commands;
   const requireCommands = options.requireCommands ?? config.validation.requireCommands ?? true;
   const maxAttempts = Math.max(1, config.validation.maxAttempts || 1);
+  const worker = options.worker ?? createWorker({ root, config, env: options.env });
   let attempts = 0;
 
   if (commands.length === 0) {
@@ -80,30 +97,20 @@ export async function verifyAndRepairTask(taskId: string, options: VerifyOptions
       break;
     }
 
-    const accumulatedError = formatValidationFailure(failure);
     logger.warn(
       `[Self-Healing] Errores detectados en la tarea ${taskId}. Iniciando reparación automática ${attempts}/${maxAttempts - 1}...`
     );
 
-    const implementer = config.models.aiderImplementer;
-    const repairMessage = `El código generado falló las pruebas lógicas locales con el siguiente reporte de error:\n\n${accumulatedError}\nPor favor, analiza el error, modifica los archivos necesarios para resolverlo y mantén el tipado estricto de TypeScript. Comenta solo lo no obvio y no edites tests para que pasen: si el contrato cambió, reporta \`needs-orchestrator\`.`;
-
-    const taskDocument = path.join('.harness', 'tasks', `${taskId}.md`);
-    const repairFiles = (options.files ?? []).filter((file) => pathExists(path.join(root, file)));
-    const repair = await runAider(implementer.modelName, {
-      message: repairMessage,
-      files: repairFiles,
-      readFiles: pathExists(path.join(root, taskDocument)) ? [taskDocument] : [],
-      cwd: root,
-      env: { ...buildAiderEnv(config), ...options.env },
-      inherit: false,
-      timeoutMs: options.aiderTimeoutMs ?? config.aider?.timeoutMs,
-      logFile: options.logFile,
-      extraArgs: config.aider?.extraArgs
+    const repair = await worker.fix({
+      runId: taskId,
+      attempt: attempts,
+      files: options.files ?? [],
+      failure: asValidationResult(failure),
+      error: formatValidationFailure(failure)
     });
 
-    if (repair.code !== 0 && repair.error !== undefined) {
-      logger.error(`[Error] No se pudo ejecutar la reparación de Aider: ${repair.error}`);
+    if (repair.verdict !== 'fixed') {
+      logger.error(`[Self-Healing] La reparación no aplicó cambios: ${repair.cause}`);
       break;
     }
   }

@@ -6,18 +6,22 @@ import {
   LAYA_INT8_MODEL_CACHE_ROOT
 } from '../constants.js';
 import type {
+  Complexity,
   DecisionEngine,
   FailureInput,
   FailureVerdict,
+  FlowInput,
+  FlowPlan,
   LearningScopeDecision,
   LearningScopeInput,
   RiskAssessment,
   RiskInput,
   RouteDecision,
-  RouteInput
+  RouteInput,
+  SpecialistRole
 } from '../core/contracts.js';
 import { errorMessage } from '../utils/errors.js';
-import { HeuristicDecisionEngine } from './heuristics.js';
+import { HeuristicDecisionEngine, SPECIALIST_ROLES, orderSpecialists } from './heuristics.js';
 import { BUNDLE_REVISION, LayaModel, verifyBundle } from './vendor/laya/index.js';
 import type { Question } from './vendor/laya/index.js';
 
@@ -50,6 +54,9 @@ export interface LayaAgentLike {
 }
 
 export type LayaAgentLoader = (config: LayaConfig, root: string) => Promise<LayaAgentLike>;
+
+/** Por debajo de este umbral el flujo lo decide la heurística conservadora. */
+const FLOW_CONFIDENCE_THRESHOLD = 0.6;
 
 function choice(instructions: string, criteria: Record<string, string>): Record<string, unknown> {
   return { type: 'choice', instructions, criteria };
@@ -189,12 +196,51 @@ function readConfidence(answer: LayaAnswer | undefined, fallback: number): numbe
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function flowConfidence(answers: Record<string, LayaAnswer | undefined>): number {
+  const values = SPECIALIST_ROLES.map((role) => readConfidence(answers[role], Number.NaN)).filter(
+    (value) => Number.isFinite(value)
+  );
+  return values.length > 0 ? Math.min(...values) : 0.7;
+}
+
 function describeRisk(input: RiskInput): string {
   const changes = input.changes
     .map((change) => `${change.kind ?? 'modified'} ${change.path}: ${change.change}`)
     .join('\n');
   const warnings = input.warnings.map((warning) => `- ${warning}`).join('\n');
   return `Petición: ${input.request}\nCambios:\n${changes || 'sin cambios'}\nWarnings:\n${warnings || 'sin warnings'}`;
+}
+
+function describeFlow(input: FlowInput): string {
+  return [
+    `Petición: ${input.request}`,
+    `Modo: ${input.mode}`,
+    `Complejidad: ${input.complexity}`,
+    `Archivos: ${input.files.join(', ') || 'sin alcance cerrado'}`,
+    `Criterios: ${input.acceptance.join('; ') || 'sin criterios'}`
+  ].join('\n');
+}
+
+/**
+ * Laya elige especialistas, no alcance. El orquestador impone la regla de
+ * proporcionalidad: en ODD, un cambio trivial no paga especialistas y uno
+ * pequeño o mediano no paga arquitecto ni revisor.
+ */
+function enforceProportionality(
+  roles: SpecialistRole[],
+  complexity: Complexity,
+  mode: FlowInput['mode']
+): SpecialistRole[] {
+  if (mode === 'sdd') {
+    return orderSpecialists(roles);
+  }
+  if (complexity === 'trivial') {
+    return [];
+  }
+  if (complexity === 'small' || complexity === 'medium') {
+    return orderSpecialists(roles.filter((role) => role !== 'architect' && role !== 'reviewer'));
+  }
+  return orderSpecialists(roles);
 }
 
 export class LayaDecisionEngine implements DecisionEngine {
@@ -250,6 +296,52 @@ export class LayaDecisionEngine implements DecisionEngine {
       };
     } catch {
       return this.fallback.route(input);
+    }
+  }
+
+  async planFlow(input: FlowInput): Promise<FlowPlan> {
+    try {
+      const prediction = await this.ask(
+        describeFlow(input),
+        {
+          researcher: noul(
+            '¿Hace falta investigar dependencias, versiones, migraciones o APIs externas?'
+          ),
+          architect: noul('¿Hace falta decidir límites, contratos, datos o patrones antes de implementar?'),
+          designer: noul('¿Hace falta definir layout, componentes, estados o accesibilidad antes de implementar?'),
+          tester: noul('¿Hace falta diseñar casos de prueba o reproducir un bug antes de implementar?'),
+          reviewer: noul('¿Conviene revisar el diff final contra la spec y los estándares del repo?')
+        },
+        'flow'
+      );
+
+      const answered = SPECIALIST_ROLES.some(
+        (role) => readBoolean(prediction.answers[role]) !== undefined
+      );
+      if (!answered) {
+        return this.fallback.planFlow(input);
+      }
+
+      const selected = SPECIALIST_ROLES.filter(
+        (role) => readBoolean(prediction.answers[role]) === true
+      );
+      const confidence = flowConfidence(prediction.answers);
+      if (confidence < FLOW_CONFIDENCE_THRESHOLD) {
+        return this.fallback.planFlow(input);
+      }
+
+      const roles = enforceProportionality(selected, input.complexity, input.mode);
+      return {
+        roles,
+        reason:
+          roles.length === 0
+            ? 'Laya no pidió especialistas para este cambio.'
+            : `Laya seleccionó: ${roles.join(', ')}.`,
+        confidence,
+        source: 'laya'
+      };
+    } catch {
+      return this.fallback.planFlow(input);
     }
   }
 

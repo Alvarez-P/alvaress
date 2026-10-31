@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildWorkMessage } from '../src/orchestrator/workers.js';
 import { SKILLS, installSkills, renderSkill, skillFilePath } from '../src/skills/installer.js';
 import { makeTempDir } from './helpers.js';
 
@@ -12,12 +13,18 @@ test('define las skills del estándar híbrido SDD/ODD', () => {
       'read-spec-first',
       'consult-graphify-ast',
       'self-healing-verify',
-      'universal-design-patterns',
+      'clean-code',
       'obsidian-sdd',
       'continuous-learning',
       'bounded-scope',
+      'git-diff-context',
       'vite-plus-verify',
-      'failure-triage'
+      'failure-triage',
+      'architecture-decisions',
+      'ui-design',
+      'testing-strategy',
+      'code-review',
+      'technical-research'
     ]
   );
   for (const skill of SKILLS) {
@@ -39,11 +46,11 @@ test('renderSkill genera frontmatter YAML y cuerpo literal', () => {
       'description: Obliga al agente a leer la nota ODD o la especificación SDD antes de programar.',
       'scope: project',
       '---',
-      'Antes de modificar o proponer cualquier cambio, lee la fuente del modo: en ODD, la nota de Obsidian y el alcance acordado; en SDD, `openspec.yaml` y `.harness/tasks/TASK_ID.md`. No improvises.',
+      'Lee la fuente antes de editar: en ODD la nota de Obsidian y el alcance acordado; en SDD `openspec.yaml` y `.harness/tasks/TASK_ID.md`. Si el orquestador ya incluyó el contenido en el mensaje, no lo releas.',
       '',
-      '- Resume los criterios de aceptación en 1-3 líneas; no copies la especificación completa.',
-      '- Si la fuente no existe, está incompleta o contradice la solicitud, devuelve `scope: blocked` con lo que falta. No rellenes huecos con suposiciones.',
-      '- Lee solo la fuente, los archivos del alcance y el contexto que ya te pasó el orquestador. No explores el proyecto entero.',
+      '- Resume los criterios de aceptación en 1-3 líneas.',
+      '- Si la fuente falta, está incompleta o contradice la solicitud, devuelve `scope: blocked`. No supongas.',
+      '- Lee solo la fuente y los archivos del alcance.',
       ''
     ].join('\n')
   );
@@ -52,17 +59,17 @@ test('renderSkill genera frontmatter YAML y cuerpo literal', () => {
 test('installSkills escribe SKILL.md y enlaza las skills globales', () => {
   const temp = makeTempDir();
   try {
-    const targets = [path.join(temp.path, 'opencode'), path.join(temp.path, 'claude')];
+    const targets = [path.join(temp.path, 'opencode'), path.join(temp.path, 'opencode-proyecto')];
     const report = installSkills(temp.path, { targets });
 
-    assert.equal(report.files.length, 9);
+    assert.equal(report.files.length, SKILLS.length);
     for (const skill of SKILLS) {
       const file = skillFilePath(skill, report.skillsDir);
       assert.ok(fs.existsSync(file));
       assert.match(fs.readFileSync(file, 'utf-8'), new RegExp(`name: ${skill.name}`));
     }
 
-    assert.equal(report.links.length, 18);
+    assert.equal(report.links.length, SKILLS.length * targets.length);
     assert.ok(report.links.every((link) => link.result === 'created'));
     for (const target of targets) {
       for (const skill of SKILLS) {
@@ -96,28 +103,27 @@ test('installSkills omite enlaces cuando el destino es real', () => {
 
     const report = installSkills(temp.path, { targets: [target] });
 
-    assert.equal(report.links.length, 9);
+    assert.equal(report.links.length, SKILLS.length);
     assert.equal(report.links.filter((link) => link.result === 'skipped').length, 1);
   } finally {
     temp.cleanup();
   }
 });
 
-test('la skill obsidian-sdd define las fases y la política de subagentes', () => {
+test('la skill obsidian-sdd separa la política de subagentes y orquestador', () => {
   const skill = SKILLS.find((entry) => entry.name === 'obsidian-sdd');
   assert.ok(skill !== undefined);
 
-  for (const phase of ['Fase 1', 'Fase 2', 'Fase 3', 'Fase 4', 'Fase 5']) {
-    assert.match(skill.body, new RegExp(phase));
-  }
-  assert.match(skill.body, /solo el orquestador/i);
+  assert.match(skill.body, /## Para subagentes/);
+  assert.match(skill.body, /## Para el orquestador/);
+  assert.match(skill.body, /el cierre es del orquestador/i);
   assert.match(skill.body, /solo lectura/i);
   assert.match(skill.body, /alvaress obsidian note/);
   assert.match(skill.body, /openspec\.yaml/);
 });
 
 test('las skills evitan sobreingeniería y no confunden fallos de herramienta con HALT', () => {
-  const patterns = SKILLS.find((entry) => entry.name === 'universal-design-patterns');
+  const patterns = SKILLS.find((entry) => entry.name === 'clean-code');
   const triage = SKILLS.find((entry) => entry.name === 'failure-triage');
   const learning = SKILLS.find((entry) => entry.name === 'continuous-learning');
   const graphify = SKILLS.find((entry) => entry.name === 'consult-graphify-ast');
@@ -129,8 +135,8 @@ test('las skills evitan sobreingeniería y no confunden fallos de herramienta co
   assert.ok(graphify !== undefined);
   assert.ok(verify !== undefined);
 
-  assert.match(patterns.body, /no introduzcas/i);
-  assert.match(patterns.body, /no agregues comentarios/i);
+  assert.match(patterns.body, /magic strings/i);
+  assert.match(patterns.body, /nombra por intención/i);
   assert.match(patterns.body, /TODO\/FIXME/);
   assert.doesNotMatch(patterns.body, /altamente escalable/i);
 
@@ -173,8 +179,38 @@ test('installSkills con linkGlobal=false no crea enlaces', () => {
     const report = installSkills(temp.path, { linkGlobal: false });
 
     assert.equal(report.links.length, 0);
-    assert.equal(report.files.length, 9);
+    assert.equal(report.files.length, SKILLS.length);
   } finally {
     temp.cleanup();
   }
+});
+
+function body(name: string): string {
+  return SKILLS.find((entry) => entry.name === name)?.body ?? '';
+}
+
+test('las skills de subagente coinciden con lo que el arnés envía y audita', () => {
+  const message = buildWorkMessage(
+    {
+      runId: 'run-1',
+      mode: 'odd',
+      request: 'r',
+      source: 's',
+      acceptance: [],
+      files: [],
+      validation: ['tsc'],
+      learnings: []
+    },
+    { selfCheck: 'tsc' }
+  );
+  const harness = fs.readFileSync(path.join('src', 'core', 'harness.ts'), 'utf-8');
+
+  assert.match(message, /Autochequeo permitido/);
+  assert.match(body('self-healing-verify'), /"Autochequeo permitido"/);
+  assert.match(body('self-healing-verify'), /No ejecutes validación ni tests/);
+  assert.match(harness, /'auditoría de cambios'/);
+  assert.match(body('failure-triage'), /`auditoría de cambios`/);
+  assert.match(body('code-review'), /auditoría determinista/);
+  assert.doesNotMatch(body('bounded-scope'), /pide el alcance/);
+  assert.match(body('clean-code'), /`as const`/);
 });

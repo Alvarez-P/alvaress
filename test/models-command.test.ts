@@ -9,15 +9,14 @@ function config(): HarnessConfig {
     {
       models: {
         orchestrator: { modelName: 'openai/gpt-5' },
-        subagents: { modelName: 'openai/gpt-5-mini' },
-        aiderImplementer: { modelName: 'deepseek/deepseek-chat' }
+        subagents: { modelName: 'openai/gpt-5-mini' }
       }
     },
     {}
   );
 }
 
-test('models set --all guarda los tres roles y reinstala el frontmatter', async () => {
+test('models set --all guarda ambos roles y reinstala el frontmatter', async () => {
   const base = config();
   let saved: HarnessConfig | undefined;
   const installs: Array<{ orchestrator?: string; subagents?: string }> = [];
@@ -37,7 +36,6 @@ test('models set --all guarda los tres roles y reinstala el frontmatter', async 
 
   assert.equal(saved?.models.orchestrator.modelName, 'google/gemini-2.5-pro');
   assert.equal(saved?.models.subagents.modelName, 'google/gemini-2.5-pro');
-  assert.equal(saved?.models.aiderImplementer.modelName, 'gemini/gemini-2.5-pro');
   assert.deepEqual(installs, [
     { orchestrator: 'google/gemini-2.5-pro', subagents: 'google/gemini-2.5-pro' }
   ]);
@@ -91,7 +89,6 @@ test('models show imprime los modelos efectivos', async () => {
   const shown = JSON.parse(lines.join('\n')) as Record<string, string | null>;
   assert.deepEqual(shown, {
     orchestrator: 'openai/gpt-5',
-    subagents: 'openai/gpt-5-mini',
-    aider: 'deepseek/deepseek-chat'
+    subagents: 'openai/gpt-5-mini'
   });
 });

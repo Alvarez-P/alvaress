@@ -21,7 +21,7 @@ import {
 } from '../src/utils/package-manager.js';
 import { redactSecrets } from '../src/utils/redact.js';
 import { LockError } from '../src/utils/errors.js';
-import { fakeAider, makeTempDir, writeFile, writeJson, baseConfig, withPathAsync } from './helpers.js';
+import { fakeOpencode, makeTempDir, writeFile, writeJson, baseConfig, withPathAsync } from './helpers.js';
 
 function manifestWithTasks(tasks: string): string {
   return `specification: "1.0.0"
@@ -157,14 +157,8 @@ test('pnpm es el gestor y Vite-Plus manda en la validación por defecto', () => 
     'npx vp check',
     'npx vp test'
   ]);
-  assert.deepEqual(defaultValidationCommands('pnpm'), [
-    'pnpm exec oxlint --deny=correctness --deny=suspicious',
-    'pnpm exec tsc --noEmit'
-  ]);
-  assert.deepEqual(defaultValidationCommands('npm'), [
-    'npx oxlint --deny=correctness --deny=suspicious',
-    'npx tsc --noEmit'
-  ]);
+  assert.deepEqual(defaultValidationCommands('pnpm'), ['pnpm exec tsc --noEmit']);
+  assert.deepEqual(defaultValidationCommands('npm'), ['npx tsc --noEmit']);
   assert.equal(resolvePackageManager(mergeConfig({ packageManager: 'npm' }, {})), 'npm');
 });
 
@@ -191,7 +185,7 @@ test('installAgent instala los subagentes con modo subagent', () => {
       const content = fs.readFileSync(file, 'utf-8');
       assert.match(content, /mode: subagent/);
       assert.match(content, /steps: \d+/);
-      assert.match(content, /## Skills obligatorias/);
+      assert.match(content, /## Skills disponibles/);
     }
     for (const name of ['alvaress-explorer', 'alvaress-verifier']) {
       const content = fs.readFileSync(path.join(directory, `${name}.md`), 'utf-8');
@@ -303,8 +297,7 @@ test('doctor valida modelos y frontmatter del agente', () => {
         obsidianVaultPath: '',
         models: {
           orchestrator: { modelName: 'openai/gpt-5' },
-          subagents: { modelName: 'openai/gpt-5-mini' },
-          aiderImplementer: { modelName: 'deepseek/deepseek-chat' }
+          subagents: { modelName: 'openai/gpt-5-mini' }
         },
         validation: { maxAttempts: 1, commands: ['true'] }
       },
@@ -463,7 +456,7 @@ test('apply escribe reporte, backup y respeta el alcance estricto', async () => 
   const root = makeTempDir('alvaress-apply-report-');
   const bin = path.join(root.path, 'bin');
   fs.mkdirSync(bin);
-  fakeAider(bin, { action: 'touch fuera.txt' });
+  fakeOpencode(bin, { action: 'touch fuera.txt' });
   writeFile(
     path.join(root.path, 'openspec.yaml'),
     manifestWithTasks(

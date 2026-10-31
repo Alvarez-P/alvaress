@@ -1,0 +1,7 @@
+{
+  "request": "Implementa slugify(text) en src/slug.ts: minúsculas, sin acentos (la ñ pasa a n), cualquier secuencia de caracteres que no sean letras o números se convierte en un solo guion y no quedan guiones al inicio ni al final.",
+  "complexity": "small",
+  "files": ["src/slug.ts"],
+  "acceptance": ["Los tests de test/slug.test.ts pasan", "No se modifican los tests"],
+  "validation": ["{{tsc}} --noEmit -p .", "node --test test/*.test.ts"]
+}

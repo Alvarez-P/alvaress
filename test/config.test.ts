@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
   loadConfig,
-  maskConfig,
+  displayConfig,
   mergeConfig,
   readConfigFile,
   toConfigFile,
@@ -13,41 +13,31 @@ import type { HarnessConfig, HarnessConfigFile } from '../src/config/loader.js';
 import { ConfigError } from '../src/utils/errors.js';
 import { makeTempDir, writeFile, writeJson } from './helpers.js';
 
-test('mergeConfig aplica precedencia local y fusiona env', () => {
+test('mergeConfig aplica precedencia local', () => {
   const globalConfig: HarnessConfigFile = {
     obsidianVaultPath: '/global/vault',
     models: {
       orchestrator: { modelName: 'openai/global-orchestrator' },
-      subagents: { modelName: 'openai/global-subagents' },
-      aiderImplementer: {
-        modelName: 'global-implementer',
-        apiKey: 'global-implementer-key',
-        env: { DEEPSEEK_API_KEY: 'global-implementer-key' }
-      }
+      subagents: { modelName: 'openai/global-subagents' }
     },
     laya: { modelDir: 'global-model', timeoutMs: 5000, enabled: true },
     vitePlus: { checkCommand: 'global-check' },
-    aider: { enabled: true, timeoutMs: 2000 },
+    worker: { timeoutMs: 2000 },
     validation: { maxAttempts: 5, commands: ['global-command'] }
   };
   const localConfig: HarnessConfigFile = {
     obsidianVaultPath: '/local/vault',
     models: {
-      orchestrator: { modelName: 'openai/local-orchestrator' },
-      aiderImplementer: { modelName: 'local-implementer' }
+      orchestrator: { modelName: 'openai/local-orchestrator' }
     },
     laya: { modelDir: 'local-model' },
     vitePlus: { testCommand: 'local-test' },
-    aider: { enabled: false },
     validation: { maxAttempts: 2, commands: ['local-command'] }
   };
 
   const merged = mergeConfig(globalConfig, localConfig);
 
   assert.equal(merged.obsidianVaultPath, '/local/vault');
-  assert.equal(merged.models.aiderImplementer.modelName, 'local-implementer');
-  assert.equal(merged.models.aiderImplementer.apiKey, 'global-implementer-key');
-  assert.deepEqual(merged.models.aiderImplementer.env, { DEEPSEEK_API_KEY: 'global-implementer-key' });
   assert.equal(merged.models.orchestrator.modelName, 'openai/local-orchestrator');
   assert.equal(merged.models.subagents.modelName, 'openai/global-subagents');
   assert.equal(merged.laya?.modelDir, 'local-model');
@@ -55,8 +45,7 @@ test('mergeConfig aplica precedencia local y fusiona env', () => {
   assert.equal(merged.laya?.enabled, true);
   assert.equal(merged.vitePlus?.checkCommand, 'global-check');
   assert.equal(merged.vitePlus?.testCommand, 'local-test');
-  assert.equal(merged.aider?.enabled, false);
-  assert.equal(merged.aider?.timeoutMs, 2000);
+  assert.equal(merged.worker?.timeoutMs, 2000);
   assert.equal(merged.validation.maxAttempts, 2);
   assert.deepEqual(merged.validation.commands, ['local-command']);
 });
@@ -67,7 +56,7 @@ test('mergeConfig usa valores por defecto sin configuración', () => {
   assert.equal(merged.obsidianVaultPath, '');
   assert.equal(merged.models.orchestrator.modelName, '');
   assert.equal(merged.models.subagents.modelName, '');
-  assert.equal(merged.models.aiderImplementer.modelName, 'deepseek/deepseek-chat');
+  assert.equal(merged.worker?.timeoutMs, 600_000);
   assert.equal(merged.validation.maxAttempts, 3);
   assert.deepEqual(merged.validation.commands, [
     'pnpm exec vp check',
@@ -82,7 +71,6 @@ test('mergeConfig usa valores por defecto sin configuración', () => {
   assert.equal(merged.vitePlus?.checkCommand, 'vp check');
   assert.equal(merged.vitePlus?.testCommand, 'vp test');
   assert.equal(merged.vitePlus?.fallbackToPackageManager, true);
-  assert.equal(merged.aider?.enabled, false);
 });
 
 test('loadConfig lee el archivo local del proyecto', () => {
@@ -91,7 +79,7 @@ test('loadConfig lee el archivo local del proyecto', () => {
     writeJson(path.join(temp.path, '.alvaressrc.json'), {
       obsidianVaultPath: '/vault',
       models: {
-        aiderImplementer: { modelName: 'local-implementer' }
+        subagents: { modelName: 'openai/local-subagents' }
       },
       validation: { maxAttempts: 1, commands: ['true'] }
     });
@@ -99,7 +87,7 @@ test('loadConfig lee el archivo local del proyecto', () => {
     const config = loadConfig(temp.path);
 
     assert.equal(config.obsidianVaultPath, '/vault');
-    assert.equal(config.models.aiderImplementer.modelName, 'local-implementer');
+    assert.equal(config.models.subagents.modelName, 'openai/local-subagents');
     assert.equal(config.validation.maxAttempts, 1);
     assert.deepEqual(config.validation.commands, ['true']);
   } finally {
@@ -141,14 +129,9 @@ test('validateConfigFile acepta la estructura completa', () => {
       },
       models: {
         orchestrator: { modelName: 'openai/gpt-5' },
-        subagents: { modelName: 'openai/gpt-5-mini' },
-        aiderImplementer: {
-          modelName: 'deepseek/deepseek-chat',
-          apiKey: 'sk-test',
-          apiBase: '',
-          env: { DEEPSEEK_API_KEY: 'sk-test' }
-        }
+        subagents: { modelName: 'openai/gpt-5-mini' }
       },
+      worker: { timeoutMs: 60000 },
       validation: { maxAttempts: 3, commands: ['npx tsc --noEmit'] }
     },
     'test'
@@ -157,6 +140,7 @@ test('validateConfigFile acepta la estructura completa', () => {
   assert.equal(value.obsidianVaultPath, '/vault');
   assert.equal(value.laya?.modelDir, undefined);
   assert.equal(value.vitePlus?.checkCommand, 'vp check');
+  assert.equal(value.worker?.timeoutMs, 60000);
   assert.equal(value.validation?.maxAttempts, 3);
 });
 
@@ -164,11 +148,6 @@ test('validateConfigFile rechaza tipos incorrectos', () => {
   assert.throws(() => validateConfigFile([], 'test'), ConfigError);
   assert.throws(() => validateConfigFile({ obsidianVaultPath: 42 }, 'test'), ConfigError);
   assert.throws(() => validateConfigFile({ models: [] }, 'test'), ConfigError);
-  assert.throws(() => validateConfigFile({ models: { aiderImplementer: 'x' } }, 'test'), ConfigError);
-  assert.throws(
-    () => validateConfigFile({ models: { aiderImplementer: { env: { KEY: 1 } } } }, 'test'),
-    ConfigError
-  );
   assert.throws(
     () => validateConfigFile({ models: { orchestrator: { modelName: 'gpt-5' } } }, 'test'),
     ConfigError
@@ -185,7 +164,7 @@ test('validateConfigFile rechaza tipos incorrectos', () => {
   assert.throws(() => validateConfigFile({ laya: { device: 'gpu' } }, 'test'), ConfigError);
   assert.throws(() => validateConfigFile({ laya: { timeoutMs: 10 } }, 'test'), ConfigError);
   assert.throws(() => validateConfigFile({ vitePlus: { checkCommand: 1 } }, 'test'), ConfigError);
-  assert.throws(() => validateConfigFile({ aider: { enabled: 'yes' } }, 'test'), ConfigError);
+  assert.throws(() => validateConfigFile({ worker: { timeoutMs: 10 } }, 'test'), ConfigError);
 });
 
 test('toConfigFile conserva todas las claves del esquema', () => {
@@ -193,7 +172,6 @@ test('toConfigFile conserva todas las claves del esquema', () => {
   const file = toConfigFile(config);
 
   assert.deepEqual(Object.keys(file).toSorted(), [
-    'aider',
     'graphify',
     'laya',
     'models',
@@ -201,37 +179,29 @@ test('toConfigFile conserva todas las claves del esquema', () => {
     'packageManager',
     'scope',
     'validation',
-    'vitePlus'
+    'vitePlus',
+    'worker'
   ]);
   assert.deepEqual(Object.keys(file.models ?? {}).toSorted(), [
-    'aiderImplementer',
     'orchestrator',
     'subagents'
   ]);
 });
 
-test('maskConfig oculta claves y secretos de entorno', () => {
+test('displayConfig conserva los modelos sin credenciales', () => {
   const config: HarnessConfig = {
     obsidianVaultPath: '/vault',
     models: {
       orchestrator: { modelName: 'openai/orchestrator' },
-      subagents: { modelName: 'openai/subagents' },
-      aiderImplementer: {
-        modelName: 'implementer',
-        apiKey: 'secret-implementer',
-        apiBase: '',
-        env: { DEEPSEEK_API_KEY: 'secret', OTHER: 'value' }
-      }
+      subagents: { modelName: 'openai/subagents' }
     },
     validation: { maxAttempts: 2, commands: ['true'] }
   };
 
-  const masked = maskConfig(config);
+  const displayed = displayConfig(config);
 
-  assert.equal(masked.models.orchestrator.modelName, 'openai/orchestrator');
-  assert.equal(masked.models.subagents.modelName, 'openai/subagents');
-  assert.equal(masked.models.aiderImplementer.apiKey, '********');
-  assert.equal(masked.models.aiderImplementer.env?.DEEPSEEK_API_KEY, '********');
-  assert.equal(masked.models.aiderImplementer.env?.OTHER, 'value');
-  assert.equal(masked.obsidianVaultPath, '/vault');
+  assert.equal(displayed.models.orchestrator.modelName, 'openai/orchestrator');
+  assert.equal(displayed.models.subagents.modelName, 'openai/subagents');
+  assert.equal(displayed.obsidianVaultPath, '/vault');
 });
+

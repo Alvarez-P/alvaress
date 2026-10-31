@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LAYA_LOG_PATH } from '../constants.js';
-import type { RunResult } from '../core/contracts.js';
+import type { RunResult, RunUsage } from '../core/contracts.js';
 import { ensureDir } from '../utils/fs.js';
 import { redactSecrets } from '../utils/redact.js';
 import type { CommandResult } from '../utils/process.js';
+import { formatUsage } from './usage.js';
 
 export interface RunLogMeta {
   command: string;
@@ -86,6 +87,17 @@ export class RunLog {
     }
     this.append(`cambios: ${result.changes.length}`);
     this.append(`riesgos: ${result.risks.length}`);
+  }
+
+  usage(usage: RunUsage | undefined): void {
+    if (usage === undefined) {
+      return;
+    }
+    this.section('consumo de tokens');
+    for (const [phase, value] of Object.entries(usage.phases)) {
+      this.append(`${phase}: ${formatUsage(value)}`);
+    }
+    this.append(`total: ${formatUsage(usage.total)}`);
   }
 
   read(): string {

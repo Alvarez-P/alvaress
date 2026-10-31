@@ -1,13 +1,12 @@
 import path from 'node:path';
 import {
-  DEFAULT_AIDER_TIMEOUT_MS,
-  DEFAULT_IMPLEMENTER_MODEL,
   DEFAULT_LAYA_TIMEOUT_MS,
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_PACKAGE_MANAGER,
   DEFAULT_SCOPE,
   DEFAULT_VITE_PLUS_CHECK,
   DEFAULT_VITE_PLUS_TEST,
+  DEFAULT_WORKER_TIMEOUT_MS,
   GLOBAL_CONFIG_PATH,
   LOCAL_CONFIG_FILENAME
 } from '../constants.js';
@@ -22,12 +21,6 @@ export type ScopeMode = 'strict' | 'warn' | 'off';
 export interface ModelSelection {
   /** `provider/model` de OpenCode. Vacío = heredar el modelo de la sesión. */
   modelName: string;
-}
-
-export interface ModelProviderConfig extends ModelSelection {
-  apiKey?: string;
-  apiBase?: string;
-  env?: Record<string, string>;
 }
 
 export interface LayaConfig {
@@ -56,16 +49,13 @@ export interface HarnessConfig {
   };
   laya?: LayaConfig;
   vitePlus?: VitePlusConfig;
-  aider?: {
-    enabled?: boolean;
+  worker?: {
     timeoutMs?: number;
-    extraArgs?: string[];
-    inheritEnv?: boolean;
+    selfCheck?: boolean;
   };
   models: {
     orchestrator: ModelSelection;
     subagents: ModelSelection;
-    aiderImplementer: ModelProviderConfig;
   };
   validation: {
     maxAttempts: number;
@@ -94,16 +84,13 @@ export interface HarnessConfigFile {
     testCommand?: string;
     fallbackToPackageManager?: boolean;
   };
-  aider?: {
-    enabled?: boolean;
+  worker?: {
     timeoutMs?: number;
-    extraArgs?: string[];
-    inheritEnv?: boolean;
+    selfCheck?: boolean;
   };
   models?: {
     orchestrator?: Partial<ModelSelection>;
     subagents?: Partial<ModelSelection>;
-    aiderImplementer?: Partial<ModelProviderConfig>;
   };
   validation?: {
     maxAttempts?: number;
@@ -149,40 +136,9 @@ function assertModelSelection(value: unknown, field: string, source: string): vo
   }
 }
 
-function assertModel(value: unknown, field: string, source: string): void {
-  if (value === undefined) {
-    return;
-  }
-  if (!isRecord(value)) {
-    throw new ConfigError(`El campo "${field}" debe ser un objeto en ${source}.`);
-  }
-  assertString(value.modelName, `${field}.modelName`, source);
-  assertString(value.apiKey, `${field}.apiKey`, source);
-  assertString(value.apiBase, `${field}.apiBase`, source);
-  if (value.env !== undefined) {
-    if (!isRecord(value.env)) {
-      throw new ConfigError(`El campo "${field}.env" debe ser un objeto en ${source}.`);
-    }
-    for (const [key, entry] of Object.entries(value.env)) {
-      if (typeof entry !== 'string') {
-        throw new ConfigError(`La variable "${field}.env.${key}" debe ser una cadena en ${source}.`);
-      }
-    }
-  }
-}
-
 function assertBoolean(value: unknown, field: string, source: string): void {
   if (value !== undefined && typeof value !== 'boolean') {
     throw new ConfigError(`El campo "${field}" debe ser booleano en ${source}.`);
-  }
-}
-
-function assertStringList(value: unknown, field: string, source: string): void {
-  if (value === undefined) {
-    return;
-  }
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
-    throw new ConfigError(`El campo "${field}" debe ser una lista de cadenas en ${source}.`);
   }
 }
 
@@ -249,14 +205,12 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
     );
   }
 
-  if (value.aider !== undefined) {
-    if (!isRecord(value.aider)) {
-      throw new ConfigError(`El campo "aider" debe ser un objeto en ${source}.`);
+  if (value.worker !== undefined) {
+    if (!isRecord(value.worker)) {
+      throw new ConfigError(`El campo "worker" debe ser un objeto en ${source}.`);
     }
-    assertBoolean(value.aider.enabled, 'aider.enabled', source);
-    assertPositiveInteger(value.aider.timeoutMs, 'aider.timeoutMs', source, 1000);
-    assertStringList(value.aider.extraArgs, 'aider.extraArgs', source);
-    assertBoolean(value.aider.inheritEnv, 'aider.inheritEnv', source);
+    assertPositiveInteger(value.worker.timeoutMs, 'worker.timeoutMs', source, 1000);
+    assertBoolean(value.worker.selfCheck, 'worker.selfCheck', source);
   }
 
   if (value.models !== undefined) {
@@ -265,7 +219,6 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
     }
     assertModelSelection(value.models.orchestrator, 'models.orchestrator', source);
     assertModelSelection(value.models.subagents, 'models.subagents', source);
-    assertModel(value.models.aiderImplementer, 'models.aiderImplementer', source);
   }
 
   if (value.validation !== undefined) {
@@ -302,19 +255,6 @@ function interpolateEnv(value: string | undefined): string | undefined {
   return value.replace(/\$\{([A-Z_][A-Z0-9_]*)\}/g, (_match, name: string) => process.env[name] ?? '');
 }
 
-function interpolateEnvRecord(
-  record: Record<string, string> | undefined
-): Record<string, string> | undefined {
-  if (record === undefined) {
-    return undefined;
-  }
-  const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(record)) {
-    result[key] = interpolateEnv(value) ?? '';
-  }
-  return result;
-}
-
 function interpolateCommands(commands: string[] | undefined): string[] | undefined {
   return commands?.map((command) => interpolateEnv(command) ?? command);
 }
@@ -324,8 +264,6 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
   const localOrchestrator = localConfig.models?.orchestrator;
   const globalSubagents = globalConfig.models?.subagents;
   const localSubagents = localConfig.models?.subagents;
-  const globalImplementer = globalConfig.models?.aiderImplementer;
-  const localImplementer = localConfig.models?.aiderImplementer;
   const packageManager =
     localConfig.packageManager ?? globalConfig.packageManager ?? DEFAULT_PACKAGE_MANAGER;
   const vitePlus = {
@@ -361,11 +299,12 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
         localConfig.laya?.fallbackToHeuristic ?? globalConfig.laya?.fallbackToHeuristic ?? true
     },
     vitePlus,
-    aider: {
-      enabled: localConfig.aider?.enabled ?? globalConfig.aider?.enabled ?? false,
-      timeoutMs: localConfig.aider?.timeoutMs ?? globalConfig.aider?.timeoutMs ?? DEFAULT_AIDER_TIMEOUT_MS,
-      extraArgs: localConfig.aider?.extraArgs ?? globalConfig.aider?.extraArgs ?? [],
-      inheritEnv: localConfig.aider?.inheritEnv ?? globalConfig.aider?.inheritEnv ?? true
+    worker: {
+      timeoutMs:
+        localConfig.worker?.timeoutMs ??
+        globalConfig.worker?.timeoutMs ??
+        DEFAULT_WORKER_TIMEOUT_MS,
+      selfCheck: localConfig.worker?.selfCheck ?? globalConfig.worker?.selfCheck ?? false
     },
     models: {
       orchestrator: {
@@ -373,15 +312,6 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
       },
       subagents: {
         modelName: localSubagents?.modelName ?? globalSubagents?.modelName ?? ''
-      },
-      aiderImplementer: {
-        modelName: localImplementer?.modelName || globalImplementer?.modelName || DEFAULT_IMPLEMENTER_MODEL,
-        apiKey: interpolateEnv(localImplementer?.apiKey || globalImplementer?.apiKey) ?? '',
-        apiBase: interpolateEnv(localImplementer?.apiBase || globalImplementer?.apiBase) ?? '',
-        env: {
-          ...interpolateEnvRecord(globalImplementer?.env),
-          ...interpolateEnvRecord(localImplementer?.env)
-        }
       }
     },
     validation: {
@@ -427,11 +357,9 @@ export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
       testCommand: config.vitePlus?.testCommand ?? DEFAULT_VITE_PLUS_TEST,
       fallbackToPackageManager: config.vitePlus?.fallbackToPackageManager ?? true
     },
-    aider: {
-      enabled: config.aider?.enabled ?? false,
-      timeoutMs: config.aider?.timeoutMs ?? DEFAULT_AIDER_TIMEOUT_MS,
-      extraArgs: config.aider?.extraArgs ?? [],
-      inheritEnv: config.aider?.inheritEnv ?? true
+    worker: {
+      timeoutMs: config.worker?.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
+      ...(config.worker?.selfCheck !== undefined ? { selfCheck: config.worker.selfCheck } : {})
     },
     models: {
       orchestrator: {
@@ -439,12 +367,6 @@ export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
       },
       subagents: {
         modelName: config.models.subagents.modelName
-      },
-      aiderImplementer: {
-        modelName: config.models.aiderImplementer.modelName,
-        apiKey: config.models.aiderImplementer.apiKey ?? '',
-        apiBase: config.models.aiderImplementer.apiBase ?? '',
-        env: config.models.aiderImplementer.env ?? {}
       }
     },
     validation: {
@@ -463,11 +385,7 @@ export function saveLocalConfig(config: HarnessConfig, root: string = process.cw
   writeJsonFile(getConfigPaths(root).local, toConfigFile(config));
 }
 
-function maskValue(value: string): string {
-  return value.length > 0 ? '********' : '';
-}
-
-export function maskConfig(config: HarnessConfig): HarnessConfig {
+export function displayConfig(config: HarnessConfig): HarnessConfig {
   return {
     obsidianVaultPath: config.obsidianVaultPath,
     packageManager: config.packageManager,
@@ -475,18 +393,13 @@ export function maskConfig(config: HarnessConfig): HarnessConfig {
     graphify: config.graphify,
     laya: config.laya,
     vitePlus: config.vitePlus,
-    aider: config.aider,
+    worker: config.worker,
     models: {
       orchestrator: {
         modelName: config.models.orchestrator.modelName
       },
       subagents: {
         modelName: config.models.subagents.modelName
-      },
-      aiderImplementer: {
-        ...config.models.aiderImplementer,
-        apiKey: maskValue(config.models.aiderImplementer.apiKey ?? ''),
-        env: maskEnv(config.models.aiderImplementer.env)
       }
     },
     validation: {
@@ -495,15 +408,4 @@ export function maskConfig(config: HarnessConfig): HarnessConfig {
       requireCommands: config.validation.requireCommands
     }
   };
-}
-
-function maskEnv(env: Record<string, string> | undefined): Record<string, string> {
-  if (!env) {
-    return {};
-  }
-  const masked: Record<string, string> = {};
-  for (const [key, value] of Object.entries(env)) {
-    masked[key] = /KEY|TOKEN|SECRET|PASS/i.test(key) ? maskValue(value) : value;
-  }
-  return masked;
 }
