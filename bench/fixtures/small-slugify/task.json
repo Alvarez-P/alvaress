@@ -3,5 +3,5 @@
   "complexity": "small",
   "files": ["src/slug.ts"],
   "acceptance": ["Los tests de test/slug.test.ts pasan", "No se modifican los tests"],
-  "validation": ["{{tsc}} --noEmit -p .", "node --test test/*.test.ts"]
+  "validation": ["{{tsc}} --noEmit -p .", "{{tsx}} --test test/*.test.ts"]
 }

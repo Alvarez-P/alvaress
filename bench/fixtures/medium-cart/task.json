@@ -7,5 +7,5 @@
     "El cálculo del descuento vive en src/discounts.ts",
     "No se modifican los tests"
   ],
-  "validation": ["{{tsc}} --noEmit -p .", "node --test test/*.test.ts"]
+  "validation": ["{{tsc}} --noEmit -p .", "{{tsx}} --test test/*.test.ts"]
 }

@@ -28,6 +28,8 @@ const BENCH_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(BENCH_DIR, '..');
 export const FIXTURES_DIR = path.join(BENCH_DIR, 'fixtures');
 const TSC_BIN = path.join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
+/** Node 20 no ejecuta `.ts` con `node --test`; tsx sí, en todas las versiones del CI. */
+const TSX_BIN = path.join(REPO_ROOT, 'node_modules', '.bin', 'tsx');
 const REQUIRED_AGENTS = ['alvaress-implementer', 'alvaress-implementer-lite', 'alvaress-fixer'];
 
 export interface FixtureTask {
@@ -68,7 +70,12 @@ export function listFixtures(): string[] {
 export function readTask(fixture: string): FixtureTask {
   const raw = fs.readFileSync(path.join(FIXTURES_DIR, fixture, 'task.json'), 'utf-8');
   const task = JSON.parse(raw) as FixtureTask;
-  return { ...task, validation: task.validation.map((command) => command.replaceAll('{{tsc}}', TSC_BIN)) };
+  return {
+    ...task,
+    validation: task.validation.map((command) =>
+      command.replaceAll('{{tsc}}', TSC_BIN).replaceAll('{{tsx}}', TSX_BIN)
+    )
+  };
 }
 
 /** Comprueba lo que el benchmark necesita fuera del repo antes de gastar tokens. */

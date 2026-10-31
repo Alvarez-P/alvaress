@@ -21,8 +21,8 @@ test('los fixtures del benchmark declaran tarea, alcance y validación', () => {
     const task = readTask(fixture);
     assert.ok(task.request.length > 0, fixture);
     assert.ok(task.files.length > 0, fixture);
-    assert.ok(task.validation.some((command) => command.includes('node --test')), fixture);
-    assert.ok(task.validation.every((command) => !command.includes('{{tsc}}')), fixture);
+    assert.ok(task.validation.some((command) => command.endsWith('--test test/*.test.ts')), fixture);
+    assert.ok(task.validation.every((command) => !command.includes('{{')), fixture);
   }
 });
 
