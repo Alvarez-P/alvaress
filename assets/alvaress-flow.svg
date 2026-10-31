@@ -94,9 +94,9 @@
   <text x="570" y="388" font-size="12" fill="#166534" text-anchor="middle">Vite-Plus</text>
   <text x="570" y="406" font-size="10" fill="#166534" text-anchor="middle">vp check · vp test</text>
 
-  <!-- Tool 5: OpenSpec and Obsidian -->
+  <!-- Tool 5: OpenSpec and vault -->
   <rect x="420" y="446" width="300" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
-  <text x="570" y="468" font-size="12" fill="#166534" text-anchor="middle">OpenSpec + Obsidian</text>
+  <text x="570" y="468" font-size="12" fill="#166534" text-anchor="middle">OpenSpec + bóveda Markdown</text>
   <text x="570" y="486" font-size="10" fill="#166534" text-anchor="middle">estado · runs · nota</text>
 
   <!-- Connector labels: centred in the gap x=340..400, 14px above each line -->
@@ -109,6 +109,6 @@
   <!-- Bottom note -->
   <text x="390" y="548" font-size="10" fill="#64748b" text-anchor="middle">ODD para tareas pequeñas · SDD para cambios grandes o multi-contexto.</text>
   <text x="390" y="563" font-size="10" fill="#64748b" text-anchor="middle">Fixing reintenta hasta 2 veces; un fallo nuclear termina en Halted.</text>
-  <text x="390" y="578" font-size="10" fill="#64748b" text-anchor="middle">Obsidian refleja el estado; solo el orquestador escribe en la bóveda.</text>
+  <text x="390" y="578" font-size="10" fill="#64748b" text-anchor="middle">La bóveda refleja el estado; solo el orquestador escribe en ella.</text>
   <text x="390" y="593" font-size="10" fill="#64748b" text-anchor="middle">Laya decide qué especialistas consultar antes de implementar.</text>
 </svg>

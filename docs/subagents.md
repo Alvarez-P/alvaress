@@ -144,7 +144,7 @@ conservador.
 | `alvaress-reviewer` | `Checking` | Revisar el diff contra la spec y los estándares. | Reescribir; solo devuelve hallazgos. |
 | `alvaress-fixer` | `Fixing` | Reparar un fallo trivial, máximo 2 intentos. | Ampliar alcance, borrar tests, silenciar errores. |
 
-El orquestador no delega la decisión, el commit, el `[x]` de Obsidian ni los
+El orquestador no delega la decisión, el commit, el `[x]` de la nota de la bóveda ni los
 aprendizajes. Los subagentes no lanzan otros subagentes.
 
 Los subagentes reciben una regla explícita: cero comentarios en el código
@@ -170,7 +170,7 @@ cualquier otro comentario sigue bloqueando.
 
 | Subagente | Skills disponibles |
 | --- | --- |
-| `alvaress-explorer` | `consult-graphify-ast`, `obsidian-sdd`, `git-diff-context`, `bounded-scope` |
+| `alvaress-explorer` | `consult-graphify-ast`, `vault-notes`, `git-diff-context`, `bounded-scope` |
 | `alvaress-researcher` | `technical-research`, `consult-graphify-ast`, `bounded-scope` |
 | `alvaress-architect` | `read-spec-first`, `architecture-decisions`, `consult-graphify-ast`, `bounded-scope` |
 | `alvaress-designer` | `read-spec-first`, `ui-design`, `clean-code`, `bounded-scope` |
@@ -208,9 +208,9 @@ Los diez perfiles comparten estas medidas:
 - Sin `pnpm`/`npm publish`, `pnpm dlx`, `npm exec`, `npx --yes`, `find -exec`,
   `find -delete`, `sed -i` ni `rg --pre`.
 - Sin scripts de deploy, release, publish, migración, base de datos o seed.
-- Sin `alvaress apply`, `alvaress verify`, `alvaress obsidian note`,
+- Sin `alvaress apply`, `alvaress verify`, `alvaress vault note`,
   `alvaress archive` ni `alvaress learn add`.
-- La bóveda Obsidian es de solo lectura en todos los casos.
+- La bóveda es de solo lectura en todos los casos.
 
 El límite de pasos (`steps`) acota el coste: 10 para el implementer-lite, 12 para
 explorar y verificar, 16 para investigar, diseñar, probar y revisar, 20 para
@@ -226,7 +226,7 @@ El orquestador pasa siempre:
 4. Comando de validación exacto.
 5. Aprendizajes relevantes (id y título), ya filtrados.
 6. Los briefs de los especialistas anteriores, en orden.
-7. La instrucción: "La bóveda Obsidian es de solo lectura; devuelve el resultado
+7. La instrucción: "La bóveda es de solo lectura; devuelve el resultado
    al orquestador."
 
 ## Contrato de respuesta

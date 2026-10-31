@@ -1,7 +1,7 @@
 {
   "name": "alvaress",
   "version": "0.3.0",
-  "description": "Agente independiente para OpenCode: arnés SDD/ODD con Laya local (ONNX), subagentes baratos, Vite-Plus, OpenSpec, Obsidian y Graphify",
+  "description": "Agente independiente para OpenCode: arnés SDD/ODD con Laya local (ONNX), subagentes baratos, Vite-Plus, OpenSpec, bóveda Markdown y Graphify",
   "author": "alvaress contributors",
   "type": "module",
   "packageManager": "pnpm@12.14.0",
@@ -47,7 +47,6 @@
     "alvaress",
     "harness",
     "openspec",
-    "obsidian",
     "graphify",
     "laya",
     "subagents",

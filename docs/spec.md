@@ -7,7 +7,7 @@ el [README](../README.md); para el contrato de los subagentes, consulta
 ## Objetivo
 
 `alvaress` automatiza el ciclo híbrido **SDD + ODD** bajo el formato OpenSpec.
-Integra una bóveda Markdown compatible con Obsidian (la app es opcional) como
+Integra una bóveda Markdown como
 espejo del estado, Graphify como mapa AST, Laya como motor de decisión local,
 Vite-Plus como compuerta de validación y subagentes de OpenCode como ejecutores.
 
@@ -15,7 +15,7 @@ El orquestador conserva siempre cuatro responsabilidades que no delega:
 
 1. cerrar el alcance y los permisos;
 2. validar con los comandos de la tarea;
-3. decidir el commit y el cierre de Obsidian;
+3. decidir el commit y el cierre de la nota de la bóveda;
 4. registrar aprendizajes.
 
 ## Principios
@@ -42,7 +42,7 @@ Precedencia local sobre global:
 
 ```json
 {
-  "obsidianVaultPath": "/ruta/a/la/boveda",
+  "vaultPath": "/ruta/a/la/boveda",
   "packageManager": "pnpm",
   "scope": "warn",
   "graphify": { "autoUpdate": false },
@@ -78,15 +78,14 @@ Reglas de fusión:
 - La ruta de la bóveda y los comandos admiten `${VARIABLE}`.
 - `alvaress config show` muestra la configuración resuelta; las credenciales viven en OpenCode.
 
-## Bóveda Obsidian
+## Bóveda Markdown
 
-La bóveda es una carpeta de Markdown con enlaces `[[...]]`, legible por Obsidian
-y por cualquier editor. `alvaress install` la crea y la conecta siempre; la app
-Obsidian no se instala por defecto y solo aporta la capa visual (grafo,
-backlinks). El instalador la muestra como única casilla opcional de su checklist;
-el resto de componentes son obligatorios y se restauran si se desmarcan. La ruta
-se configura en global (`obsidianVaultPath`) y se puede sobrescribir por proyecto
-en `.alvaressrc.json`.
+La bóveda es una carpeta de Markdown con enlaces `[[...]]` que usan los agentes.
+`alvaress install` la crea y la conecta siempre; todos los componentes del
+checklist son obligatorios y se restauran si se desmarcan. La ruta se configura
+en global (`vaultPath`) y se puede sobrescribir por proyecto en
+`.alvaressrc.json`. alvaress no instala ninguna app de notas: si quieres verla
+con una (por ejemplo Obsidian), la instalas tú.
 
 ## Manifiesto `openspec.yaml`
 
@@ -169,7 +168,7 @@ El instalador escribe quince skills y las enlaza solo en la ruta de OpenCode
 | `consult-graphify-ast` | Consultar el grafo antes de `grep` o `read`. |
 | `self-healing-verify` | Validar, leer el error exacto y limitar los reintentos. |
 | `clean-code` | Nombres, constantes, funciones y DRY sin comentarios de relleno. |
-| `obsidian-sdd` | Uso de la bóveda por fase y solo lectura para subagentes. |
+| `vault-notes` | Uso de la bóveda por fase y solo lectura para subagentes. |
 | `continuous-learning` | Consultar y guardar aprendizajes sin inflar el contexto. |
 | `bounded-scope` | Mantener el alcance cerrado y detenerse a tiempo. |
 | `git-diff-context` | Leer el diff del árbol de trabajo sin tocar el historial. |
