@@ -59,7 +59,7 @@ test('renderSkill genera frontmatter YAML y cuerpo literal', () => {
 test('installSkills escribe SKILL.md y enlaza las skills globales', () => {
   const temp = makeTempDir();
   try {
-    const targets = [path.join(temp.path, 'opencode'), path.join(temp.path, 'claude')];
+    const targets = [path.join(temp.path, 'opencode'), path.join(temp.path, 'opencode-proyecto')];
     const report = installSkills(temp.path, { targets });
 
     assert.equal(report.files.length, SKILLS.length);

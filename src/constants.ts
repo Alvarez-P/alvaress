@@ -17,7 +17,6 @@ export const TASKS_DIR = path.join(HARNESS_DIR, TASKS_DIRNAME);
 export const SKILLS_DIR = path.join(HARNESS_DIR, SKILLS_DIRNAME);
 
 export const OPENCODE_SKILLS_DIR = path.join(os.homedir(), '.config', 'opencode', 'skills');
-export const CLAUDE_SKILLS_DIR = path.join(os.homedir(), '.claude', 'skills');
 export const OPENCODE_PROJECT_DIR = '.opencode';
 export const OPENCODE_AGENTS_DIRNAME = 'agents';
 

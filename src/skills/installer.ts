@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { CLAUDE_SKILLS_DIR, OPENCODE_SKILLS_DIR, SKILLS_DIR } from '../constants.js';
+import { OPENCODE_SKILLS_DIR, SKILLS_DIR } from '../constants.js';
 import { ensureDir, linkDirectory, writeTextFile } from '../utils/fs.js';
 import type { LinkResult } from '../utils/fs.js';
 
@@ -539,7 +539,7 @@ export function installSkills(
 
   const links: SkillLink[] = [];
   if (options.linkGlobal !== false) {
-    const targets = options.targets ?? [OPENCODE_SKILLS_DIR, CLAUDE_SKILLS_DIR];
+    const targets = options.targets ?? [OPENCODE_SKILLS_DIR];
     for (const targetRoot of targets) {
       for (const skill of SKILLS) {
         const source = path.join(skillsDir, skill.name);

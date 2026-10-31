@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 const HELP = `alvaress skills [--no-link]
 
 Escribe las skills del proyecto en .harness/skills y las enlaza en
-~/.config/opencode/skills y ~/.claude/skills.
+~/.config/opencode/skills.
 
 Opciones:
   --no-link   Solo escribe las skills del proyecto, sin enlaces globales.`;
