@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 export const PACKAGE_NAME = 'alvaress';
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 export const AGENT_NAME = 'alvaress';
 
 export const GLOBAL_CONFIG_FILENAME = '.alvaressconfig.json';

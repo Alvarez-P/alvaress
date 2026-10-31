@@ -58,7 +58,7 @@ function project(): string {
 test('--version y --help', () => {
   const version = runCli(['--version']);
   assert.equal(version.status, 0);
-  assert.equal(version.stdout.trim(), '0.2.0');
+  assert.equal(version.stdout.trim(), '0.3.0');
 
   const help = runCli(['--help']);
   assert.equal(help.status, 0);
