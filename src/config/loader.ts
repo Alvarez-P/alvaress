@@ -41,7 +41,7 @@ export interface VitePlusConfig {
 }
 
 export interface HarnessConfig {
-  obsidianVaultPath: string;
+  vaultPath: string;
   packageManager?: PackageManager;
   scope?: ScopeMode;
   graphify?: {
@@ -65,7 +65,7 @@ export interface HarnessConfig {
 }
 
 export interface HarnessConfigFile {
-  obsidianVaultPath?: string;
+  vaultPath?: string;
   packageManager?: PackageManager;
   scope?: ScopeMode;
   graphify?: {
@@ -158,7 +158,7 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
     throw new ConfigError(`La configuración de ${source} debe ser un objeto JSON.`);
   }
 
-  assertString(value.obsidianVaultPath, 'obsidianVaultPath', source);
+  assertString(value.vaultPath, 'vaultPath', source);
 
   if (value.packageManager !== undefined && value.packageManager !== 'pnpm' && value.packageManager !== 'npm') {
     throw new ConfigError(`El campo "packageManager" solo admite "pnpm" o "npm" en ${source}.`);
@@ -282,7 +282,7 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
   };
 
   return {
-    obsidianVaultPath: interpolateEnv(localConfig.obsidianVaultPath || globalConfig.obsidianVaultPath) ?? '',
+    vaultPath: interpolateEnv(localConfig.vaultPath || globalConfig.vaultPath) ?? '',
     packageManager,
     scope: localConfig.scope ?? globalConfig.scope ?? DEFAULT_SCOPE,
     graphify: {
@@ -338,7 +338,7 @@ export function loadGlobalConfig(): HarnessConfig {
 
 export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
   return {
-    obsidianVaultPath: config.obsidianVaultPath,
+    vaultPath: config.vaultPath,
     packageManager: config.packageManager ?? DEFAULT_PACKAGE_MANAGER,
     scope: config.scope ?? DEFAULT_SCOPE,
     graphify: {
@@ -387,7 +387,7 @@ export function saveLocalConfig(config: HarnessConfig, root: string = process.cw
 
 export function displayConfig(config: HarnessConfig): HarnessConfig {
   return {
-    obsidianVaultPath: config.obsidianVaultPath,
+    vaultPath: config.vaultPath,
     packageManager: config.packageManager,
     scope: config.scope,
     graphify: config.graphify,

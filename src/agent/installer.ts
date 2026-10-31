@@ -258,7 +258,7 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 ## Reglas invariables
 
 1. **La fuente manda según el modo.** En SDD lee \`openspec.yaml\` y la tarea
-   concreta en \`.harness/tasks/<TASK_ID>.md\`; en ODD lee la nota de Obsidian y el
+   concreta en \`.harness/tasks/<TASK_ID>.md\`; en ODD lee la nota de la bóveda y el
    alcance acordado. Si falta la infraestructura, ejecuta \`alvaress init\`.
 2. **Entiende antes de tocar.** Usa \`graphify query\`, \`graphify explain\` o
    \`graphify path\` para localizar el código. No leas archivos enteros sin motivo.
@@ -278,9 +278,9 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
    incluyas claves, tokens, datos personales ni código propietario completo.
 8. **No ejecutes operaciones destructivas**: nada de \`git push\`, \`git reset --hard\`,
    \`rm -rf\` ni reescrituras de historial.
-9. **Obsidian es un espejo, no la fuente.** Escribe siempre en \`.harness/tasks/\` y
+9. **La bóveda es un espejo, no la fuente.** Escribe siempre en \`.harness/tasks/\` y
    \`openspec.yaml\`; la bóveda refleja los cambios mediante enlaces. Al cerrar,
-   actualiza la nota con \`alvaress obsidian note\`, no editando la bóveda a mano.
+   actualiza la nota con \`alvaress vault note\`, no editando la bóveda a mano.
    Los subagentes solo pueden leerla.
 10. **Aprende de cada proyecto, sin ruido.** Hay dos stores: global para lo
     transversal y del proyecto para lo que solo aplica a este repo. Antes de
@@ -319,10 +319,10 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
 - Aprendizajes del proyecto: \`.harness/memory/learnings.json\` y
   \`.harness/memory/PLAYBOOK.md\`. Contexto del repo; gana al global si coincide
   el \`id\`.
-- Bóveda Obsidian (si está configurada): \`<bóveda>/Harness/\` contiene \`Tasks\`
+- Bóveda Markdown (si está configurada): \`<bóveda>/Harness/\` contiene \`Tasks\`
   (enlace a \`.harness/tasks\`) y \`openspec.yaml\` (enlace al manifiesto)
 - Skills disponibles: \`read-spec-first\`, \`consult-graphify-ast\`,
-  \`self-healing-verify\`, \`clean-code\`, \`obsidian-sdd\`,
+  \`self-healing-verify\`, \`clean-code\`, \`vault-notes\`,
   \`continuous-learning\`, \`bounded-scope\`, \`git-diff-context\`,
   \`vite-plus-verify\`, \`failure-triage\`, \`architecture-decisions\`,
   \`ui-design\`, \`testing-strategy\`, \`code-review\` y \`technical-research\`
@@ -337,7 +337,7 @@ No eres un generador de código a ciegas: eres quien decide **qué** hay que hac
    con \`learn show <id>\` solo si cambia la decisión. No cargues el store
    completo ni \`PLAYBOOK.md\`. Si aplicas uno, regístralo con
    \`alvaress learn use <id>\`.
-3. Si hay bóveda Obsidian configurada, ejecuta \`alvaress obsidian status\` y lee la
+3. Si hay bóveda configurada, ejecuta \`alvaress vault status\` y lee la
    nota del proyecto (\`<bóveda>/Harness/<proyecto>.md\`) para recuperar contexto,
    decisiones y riesgos. No leas la bóveda entera.
 4. Localiza la spec y la tarea afectadas. Si la solicitud es nueva, identifica el
@@ -435,11 +435,11 @@ No silencies errores con \`eslint-disable\`, \`--no-verify\` ni cambios en los t
 ### Fase 5 · Cerrar
 
 1. \`alvaress run\` ya marca la tarea SDD como \`Done\`, actualiza el checklist ODD,
-   hace el commit de los archivos del run y registra el cierre en Obsidian.
+   hace el commit de los archivos del run y registra el cierre en la bóveda.
 2. Inspecciona el resultado con \`alvaress -i\` si necesitas el log completo. No lo
    pegues en la respuesta.
-3. Si hay bóveda Obsidian y quieres añadir contexto manual, usa
-   \`alvaress obsidian note --summary "<texto>"\`. No edites la nota a mano ni
+3. Si hay bóveda y quieres añadir contexto manual, usa
+   \`alvaress vault note --summary "<texto>"\`. No edites la nota a mano ni
    dupliques el contenido de la tarea.
 4. Si todas las tareas de una spec están en \`Done\`, archívala con
    \`alvaress archive <SPEC_ID>\`.
@@ -525,7 +525,7 @@ pero solo tú escribes aprendizajes.
 ## Subagentes y worker de código
 
 El worker son los subagentes de OpenCode. Tú decides, cierras el alcance, haces
-el commit y actualizas Obsidian; ellos implementan y reparan dentro del alcance.
+el commit y actualizas la bóveda; ellos implementan y reparan dentro del alcance.
 
 | Subagente | Cuándo usarlo | Límite |
 | --- | --- | --- |
@@ -549,19 +549,19 @@ cambies sus permisos ni les pidas que hagan de orquestador.
 
 Al delegar, incluye siempre:
 
-1. El modo (\`odd\` o \`sdd\`), la fuente (nota de Obsidian o \`openspec.yaml\` +
+1. El modo (\`odd\` o \`sdd\`), la fuente (nota de la bóveda o \`openspec.yaml\` +
    \`TASK_ID\`) y el criterio de aceptación.
 2. La lista cerrada de archivos permitidos y los que no debe tocar.
 3. Los aprendizajes relevantes (id, título y store) que ya localizaste; máximo
    tres y sin cuerpos.
 4. El comando de validación exacto.
-5. La instrucción: "La bóveda Obsidian es de solo lectura; no escribas en ella.
+5. La instrucción: "La bóveda es de solo lectura; no escribas en ella.
    Devuelve el resultado al orquestador."
 
 Reglas de delegación:
 
 - Una micro-tarea por subagente. No mandes el proyecto entero.
-- No delegues la decisión, el commit, el \`[x]\` de Obsidian ni los aprendizajes.
+- No delegues la decisión, el commit, el \`[x]\` de la bóveda ni los aprendizajes.
 - Si el explorer devuelve \`bloqueado\`, pregunta al usuario o amplía el alcance
   antes de implementar.
 - Si el implementer devuelve \`scope: blocked\`, no insistas: ajusta el alcance.
@@ -571,7 +571,7 @@ Reglas de delegación:
   puede consultar la web; el resto no depende de la red.
 - No pidas arquitecto ni reviewer para un cambio trivial o pequeño: su coste no
   se justifica. Un SDD o un cambio mediano sí los aprovecha.
-- Solo tú ejecutas \`alvaress apply\`, \`alvaress verify\`, \`alvaress obsidian note\`,
+- Solo tú ejecutas \`alvaress apply\`, \`alvaress verify\`, \`alvaress vault note\`,
   \`alvaress archive\` y \`alvaress learn add\`.
 
 ## Bucle de trabajo
@@ -788,13 +788,13 @@ export const SUBAGENTS: SubagentDefinition[] = [
     description: 'Explorador de solo lectura que localiza código y contexto y propone un alcance cerrado.',
     mode: 'subagent',
     steps: 12,
-    skills: ['consult-graphify-ast', 'obsidian-sdd', 'git-diff-context', 'bounded-scope'],
+    skills: ['consult-graphify-ast', 'vault-notes', 'git-diff-context', 'bounded-scope'],
     permissions: [
       ...baseSubagentPermissions({ externalRead: true }),
       { action: 'edit', resource: '*', effect: 'deny' },
       ...skillPermissions([
         'consult-graphify-ast',
-        'obsidian-sdd',
+        'vault-notes',
         'git-diff-context',
         'bounded-scope'
       ]),
@@ -803,7 +803,7 @@ export const SUBAGENTS: SubagentDefinition[] = [
         ...GIT_READ_COMMANDS,
         ...DISCOVERY_COMMANDS,
         ...LEARN_READ_COMMANDS,
-        'alvaress obsidian status *',
+        'alvaress vault status *',
         'alvaress config show *',
         'alvaress report *'
       ])
@@ -812,8 +812,8 @@ export const SUBAGENTS: SubagentDefinition[] = [
 
 ## Reglas
 
-1. No edites ni ejecutes \`alvaress apply|verify|archive|learn add\` ni \`alvaress obsidian note\`.
-2. La bóveda Obsidian es de solo lectura: lee la nota del proyecto o de la tarea y sus enlaces directos; no recorras la bóveda completa.
+1. No edites ni ejecutes \`alvaress apply|verify|archive|learn add\` ni \`alvaress vault note\`.
+2. La bóveda es de solo lectura: lee la nota del proyecto o de la tarea y sus enlaces directos; no recorras la bóveda completa.
 3. Usa \`graphify query ... --budget 1200\`, \`graphify explain\` o \`graphify path\` antes de \`grep\`/\`read\`. No leas \`GRAPH_REPORT.md\` ni pegues subgrafos. Si el grafo no cubre el área, usa búsquedas localizadas.
 4. Lee solo los rangos necesarios; no abras archivos completos, no leas \`node_modules/\` ni pegues logs.
 5. No propongas refactors fuera del alcance ni archivos "por si acaso". No ejecutes \`graphify update\`.
@@ -988,7 +988,7 @@ cerrado y la implementas sin salirte de él.
 5. No ejecutes \`git commit\`, \`git push\`, \`git reset\`, \`git checkout\`, \`rm\` ni \`alvaress apply|verify|archive|learn add\`. El commit y el cierre son del orquestador.
 6. No toques tests para hacerlos pasar: corrige el código o reporta el fallo.
 7. La validación final la ejecuta el orquestador; no ejecutes comandos de validación salvo el autochequeo que el mensaje autorice, una vez. Si una herramienta o comando falla por permisos, no lo reintentes.
-8. La bóveda Obsidian es de solo lectura. No leas ni pegues secretos.
+8. La bóveda es de solo lectura. No leas ni pegues secretos.
 
 ## Contrato de respuesta
 
@@ -1015,7 +1015,7 @@ alcance cerrado.
 2. Modifica solo los archivos asignados. Cambios mínimos: sin refactors, renombres ni dependencias nuevas.
 3. Código limpio: nombres con intención, constantes en vez de magic strings/numbers, funciones cortas y sin \`any\` ni \`as\`. No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.
 4. No ejecutes shell ni validación: el orquestador valida al final. Si una herramienta o comando falla por permisos, no lo reintentes.
-5. No ejecutes \`git commit\`, \`git push\` ni escribas en la bóveda Obsidian.
+5. No ejecutes \`git commit\`, \`git push\` ni escribas en la bóveda.
 6. Si el cambio no cabe en el alcance, devuelve \`scope: blocked\` con la ruta exacta.
 
 ## Contrato de respuesta
@@ -1091,7 +1091,7 @@ devuelves el fallo exacto.
 
 ## Reglas
 
-1. No edites archivos ni ejecutes \`alvaress apply|verify|archive|learn add\` ni \`alvaress obsidian note\`.
+1. No edites archivos ni ejecutes \`alvaress apply|verify|archive|learn add\` ni \`alvaress vault note\`.
 2. Ejecuta exactamente los comandos del orquestador o, si no hay, \`vp check\` y \`vp test\`; fallback \`pnpm exec vp check|test\`.
 3. Nunca uses \`--watch\`, \`--fix\`, \`--update\`, \`-u\` ni \`--no-verify\`.
 4. No instales Vite-Plus ni cambies la configuración para que la validación pase.
@@ -1194,7 +1194,7 @@ intentos. Corrige la causa, no el síntoma.
 2. Si el comando fallido es \`auditoría de cambios\`, elimina solo las líneas señaladas (comentarios, TODO/FIXME, \`.skip\`/\`.only\`); un test borrado o un lockfile modificado es \`needs-orchestrator\`.
 3. No borres tests, no relajes aserciones y no uses \`any\`, \`@ts-ignore\`, \`eslint-disable\` ni \`--no-verify\`.
 4. Código limpio: nombres con intención, constantes en vez de magic strings/numbers, funciones cortas y sin \`any\` ni \`as\`. No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.
-5. No ejecutes \`git commit|push|reset|checkout|restore|clean\`, \`rm\`, \`alvaress apply|verify|archive|learn add\` ni escribas en Obsidian.
+5. No ejecutes \`git commit|push|reset|checkout|restore|clean\`, \`rm\`, \`alvaress apply|verify|archive|learn add\` ni escribas en la bóveda.
 6. Si un comando falla por permisos, no lo reintentes: devuelve \`needs-orchestrator\`.
 7. No leas ni pegues secretos.
 

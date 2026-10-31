@@ -29,8 +29,8 @@ test('renderAgent define un agente primario llamado alvaress', () => {
   assert.match(rendered, /\.laya\/HALT\.json/);
   assert.match(rendered, /graphify query/);
   assert.match(rendered, /No envíes secretos a Laya/);
-  assert.match(rendered, /Bóveda Obsidian/);
-  assert.match(rendered, /Obsidian es un espejo/);
+  assert.match(rendered, /Bóveda Markdown/);
+  assert.match(rendered, /La bóveda es un espejo/);
   assert.match(rendered, /Personalidad y estilo de respuesta/);
   assert.match(rendered, /modismos mexicanos ligeros/);
   assert.match(rendered, /máximo 3 líneas de texto/);

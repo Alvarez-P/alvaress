@@ -14,7 +14,7 @@ test('define las skills del estándar híbrido SDD/ODD', () => {
       'consult-graphify-ast',
       'self-healing-verify',
       'clean-code',
-      'obsidian-sdd',
+      'vault-notes',
       'continuous-learning',
       'bounded-scope',
       'git-diff-context',
@@ -46,7 +46,7 @@ test('renderSkill genera frontmatter YAML y cuerpo literal', () => {
       'description: Obliga al agente a leer la nota ODD o la especificación SDD antes de programar.',
       'scope: project',
       '---',
-      'Lee la fuente antes de editar: en ODD la nota de Obsidian y el alcance acordado; en SDD `openspec.yaml` y `.harness/tasks/TASK_ID.md`. Si el orquestador ya incluyó el contenido en el mensaje, no lo releas.',
+      'Lee la fuente antes de editar: en ODD la nota de la bóveda y el alcance acordado; en SDD `openspec.yaml` y `.harness/tasks/TASK_ID.md`. Si el orquestador ya incluyó el contenido en el mensaje, no lo releas.',
       '',
       '- Resume los criterios de aceptación en 1-3 líneas.',
       '- Si la fuente falta, está incompleta o contradice la solicitud, devuelve `scope: blocked`. No supongas.',
@@ -81,6 +81,30 @@ test('installSkills escribe SKILL.md y enlaza las skills globales', () => {
   }
 });
 
+test('installSkills retira las skills obsoletas y solo sus enlaces propios', () => {
+  const temp = makeTempDir();
+  try {
+    const skillsDir = path.join(temp.path, '.harness', 'skills');
+    const ownTarget = path.join(temp.path, 'opencode');
+    const foreignTarget = path.join(temp.path, 'otro');
+    const foreignSkill = path.join(temp.path, 'ajena', 'obsidian-sdd');
+    fs.mkdirSync(path.join(skillsDir, 'obsidian-sdd'), { recursive: true });
+    fs.mkdirSync(ownTarget, { recursive: true });
+    fs.mkdirSync(foreignTarget, { recursive: true });
+    fs.mkdirSync(foreignSkill, { recursive: true });
+    fs.symlinkSync(path.join(skillsDir, 'obsidian-sdd'), path.join(ownTarget, 'obsidian-sdd'), 'dir');
+    fs.symlinkSync(foreignSkill, path.join(foreignTarget, 'obsidian-sdd'), 'dir');
+
+    installSkills(temp.path, { targets: [ownTarget, foreignTarget] });
+
+    assert.equal(fs.existsSync(path.join(skillsDir, 'obsidian-sdd')), false);
+    assert.equal(fs.existsSync(path.join(ownTarget, 'obsidian-sdd')), false);
+    assert.ok(fs.lstatSync(path.join(foreignTarget, 'obsidian-sdd')).isSymbolicLink());
+  } finally {
+    temp.cleanup();
+  }
+});
+
 test('installSkills es idempotente', () => {
   const temp = makeTempDir();
   try {
@@ -110,15 +134,15 @@ test('installSkills omite enlaces cuando el destino es real', () => {
   }
 });
 
-test('la skill obsidian-sdd separa la política de subagentes y orquestador', () => {
-  const skill = SKILLS.find((entry) => entry.name === 'obsidian-sdd');
+test('la skill vault-notes separa la política de subagentes y orquestador', () => {
+  const skill = SKILLS.find((entry) => entry.name === 'vault-notes');
   assert.ok(skill !== undefined);
 
   assert.match(skill.body, /## Para subagentes/);
   assert.match(skill.body, /## Para el orquestador/);
   assert.match(skill.body, /el cierre es del orquestador/i);
   assert.match(skill.body, /solo lectura/i);
-  assert.match(skill.body, /alvaress obsidian note/);
+  assert.match(skill.body, /alvaress vault note/);
   assert.match(skill.body, /openspec\.yaml/);
 });
 

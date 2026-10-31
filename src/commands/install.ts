@@ -12,7 +12,7 @@ import { validateModelReference } from '../config/models.js';
 import {
   COMMAND_SEPARATOR,
   DEFAULT_LAYA_TIMEOUT_MS,
-  DEFAULT_OBSIDIAN_VAULT,
+  DEFAULT_VAULT_PATH,
   DEFAULT_PACKAGE_MANAGER,
   HARNESS_DIR,
   LAYA_INT8_MODEL_CACHE_ROOT,
@@ -20,8 +20,7 @@ import {
   LAYA_TOKENIZER_PACKAGE,
   VITE_PLUS_PACKAGE
 } from '../constants.js';
-import { detectObsidian, installObsidian, OBSIDIAN_DOWNLOAD_URL } from '../obsidian/installer.js';
-import { connectObsidianVault } from '../obsidian/vault.js';
+import { connectVault } from '../vault/vault.js';
 import { BUNDLE_BYTES, BUNDLE_REVISION, ensureBundle, verifyBundle } from '../decision/vendor/laya/index.js';
 import { errorMessage } from '../utils/errors.js';
 import { moduleAvailableFrom } from '../utils/modules.js';
@@ -44,11 +43,8 @@ import {
 } from '../utils/uv.js';
 import { expandHome, joinCommandList, parseCommandList, unwrap } from '../utils/prompt.js';
 
-const COMPONENT_VALUES = ['agent', 'laya', 'skills', 'obsidian', 'graphify', 'vite-plus', 'validation'] as const;
+const COMPONENT_VALUES = ['agent', 'laya', 'skills', 'graphify', 'vite-plus', 'validation'] as const;
 type Component = (typeof COMPONENT_VALUES)[number];
-
-/** La app Obsidian es opcional; la bóveda Markdown se crea siempre. */
-const OBSIDIAN_APP_COMPONENT: Component = 'obsidian';
 
 /** Fila del checklist: `components` es lo que instala, `id` es lo que se marca. */
 type ChecklistId =
@@ -57,8 +53,7 @@ type ChecklistId =
   | 'graphify'
   | 'skills'
   | 'orchestrator'
-  | 'subagents'
-  | 'obsidian';
+  | 'subagents';
 
 interface ChecklistEntry {
   id: ChecklistId;
@@ -115,13 +110,6 @@ const CHECKLIST: ChecklistEntry[] = [
     label: '🤖 Subagentes',
     hint: SUBAGENT_ROLES,
     required: true
-  },
-  {
-    id: 'obsidian',
-    components: ['obsidian'],
-    label: '🗂️ Obsidian',
-    hint: '(solo para que tú visualices; los agentes no lo usan)',
-    required: false
   }
 ];
 
@@ -133,9 +121,7 @@ export interface InstallRuntime {
   loadConfig: typeof loadConfig;
   getConfigPaths: typeof getConfigPaths;
   saveGlobalConfig: typeof saveGlobalConfig;
-  detectObsidian: typeof detectObsidian;
-  installObsidian: typeof installObsidian;
-  connectObsidianVault: typeof connectObsidianVault;
+  connectVault: typeof connectVault;
   installSkills: typeof installSkills;
   installAgent: typeof installAgent;
   installUv: typeof installUv;
@@ -149,9 +135,7 @@ const DEFAULT_RUNTIME: InstallRuntime = {
   loadConfig,
   getConfigPaths,
   saveGlobalConfig,
-  detectObsidian,
-  installObsidian,
-  connectObsidianVault,
+  connectVault,
   installSkills,
   installAgent,
   installUv,
@@ -160,8 +144,6 @@ const DEFAULT_RUNTIME: InstallRuntime = {
 
 export interface InstallOptions {
   yes?: boolean;
-  /** Fuerza la instalación de la app Obsidian; por defecto se pregunta o se omite. */
-  withObsidian?: boolean;
   runtime?: Partial<InstallRuntime>;
 }
 
@@ -205,12 +187,11 @@ export async function runInstall(
     );
   }
 
-  const selected = await pickComponents(options.withObsidian, yes);
-  const installObsidianApp = selected.has(OBSIDIAN_APP_COMPONENT);
+  const selected = await pickComponents(yes);
 
-  const obsidianVaultPath = await configureObsidian(config.obsidianVaultPath, yes);
-  if (obsidianVaultPath !== config.obsidianVaultPath) {
-    config = { ...config, obsidianVaultPath };
+  const vaultPath = await configureVault(config.vaultPath, yes);
+  if (vaultPath !== config.vaultPath) {
+    config = { ...config, vaultPath };
     configDirty = true;
   }
 
@@ -281,9 +262,6 @@ export async function runInstall(
   spinner.start('Instalando componentes en paralelo');
 
   const tasks: Array<Promise<ComponentResult | undefined>> = [];
-  if (selected.has('obsidian')) {
-    tasks.push(installObsidianComponent(runtime, update));
-  }
   if (selected.has('graphify')) {
     tasks.push(installGraphify(root, runtime, uvReady, update));
   }
@@ -360,14 +338,11 @@ export async function runInstall(
     }
   }
 
-  const connection = runtime.connectObsidianVault(root, obsidianVaultPath);
+  const connection = runtime.connectVault(root, vaultPath);
   p.log.success(`Bóveda conectada: ${connection.harnessDir}`);
   p.log.info(`Enlace de tareas: ${connection.tasksLink} (${connection.tasksLinkResult})`);
   if (connection.manifestLink !== undefined) {
     p.log.info(`Enlace del manifiesto: ${connection.manifestLink} (${connection.manifestLinkResult})`);
-  }
-  if (!installObsidianApp && !runtime.detectObsidian().installed) {
-    p.log.info(obsidianAppHint(connection.harnessDir));
   }
 
   if (selected.has('skills')) {
@@ -419,40 +394,13 @@ export async function runInstall(
   p.outro('Instalación completada.');
 }
 
-async function installObsidianComponent(
-  runtime: InstallRuntime,
-  update: (key: string, value: string) => void
-): Promise<ComponentResult> {
-  update('Obsidian', 'comprobando');
-  const status = runtime.detectObsidian();
-  if (status.installed) {
-    update('Obsidian', 'listo');
-    return { info: [`Obsidian detectado (${status.method ?? 'instalado'}).`] };
-  }
-
-  update('Obsidian', 'instalando');
-  const result = await runtime.installObsidian();
-  if (result.installed) {
-    update('Obsidian', 'listo');
-    return { info: [result.message] };
-  }
-
-  update('Obsidian', 'omitido');
-  return {
-    warn: [
-      result.message,
-      'La bóveda se creará igualmente; puedes instalar Obsidian después desde https://obsidian.md/download.'
-    ]
-  };
-}
-
-async function configureObsidian(currentVault: string, yes: boolean): Promise<string> {
-  const suggested = currentVault.length > 0 ? currentVault : DEFAULT_OBSIDIAN_VAULT;
+async function configureVault(currentVault: string, yes: boolean): Promise<string> {
+  const suggested = currentVault.length > 0 ? currentVault : DEFAULT_VAULT_PATH;
   const answer = yes
     ? suggested
     : unwrap(
         await p.text({
-          message: 'Ruta de la bóveda Obsidian',
+          message: 'Ruta de la bóveda',
           placeholder: suggested,
           defaultValue: suggested,
           validate: validateWithDefault(suggested, 'La ruta de la bóveda es obligatoria.')
@@ -563,13 +511,6 @@ async function enableGraphifyHooks(root: string, runtime: InstallRuntime): Promi
   return ['Hooks de Graphify activos: el grafo se actualiza al cambiar de rama o commitear.'];
 }
 
-function obsidianAppHint(harnessDir: string): string {
-  return [
-    'Obsidian (app) no instalada: las notas son Markdown compatible y el flujo funciona sin ella.',
-    `Si quieres la UI (grafo, backlinks), instálala desde ${OBSIDIAN_DOWNLOAD_URL} y abre ${harnessDir}.`
-  ].join('\n');
-}
-
 function componentsFor(ids: readonly ChecklistId[]): Set<Component> {
   const chosen = new Set(ids);
   const components = CHECKLIST.filter((entry) => chosen.has(entry.id)).flatMap(
@@ -582,14 +523,8 @@ function requiredChecklistIds(): ChecklistId[] {
   return CHECKLIST.filter((entry) => entry.required).map((entry) => entry.id);
 }
 
-async function pickComponents(
-  withObsidian: boolean | undefined,
-  yes: boolean
-): Promise<Set<Component>> {
+async function pickComponents(yes: boolean): Promise<Set<Component>> {
   const defaults = requiredChecklistIds();
-  if (withObsidian === true) {
-    defaults.push('obsidian');
-  }
 
   if (yes) {
     return componentsFor(defaults);
@@ -849,9 +784,9 @@ async function promptLaya(
 
 async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
   const vaultPath =
-    base.obsidianVaultPath.length > 0
-      ? base.obsidianVaultPath
-      : await askRequired('Ruta de la bóveda Obsidian', DEFAULT_OBSIDIAN_VAULT);
+    base.vaultPath.length > 0
+      ? base.vaultPath
+      : await askRequired('Ruta de la bóveda', DEFAULT_VAULT_PATH);
 
   const maxAttempts = await askMaxAttempts(base.validation.maxAttempts);
   const commands = await askValidationCommands(base.validation.commands);
@@ -859,7 +794,7 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
 
   return {
     ...base,
-    obsidianVaultPath: path.resolve(expandHome(vaultPath)),
+    vaultPath: path.resolve(expandHome(vaultPath)),
     packageManager,
     validation: { maxAttempts, commands }
   };
@@ -867,7 +802,7 @@ async function promptFullConfig(base: HarnessConfig): Promise<HarnessConfig> {
 
 async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigFile> {
   const vaultPath = await askText(
-    'Ruta de la bóveda Obsidian (local; vacío = usar la global)',
+    'Ruta de la bóveda (local; vacío = usar la global)',
     ''
   );
   const layaModelDir = await askText(
@@ -880,7 +815,7 @@ async function promptLocalOverrides(base: HarnessConfig): Promise<HarnessConfigF
 
   return {
     ...(vaultPath.trim().length > 0
-      ? { obsidianVaultPath: path.resolve(expandHome(vaultPath)) }
+      ? { vaultPath: path.resolve(expandHome(vaultPath)) }
       : {}),
     packageManager,
     ...(layaModelDir.trim().length > 0 ? { laya: { modelDir: layaModelDir.trim() } } : {}),

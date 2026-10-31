@@ -3,11 +3,11 @@ import { loadConfig } from '../config/loader.js';
 import type { HarnessConfig } from '../config/loader.js';
 import {
   appendVaultNoteEntry,
-  connectObsidianVault,
+  connectVault,
   getVaultNotePath,
   getVaultTaskIndexPath
-} from '../obsidian/vault.js';
-import type { VaultCurrentState } from '../obsidian/vault.js';
+} from '../vault/vault.js';
+import type { VaultCurrentState } from '../vault/vault.js';
 import { inferProjectName } from '../openspec/manifest.js';
 import { readRun } from '../orchestrator/report.js';
 import type { RunReport, RunTaskReport } from '../orchestrator/report.js';
@@ -15,20 +15,20 @@ import { parseArgs } from '../utils/args.js';
 import { pathExists } from '../utils/fs.js';
 import { expandHome } from '../utils/prompt.js';
 
-const HELP = `alvaress obsidian
+const HELP = `alvaress vault
 
 Uso:
-  alvaress obsidian status          Muestra la bóveda configurada, la nota y sus enlaces.
-  alvaress obsidian sync            Crea o verifica la bóveda, la nota, el índice y los enlaces.
-  alvaress obsidian note --summary "<texto>" [--task TASK-01]
+  alvaress vault status          Muestra la bóveda configurada, la nota y sus enlaces.
+  alvaress vault sync            Crea o verifica la bóveda, la nota, el índice y los enlaces.
+  alvaress vault note --summary "<texto>" [--task TASK-01]
       [--validation "<texto>"] [--risk "<texto>"] [--next "<texto>"]
       [--objective "<texto>"] [--architecture "<texto>"] [--decision "<texto>"]
       [--from-run latest|<id>]
 
 La bóveda es un espejo de lectura: la fuente de verdad es openspec.yaml y
-.harness/tasks. El orquestador usa "obsidian note" al cerrar una tarea.`;
+.harness/tasks. El orquestador usa "vault note" al cerrar una tarea.`;
 
-export interface ObsidianCommandDeps {
+export interface VaultCommandDeps {
   config?: HarnessConfig;
   stdout?: (line: string) => void;
 }
@@ -84,10 +84,10 @@ function runState(flags: Record<string, string | boolean>): VaultCurrentState | 
   return Object.values(state).some((value) => value !== undefined) ? state : undefined;
 }
 
-export function runObsidianCommand(
+export function runVaultCommand(
   args: string[],
   root: string = process.cwd(),
-  deps: ObsidianCommandDeps = {}
+  deps: VaultCommandDeps = {}
 ): void {
   const stdout = deps.stdout ?? ((line: string) => console.log(line));
   const [subcommand, ...rest] = args;
@@ -103,10 +103,10 @@ export function runObsidianCommand(
   }
 
   const config = deps.config ?? loadConfig(root);
-  const configuredPath = config.obsidianVaultPath.trim();
+  const configuredPath = config.vaultPath.trim();
   if (configuredPath.length === 0) {
     throw new Error(
-      'No hay bóveda Obsidian configurada. Ejecuta "alvaress install" o define obsidianVaultPath.'
+      'No hay bóveda configurada. Ejecuta "alvaress install" o define vaultPath.'
     );
   }
 
@@ -139,7 +139,7 @@ export function runObsidianCommand(
   }
 
   if (subcommand === 'sync') {
-    const connection = connectObsidianVault(root, vaultPath);
+    const connection = connectVault(root, vaultPath);
     stdout(JSON.stringify(connection, null, 2));
     return;
   }
@@ -161,10 +161,10 @@ export function runObsidianCommand(
 
     const summary = summaryFlag ?? derived?.summary;
     if (summary === undefined) {
-      throw new Error('Uso: alvaress obsidian note --summary "<texto>" o --from-run latest');
+      throw new Error('Uso: alvaress vault note --summary "<texto>" o --from-run latest');
     }
 
-    connectObsidianVault(root, vaultPath);
+    connectVault(root, vaultPath);
     appendVaultNoteEntry(notePath, {
       summary,
       task,
@@ -173,12 +173,12 @@ export function runObsidianCommand(
       next: flagValue(flags, 'next') ?? derived?.next,
       state: runState(flags)
     });
-    stdout(`[alvaress] OK: Nota de Obsidian actualizada en ${notePath}`);
+    stdout(`[alvaress] OK: Nota de la bóveda actualizada en ${notePath}`);
     return;
   }
 
   throw new Error(
-    `Subcomando de obsidian desconocido: ${subcommand}. Usa "alvaress obsidian status", "sync" o "note".`
+    `Subcomando de vault desconocido: ${subcommand}. Usa "alvaress vault status", "sync" o "note".`
   );
 }
 

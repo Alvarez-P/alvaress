@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { OPENCODE_SKILLS_DIR, SKILLS_DIR } from '../constants.js';
-import { ensureDir, linkDirectory, writeTextFile } from '../utils/fs.js';
+import fs from 'node:fs';
+import { ensureDir, linkDirectory, removePath, writeTextFile } from '../utils/fs.js';
 import type { LinkResult } from '../utils/fs.js';
 
 export interface SkillDefinition {
@@ -15,7 +16,7 @@ export const SKILLS: SkillDefinition[] = [
     name: 'read-spec-first',
     description: 'Obliga al agente a leer la nota ODD o la especificación SDD antes de programar.',
     scope: 'project',
-    body: `Lee la fuente antes de editar: en ODD la nota de Obsidian y el alcance acordado; en SDD \`openspec.yaml\` y \`.harness/tasks/TASK_ID.md\`. Si el orquestador ya incluyó el contenido en el mensaje, no lo releas.
+    body: `Lee la fuente antes de editar: en ODD la nota de la bóveda y el alcance acordado; en SDD \`openspec.yaml\` y \`.harness/tasks/TASK_ID.md\`. Si el orquestador ya incluyó el contenido en el mensaje, no lo releas.
 
 - Resume los criterios de aceptación en 1-3 líneas.
 - Si la fuente falta, está incompleta o contradice la solicitud, devuelve \`scope: blocked\`. No supongas.
@@ -117,20 +118,20 @@ Para arquitectura y símbolos usa \`graphify query "<término>" --budget 1200\`,
 - Pregúntate: ¿algún string o número debería tener nombre?, ¿algún nombre miente?, ¿hay dos funciones que hacen lo mismo?`
   },
   {
-    name: 'obsidian-sdd',
-    description: 'Define cuándo y cómo usar la bóveda Obsidian en el flujo híbrido SDD/ODD.',
+    name: 'vault-notes',
+    description: 'Define cuándo y cómo usar la bóveda Markdown en el flujo híbrido SDD/ODD.',
     scope: 'project',
-    body: `Obsidian es la capa de lectura humana. En SDD manda \`openspec.yaml\` + \`.harness/tasks/\`; en ODD manda la nota de la tarea. La bóveda refleja estado, no duplica contenido.
+    body: `La bóveda Markdown es la capa de lectura humana. En SDD manda \`openspec.yaml\` + \`.harness/tasks/\`; en ODD manda la nota de la tarea. La bóveda refleja estado, no duplica contenido.
 
 ## Para subagentes
 
 - Solo lectura: lee la nota del proyecto o de la tarea y sus enlaces directos. No recorras la bóveda ni sigas enlaces recursivos.
-- No edites \`<bóveda>/Harness/\` ni ejecutes \`alvaress obsidian note\`; el cierre es del orquestador.
+- No edites \`<bóveda>/Harness/\` ni ejecutes \`alvaress vault note\`; el cierre es del orquestador.
 - Si no hay bóveda, continúa sin ella. No envíes a Laya secretos, tokens ni datos personales.
 
 ## Para el orquestador
 
-- Cierra con \`alvaress obsidian note --summary ... --validation ... --risk ... --next ...\`; en ODD marca \`[x]\` si la validación pasó.
+- Cierra con \`alvaress vault note --summary ... --validation ... --risk ... --next ...\`; en ODD marca \`[x]\` si la validación pasó.
 - En SDD usa una nota de proyecto y enlaces \`[[Tasks/...]]\`; no crees una nota por tarea.`
   },
   {
@@ -295,7 +296,7 @@ Si el comando fallido es \`auditoría de cambios\`, no hay error de compilación
 - Migración, cambio de esquema o dependencia nueva.
 - El alcance no alcanza o el error está en un archivo no asignado.
 - El mismo error ya se repitió en dos intentos.
-- Falla una herramienta necesaria (Vite-Plus u \`opencode\`). Que Laya no esté disponible no es nuclear: el arnés cae a heurísticas. Que Obsidian falte tampoco: se continúa sin bóveda.
+- Falla una herramienta necesaria (Vite-Plus u \`opencode\`). Que Laya no esté disponible no es nuclear: el arnés cae a heurísticas. Que falte la bóveda tampoco: se continúa sin bóveda.
 - No hay causa clara y el siguiente intento sería a ciegas.
 
 ## Límites
@@ -520,6 +521,21 @@ export function renderSkill(skill: SkillDefinition): string {
   ].join('\n');
 }
 
+/** Skills de versiones anteriores que ya no se instalan y se retiran al reinstalar. */
+export const RETIRED_SKILLS = ['obsidian-sdd'];
+
+function isLinkInto(link: string, directory: string): boolean {
+  try {
+    if (!fs.lstatSync(link).isSymbolicLink()) {
+      return false;
+    }
+    const target = path.resolve(path.dirname(link), fs.readlinkSync(link));
+    return target.startsWith(`${directory}${path.sep}`);
+  } catch {
+    return false;
+  }
+}
+
 export function skillFilePath(skill: SkillDefinition, skillsDir: string): string {
   return path.join(skillsDir, skill.name, 'SKILL.md');
 }
@@ -531,6 +547,10 @@ export function installSkills(
   const skillsDir = path.join(projectRoot, SKILLS_DIR);
   ensureDir(skillsDir);
 
+  for (const name of RETIRED_SKILLS) {
+    removePath(path.join(skillsDir, name));
+  }
+
   const files = SKILLS.map((skill) => {
     const file = skillFilePath(skill, skillsDir);
     writeTextFile(file, renderSkill(skill));
@@ -541,6 +561,12 @@ export function installSkills(
   if (options.linkGlobal !== false) {
     const targets = options.targets ?? [OPENCODE_SKILLS_DIR];
     for (const targetRoot of targets) {
+      for (const name of RETIRED_SKILLS) {
+        const link = path.join(targetRoot, name);
+        if (isLinkInto(link, path.resolve(skillsDir))) {
+          fs.unlinkSync(link);
+        }
+      }
       for (const skill of SKILLS) {
         const source = path.join(skillsDir, skill.name);
         const link = path.join(targetRoot, skill.name);

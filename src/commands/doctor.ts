@@ -14,7 +14,6 @@ import {
   VITE_PLUS_PACKAGE
 } from '../constants.js';
 import { BUNDLE_REVISION, bundleFilesFor } from '../decision/vendor/laya/index.js';
-import { detectObsidian, OBSIDIAN_DOWNLOAD_URL } from '../obsidian/installer.js';
 import { getManifestPath, getTasksDir, loadManifest, taskFilePath } from '../openspec/manifest.js';
 import { getGraphStatus } from '../graphify/status.js';
 import { moduleAvailableFrom } from '../utils/modules.js';
@@ -284,21 +283,11 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
         )
   );
 
-  const vaultPath = config?.obsidianVaultPath.trim() ?? '';
+  const vaultPath = config?.vaultPath.trim() ?? '';
   if (vaultPath.length === 0) {
-    checks.push(check('obsidian', 'warn', 'No hay bóveda configurada; el flujo continuará sin Obsidian.'));
+    checks.push(check('vault', 'warn', 'No hay bóveda configurada; el flujo continuará sin ella.'));
   } else {
     const resolvedVault = path.resolve(root, vaultPath);
-    const obsidian = detectObsidian();
-    checks.push(
-      obsidian.installed
-        ? check('obsidian', 'ok', `Aplicación detectada (${obsidian.method ?? 'instalada'}).`)
-        : check(
-            'obsidian',
-            'ok',
-            `App opcional no instalada; la bóveda Markdown funciona igual. Instálala desde ${OBSIDIAN_DOWNLOAD_URL} si quieres la UI.`
-          )
-    );
     if (!pathExists(resolvedVault)) {
       checks.push(check('vault', 'error', `La bóveda configurada no existe: ${resolvedVault}.`));
     } else {
@@ -307,7 +296,7 @@ export function runDoctor(root: string = process.cwd(), deps: DoctorDeps = {}): 
       checks.push(
         pathExists(tasksLink)
           ? check('vault-tasks', 'ok', 'Enlace Tasks presente.')
-          : check('vault-tasks', 'warn', `Falta el enlace ${tasksLink}. Ejecuta "alvaress obsidian sync".`)
+          : check('vault-tasks', 'warn', `Falta el enlace ${tasksLink}. Ejecuta "alvaress vault sync".`)
       );
     }
   }

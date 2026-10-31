@@ -2,13 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { runObsidianCommand } from '../src/commands/obsidian.js';
+import { runVaultCommand } from '../src/commands/vault.js';
 import type { HarnessConfig } from '../src/config/loader.js';
 import { makeTempDir, writeJson } from './helpers.js';
 
 function configWith(vaultPath: string): HarnessConfig {
   return {
-    obsidianVaultPath: vaultPath,
+    vaultPath: vaultPath,
     laya: {
       enabled: true,
       modelDir: '/models/laya',
@@ -31,14 +31,14 @@ function projectWith(tempPath: string, name = 'demo-app'): string {
   return root;
 }
 
-test('obsidian status informa de la bóveda y la nota', () => {
+test('vault status informa de la bóveda y la nota', () => {
   const temp = makeTempDir();
   try {
     const root = projectWith(temp.path);
     const vault = path.join(temp.path, 'vault');
     const lines: string[] = [];
 
-    runObsidianCommand(['status'], root, {
+    runVaultCommand(['status'], root, {
       config: configWith(vault),
       stdout: (line) => lines.push(line)
     });
@@ -54,14 +54,14 @@ test('obsidian status informa de la bóveda y la nota', () => {
   }
 });
 
-test('obsidian sync crea la bóveda, la nota y los enlaces', () => {
+test('vault sync crea la bóveda, la nota y los enlaces', () => {
   const temp = makeTempDir();
   try {
     const root = projectWith(temp.path);
     const vault = path.join(temp.path, 'vault');
     const lines: string[] = [];
 
-    runObsidianCommand(['sync'], root, {
+    runVaultCommand(['sync'], root, {
       config: configWith(vault),
       stdout: (line) => lines.push(line)
     });
@@ -76,14 +76,14 @@ test('obsidian sync crea la bóveda, la nota y los enlaces', () => {
   }
 });
 
-test('obsidian note exige --summary', () => {
+test('vault note exige --summary', () => {
   const temp = makeTempDir();
   try {
     const root = projectWith(temp.path);
     const vault = path.join(temp.path, 'vault');
 
     assert.throws(
-      () => runObsidianCommand(['note'], root, { config: configWith(vault), stdout: () => {} }),
+      () => runVaultCommand(['note'], root, { config: configWith(vault), stdout: () => {} }),
       /--summary/
     );
   } finally {
@@ -91,14 +91,14 @@ test('obsidian note exige --summary', () => {
   }
 });
 
-test('obsidian note registra el cierre en la nota del proyecto', () => {
+test('vault note registra el cierre en la nota del proyecto', () => {
   const temp = makeTempDir();
   try {
     const root = projectWith(temp.path);
     const vault = path.join(temp.path, 'vault');
     const lines: string[] = [];
 
-    runObsidianCommand(
+    runVaultCommand(
       [
         'note',
         '--summary',
@@ -117,7 +117,7 @@ test('obsidian note registra el cierre en la nota del proyecto', () => {
     );
 
     const note = fs.readFileSync(path.join(vault, 'Harness', 'demo-app.md'), 'utf-8');
-    assert.match(lines.join('\n'), /Nota de Obsidian actualizada/);
+    assert.match(lines.join('\n'), /Nota de la bóveda actualizada/);
     assert.match(note, /TASK-01/);
     assert.match(note, /- Resumen: Implementada la tarea/);
     assert.match(note, /- Validación: npm test OK/);
@@ -128,40 +128,40 @@ test('obsidian note registra el cierre en la nota del proyecto', () => {
   }
 });
 
-test('obsidian falla si no hay bóveda configurada', () => {
+test('vault falla si no hay bóveda configurada', () => {
   const temp = makeTempDir();
   try {
     const root = projectWith(temp.path);
 
     assert.throws(
-      () => runObsidianCommand(['status'], root, { config: configWith(''), stdout: () => {} }),
-      /No hay bóveda Obsidian configurada/
+      () => runVaultCommand(['status'], root, { config: configWith(''), stdout: () => {} }),
+      /No hay bóveda configurada/
     );
   } finally {
     temp.cleanup();
   }
 });
 
-test('obsidian muestra ayuda y rechaza subcomandos desconocidos', () => {
+test('vault muestra ayuda y rechaza subcomandos desconocidos', () => {
   const temp = makeTempDir();
   try {
     const root = projectWith(temp.path);
     const lines: string[] = [];
 
-    runObsidianCommand(['help'], root, {
+    runVaultCommand(['help'], root, {
       config: configWith(path.join(temp.path, 'vault')),
       stdout: (line) => lines.push(line)
     });
-    assert.match(lines.join('\n'), /alvaress obsidian/);
+    assert.match(lines.join('\n'), /alvaress vault/);
     assert.match(lines.join('\n'), /status/);
 
     assert.throws(
       () =>
-        runObsidianCommand(['desconocido'], root, {
+        runVaultCommand(['desconocido'], root, {
           config: configWith(path.join(temp.path, 'vault')),
           stdout: () => {}
         }),
-      /Subcomando de obsidian desconocido/
+      /Subcomando de vault desconocido/
     );
   } finally {
     temp.cleanup();

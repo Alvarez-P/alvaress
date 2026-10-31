@@ -20,7 +20,7 @@ export const OPENCODE_SKILLS_DIR = path.join(os.homedir(), '.config', 'opencode'
 export const OPENCODE_PROJECT_DIR = '.opencode';
 export const OPENCODE_AGENTS_DIRNAME = 'agents';
 
-export const DEFAULT_OBSIDIAN_VAULT = path.join(os.homedir(), 'Obsidian');
+export const DEFAULT_VAULT_PATH = path.join(os.homedir(), 'alvaress-vault');
 export const DEFAULT_VALIDATION_COMMANDS = ['pnpm exec oxlint --deny=correctness --deny=suspicious', 'pnpm exec tsc --noEmit'];
 export const DEFAULT_MAX_ATTEMPTS = 3;
 export const DEFAULT_PACKAGE_MANAGER = 'pnpm';

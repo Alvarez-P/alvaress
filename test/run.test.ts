@@ -186,7 +186,7 @@ function project(options: { vault?: boolean; sdd?: boolean } = {}): {
   writeJson(
     path.join(root, '.alvaressrc.json'),
     baseConfig({
-      obsidianVaultPath: options.vault === false ? '' : vault,
+      vaultPath: options.vault === false ? '' : vault,
       validation: { maxAttempts: 1, commands: ['true'] }
     })
   );
@@ -198,7 +198,7 @@ function project(options: { vault?: boolean; sdd?: boolean } = {}): {
   return { root, vault, config: loadConfig(root) };
 }
 
-test('run ODD termina en Ready, valida y cierra el checklist de Obsidian', async () => {
+test('run ODD termina en Ready, valida y cierra el checklist de la bóveda', async () => {
   const fixture = project();
   const note = path.join(fixture.vault, 'Harness', 'demo-app.md');
   const ui = fakeUi();
@@ -294,7 +294,7 @@ test('run HALT escribe .laya/HALT.json y devuelve código 1', async () => {
   );
 });
 
-test('run --dry-run explora y no invoca al worker ni escribe en Obsidian', async () => {
+test('run --dry-run explora y no invoca al worker ni escribe en la bóveda', async () => {
   const fixture = project();
   const note = path.join(fixture.vault, 'Harness', 'demo-app.md');
   const before = fs.readFileSync(note, 'utf-8');

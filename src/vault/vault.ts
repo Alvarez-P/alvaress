@@ -160,7 +160,7 @@ export function renderTaskIndex(manifest: OpenSpecManifest): string {
   return `${lines.join('\n')}\n`;
 }
 
-export function connectObsidianVault(root: string, vaultPath: string): VaultConnection {
+export function connectVault(root: string, vaultPath: string): VaultConnection {
   ensureDir(vaultPath);
   ensureHarnessDirs(root);
 

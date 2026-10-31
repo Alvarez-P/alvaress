@@ -4,10 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   appendVaultNoteEntry,
-  connectObsidianVault,
+  connectVault,
   getVaultNotePath,
   renderVaultNote
-} from '../src/obsidian/vault.js';
+} from '../src/vault/vault.js';
 import { makeTempDir, writeFile, writeJson } from './helpers.js';
 
 test('renderVaultNote genera frontmatter y enlaces', () => {
@@ -18,7 +18,7 @@ test('renderVaultNote genera frontmatter y enlaces', () => {
   assert.match(note, /\[\[Tasks\]\]/);
 });
 
-test('connectObsidianVault crea la estructura Harness y enlaces', () => {
+test('connectVault crea la estructura Harness y enlaces', () => {
   const temp = makeTempDir();
   try {
     const root = path.join(temp.path, 'project');
@@ -27,7 +27,7 @@ test('connectObsidianVault crea la estructura Harness y enlaces', () => {
     writeJson(path.join(root, 'package.json'), { name: 'demo-app' });
     writeFile(path.join(root, 'openspec.yaml'), 'specification: "1.0.0"\nproject: demo-app\nspecs: []\n');
 
-    const connection = connectObsidianVault(root, vault);
+    const connection = connectVault(root, vault);
 
     assert.equal(connection.vaultPath, vault);
     assert.equal(connection.harnessDir, path.join(vault, 'Harness'));
@@ -41,16 +41,16 @@ test('connectObsidianVault crea la estructura Harness y enlaces', () => {
   }
 });
 
-test('connectObsidianVault es idempotente y conserva la nota', () => {
+test('connectVault es idempotente y conserva la nota', () => {
   const temp = makeTempDir();
   try {
     const root = path.join(temp.path, 'project');
     const vault = path.join(temp.path, 'vault');
     fs.mkdirSync(root, { recursive: true });
 
-    const first = connectObsidianVault(root, vault);
+    const first = connectVault(root, vault);
     writeFile(first.notePath, 'nota editada');
-    const second = connectObsidianVault(root, vault);
+    const second = connectVault(root, vault);
 
     assert.equal(second.tasksLinkResult, 'unchanged');
     assert.equal(fs.readFileSync(second.notePath, 'utf-8'), 'nota editada');
@@ -131,7 +131,7 @@ test('appendVaultNoteEntry añade Registro a una nota existente sin sección', (
   }
 });
 
-test('connectObsidianVault sanea el nombre del proyecto', () => {
+test('connectVault sanea el nombre del proyecto', () => {
   const temp = makeTempDir();
   try {
     const root = path.join(temp.path, 'project');
@@ -139,7 +139,7 @@ test('connectObsidianVault sanea el nombre del proyecto', () => {
     fs.mkdirSync(root, { recursive: true });
     writeJson(path.join(root, 'package.json'), { name: '@scope/demo app' });
 
-    const connection = connectObsidianVault(root, vault);
+    const connection = connectVault(root, vault);
 
     assert.equal(path.basename(connection.notePath), '-scope-demo-app.md');
   } finally {

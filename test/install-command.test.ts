@@ -25,11 +25,10 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
     let saved: HarnessConfig | undefined;
     let uvInstalled = false;
     let uvCalls = 0;
-    let obsidianInstalls = 0;
 
     const config = mergeConfig(
       {
-        obsidianVaultPath: vault,
+        vaultPath: vault,
         packageManager: 'npm',
         laya: { modelDir: '/models/laya' }
       },
@@ -60,12 +59,7 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
       saveGlobalConfig: (value) => {
         saved = value;
       },
-      detectObsidian: () => ({ installed: true, method: 'binary' }),
-      installObsidian: async () => {
-        obsidianInstalls += 1;
-        return { installed: true, message: 'ok' };
-      },
-      connectObsidianVault: () => ({
+      connectVault: () => ({
         vaultPath: vault,
         harnessDir: path.join(vault, 'Harness'),
         tasksLink: path.join(vault, 'Harness', 'Tasks'),
@@ -87,7 +81,6 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
 
     await runInstall(root, { yes: true, runtime });
 
-    assert.equal(obsidianInstalls, 0, 'la app Obsidian no se instala por defecto');
     assert.equal(uvCalls, 1);
     assert.ok(calls.includes('uv tool install graphifyy'));
     assert.ok(
@@ -99,7 +92,7 @@ test('install --yes usa pnpm aunque el proyecto declare npm', async () => {
     assert.equal(calls.filter((call) => call.startsWith('pnpm add -D ')).length, 1);
     assert.equal(saved?.laya?.enabled, true);
     assert.equal(saved?.laya?.modelDir, '/models/laya');
-    assert.equal(saved?.obsidianVaultPath, vault);
+    assert.equal(saved?.vaultPath, vault);
     assert.ok(fs.existsSync(path.join(root, 'openspec.yaml')));
     assert.equal(fs.existsSync(path.join(root, '.alvaressrc.json')), false);
   } finally {
@@ -126,7 +119,7 @@ test('install --yes instala el runtime de Laya cuando no hay modelDir', async ()
         return result(0);
       },
       loadConfig: () =>
-        mergeConfig({ obsidianVaultPath: vault, validation: { maxAttempts: 1, commands: [] } }, {}),
+        mergeConfig({ vaultPath: vault, validation: { maxAttempts: 1, commands: [] } }, {}),
       getConfigPaths: () => ({
         global: path.join(temp.path, 'global.json'),
         local: path.join(root, '.alvaressrc.json')
@@ -134,9 +127,7 @@ test('install --yes instala el runtime de Laya cuando no hay modelDir', async ()
       saveGlobalConfig: (value) => {
         saved = value;
       },
-      detectObsidian: () => ({ installed: true, method: 'binary' }),
-      installObsidian: async () => ({ installed: true, message: 'ok' }),
-      connectObsidianVault: () => ({
+      connectVault: () => ({
         vaultPath: vault,
         harnessDir: path.join(vault, 'Harness'),
         tasksLink: path.join(vault, 'Harness', 'Tasks'),
@@ -164,8 +155,8 @@ test('install --yes instala el runtime de Laya cuando no hay modelDir', async ()
   }
 });
 
-test('install --with-obsidian instala la app y conecta la bóveda igualmente', async () => {
-  const temp = makeTempDir('alvaress-install-obsidian-');
+test('install conecta la bóveda y activa los hooks de Graphify', async () => {
+  const temp = makeTempDir('alvaress-install-vault-');
   try {
     const root = path.join(temp.path, 'project');
     fs.mkdirSync(root, { recursive: true });
@@ -174,7 +165,6 @@ test('install --with-obsidian instala la app y conecta la bóveda igualmente', a
     const vault = path.join(temp.path, 'vault');
 
     const calls: string[] = [];
-    let obsidianInstalls = 0;
     let vaultConnections = 0;
 
     const runtime: Partial<InstallRuntime> = {
@@ -186,18 +176,13 @@ test('install --with-obsidian instala la app y conecta la bóveda igualmente', a
         return result(0);
       },
       loadConfig: () =>
-        mergeConfig({ obsidianVaultPath: vault, laya: { enabled: false } }, {}),
+        mergeConfig({ vaultPath: vault, laya: { enabled: false } }, {}),
       getConfigPaths: () => ({
         global: path.join(temp.path, 'global.json'),
         local: path.join(root, '.alvaressrc.json')
       }),
       saveGlobalConfig: () => undefined,
-      detectObsidian: () => ({ installed: false }),
-      installObsidian: async () => {
-        obsidianInstalls += 1;
-        return { installed: true, message: 'Obsidian instalado.' };
-      },
-      connectObsidianVault: () => {
+      connectVault: () => {
         vaultConnections += 1;
         return {
           vaultPath: vault,
@@ -212,9 +197,8 @@ test('install --with-obsidian instala la app y conecta la bóveda igualmente', a
       installUv: async () => result(0)
     };
 
-    await runInstall(root, { yes: true, withObsidian: true, runtime });
+    await runInstall(root, { yes: true, runtime });
 
-    assert.equal(obsidianInstalls, 1);
     assert.equal(vaultConnections, 1);
     assert.ok(calls.includes('graphify hook install'), calls.join('\n'));
   } finally {

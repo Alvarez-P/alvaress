@@ -209,7 +209,7 @@ export function buildWorkMessage(plan: WorkPlan, options: WorkMessageOptions = {
     'Reglas:',
     '- No toques archivos fuera del alcance permitido.',
     '- No ejecutes git commit ni git push.',
-    '- No escribas en la bóveda Obsidian.',
+    '- No escribas en la bóveda.',
     ...(options.selfCheck !== undefined
       ? [
           '- Puedes ejecutar solo el autochequeo indicado, una vez. No ejecutes tests ni repitas el comando.'
@@ -258,7 +258,7 @@ export function buildFixMessage(input: FixInput, diff?: string): string {
     '- No agregues comentarios al código: cero explicaciones, separadores, TODO/FIXME o JSDoc de relleno. Conserva los comentarios existentes.',
     '- No toques tests ni archivos fuera del alcance salvo que el error lo exija.',
     '- No ejecutes git commit ni git push.',
-    '- No escribas en la bóveda Obsidian.',
+    '- No escribas en la bóveda.',
     '- Si una herramienta o comando te devuelve un error de permisos, no lo reintentes: usa otra vía o devuelve el bloqueo.'
   ].join('\n');
 }

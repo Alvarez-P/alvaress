@@ -15,7 +15,7 @@ import { makeTempDir, writeFile, writeJson } from './helpers.js';
 
 test('mergeConfig aplica precedencia local', () => {
   const globalConfig: HarnessConfigFile = {
-    obsidianVaultPath: '/global/vault',
+    vaultPath: '/global/vault',
     models: {
       orchestrator: { modelName: 'openai/global-orchestrator' },
       subagents: { modelName: 'openai/global-subagents' }
@@ -26,7 +26,7 @@ test('mergeConfig aplica precedencia local', () => {
     validation: { maxAttempts: 5, commands: ['global-command'] }
   };
   const localConfig: HarnessConfigFile = {
-    obsidianVaultPath: '/local/vault',
+    vaultPath: '/local/vault',
     models: {
       orchestrator: { modelName: 'openai/local-orchestrator' }
     },
@@ -37,7 +37,7 @@ test('mergeConfig aplica precedencia local', () => {
 
   const merged = mergeConfig(globalConfig, localConfig);
 
-  assert.equal(merged.obsidianVaultPath, '/local/vault');
+  assert.equal(merged.vaultPath, '/local/vault');
   assert.equal(merged.models.orchestrator.modelName, 'openai/local-orchestrator');
   assert.equal(merged.models.subagents.modelName, 'openai/global-subagents');
   assert.equal(merged.laya?.modelDir, 'local-model');
@@ -53,7 +53,7 @@ test('mergeConfig aplica precedencia local', () => {
 test('mergeConfig usa valores por defecto sin configuración', () => {
   const merged = mergeConfig({}, {});
 
-  assert.equal(merged.obsidianVaultPath, '');
+  assert.equal(merged.vaultPath, '');
   assert.equal(merged.models.orchestrator.modelName, '');
   assert.equal(merged.models.subagents.modelName, '');
   assert.equal(merged.worker?.timeoutMs, 600_000);
@@ -77,7 +77,7 @@ test('loadConfig lee el archivo local del proyecto', () => {
   const temp = makeTempDir();
   try {
     writeJson(path.join(temp.path, '.alvaressrc.json'), {
-      obsidianVaultPath: '/vault',
+      vaultPath: '/vault',
       models: {
         subagents: { modelName: 'openai/local-subagents' }
       },
@@ -86,7 +86,7 @@ test('loadConfig lee el archivo local del proyecto', () => {
 
     const config = loadConfig(temp.path);
 
-    assert.equal(config.obsidianVaultPath, '/vault');
+    assert.equal(config.vaultPath, '/vault');
     assert.equal(config.models.subagents.modelName, 'openai/local-subagents');
     assert.equal(config.validation.maxAttempts, 1);
     assert.deepEqual(config.validation.commands, ['true']);
@@ -113,7 +113,7 @@ test('readConfigFile rechaza JSON inválido', () => {
 test('validateConfigFile acepta la estructura completa', () => {
   const value = validateConfigFile(
     {
-      obsidianVaultPath: '/vault',
+      vaultPath: '/vault',
       laya: {
         enabled: true,
         model: 'convaiinnovations/laya',
@@ -137,7 +137,7 @@ test('validateConfigFile acepta la estructura completa', () => {
     'test'
   );
 
-  assert.equal(value.obsidianVaultPath, '/vault');
+  assert.equal(value.vaultPath, '/vault');
   assert.equal(value.laya?.modelDir, undefined);
   assert.equal(value.vitePlus?.checkCommand, 'vp check');
   assert.equal(value.worker?.timeoutMs, 60000);
@@ -146,7 +146,7 @@ test('validateConfigFile acepta la estructura completa', () => {
 
 test('validateConfigFile rechaza tipos incorrectos', () => {
   assert.throws(() => validateConfigFile([], 'test'), ConfigError);
-  assert.throws(() => validateConfigFile({ obsidianVaultPath: 42 }, 'test'), ConfigError);
+  assert.throws(() => validateConfigFile({ vaultPath: 42 }, 'test'), ConfigError);
   assert.throws(() => validateConfigFile({ models: [] }, 'test'), ConfigError);
   assert.throws(
     () => validateConfigFile({ models: { orchestrator: { modelName: 'gpt-5' } } }, 'test'),
@@ -175,10 +175,10 @@ test('toConfigFile conserva todas las claves del esquema', () => {
     'graphify',
     'laya',
     'models',
-    'obsidianVaultPath',
     'packageManager',
     'scope',
     'validation',
+    'vaultPath',
     'vitePlus',
     'worker'
   ]);
@@ -190,7 +190,7 @@ test('toConfigFile conserva todas las claves del esquema', () => {
 
 test('displayConfig conserva los modelos sin credenciales', () => {
   const config: HarnessConfig = {
-    obsidianVaultPath: '/vault',
+    vaultPath: '/vault',
     models: {
       orchestrator: { modelName: 'openai/orchestrator' },
       subagents: { modelName: 'openai/subagents' }
@@ -202,6 +202,6 @@ test('displayConfig conserva los modelos sin credenciales', () => {
 
   assert.equal(displayed.models.orchestrator.modelName, 'openai/orchestrator');
   assert.equal(displayed.models.subagents.modelName, 'openai/subagents');
-  assert.equal(displayed.obsidianVaultPath, '/vault');
+  assert.equal(displayed.vaultPath, '/vault');
 });
 

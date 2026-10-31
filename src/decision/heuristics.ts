@@ -51,7 +51,7 @@ const TRIVIAL_PATTERN =
  * prácticas que no dependen del repositorio donde se descubrieron.
  */
 const GLOBAL_LEARNING_PATTERN =
-  /\b(pnpm|npm|yarn|node|typescript|tsc|oxlint|eslint|vitest|vite|git|github|actions|ci|docker|kubernetes|postgres|sqlite|redis|migraci[oó]n|lockfile|monorepo|husky|commitlint|lint-staged|shell|bash|zsh|http|json|yaml|markdown|obsidian|graphify|opencode)\b/i;
+  /\b(pnpm|npm|yarn|node|typescript|tsc|oxlint|eslint|vitest|vite|git|github|actions|ci|docker|kubernetes|postgres|sqlite|redis|migraci[oó]n|lockfile|monorepo|husky|commitlint|lint-staged|shell|bash|zsh|http|json|yaml|markdown|vault|b[oó]veda|graphify|opencode)\b/i;
 
 /** Señales de contexto local: rutas, ids y configuración del repo. */
 const PROJECT_LEARNING_PATTERN =

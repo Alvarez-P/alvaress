@@ -71,7 +71,7 @@ export function fakeOpencode(
 
 export function baseConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    obsidianVaultPath: '/tmp/vault',
+    vaultPath: '/tmp/vault',
     laya: {
       enabled: true,
       device: 'cpu',

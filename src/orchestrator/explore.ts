@@ -13,7 +13,7 @@ import {
   taskFilePath
 } from '../openspec/manifest.js';
 import type { WorkItem } from '../openspec/types.js';
-import { getVaultNotePath } from '../obsidian/vault.js';
+import { getVaultNotePath } from '../vault/vault.js';
 import { pathExists, readTextFile } from '../utils/fs.js';
 import type { RunLog } from './run-log.js';
 
@@ -356,21 +356,21 @@ async function exploreOdd(
 ): Promise<Exploration> {
   const notePath = resolveOddNote(
     context.root,
-    context.config.obsidianVaultPath,
+    context.config.vaultPath,
     request.taskId
   );
 
   if (notePath === undefined) {
     return {
       mode: route.mode,
-      source: 'Obsidian',
+      source: 'Bóveda',
       acceptance: [request.request],
       files: request.files ?? [],
       validation: context.config.validation.commands,
       learnings: relevantLearnings(context.root, request.request, ''),
       risks: [],
       blockedBy:
-        'No se encontró la nota ODD. Configura obsidianVaultPath, crea la nota del proyecto o usa --mode sdd.'
+        'No se encontró la nota ODD. Configura vaultPath, crea la nota del proyecto o usa --mode sdd.'
     };
   }
 

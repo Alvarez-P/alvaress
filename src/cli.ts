@@ -7,7 +7,7 @@ import { runInit } from './commands/init.js';
 import { runInstall } from './commands/install.js';
 import { runLearnCommand } from './commands/learn.js';
 import { runModelsCommand } from './commands/models.js';
-import { runObsidianCommand } from './commands/obsidian.js';
+import { runVaultCommand } from './commands/vault.js';
 import { runReportCommand } from './commands/report.js';
 import { runHarnessCommand } from './commands/run.js';
 import { runRestoreCommand } from './commands/restore.js';
@@ -26,7 +26,7 @@ Uso:
   alvaress run --task TASK-01        Ejecuta una tarea SDD concreta.
   alvaress run --dry-run             Explora y muestra el plan sin invocar al worker.
   alvaress -i                        Inspecciona el log del último run (.laya/last_run.log).
-  alvaress install [--yes] [--with-obsidian]  Instalador de componentes, agente y configuración.
+  alvaress install [--yes]           Instalador de componentes, agente y configuración.
   alvaress init [--no-link]          Inicializa .harness, openspec.yaml, skills y agente del proyecto.
   alvaress apply [TASK...]           Ejecuta tareas pendientes (o las indicadas) con subagentes.
   alvaress apply --dry-run            Muestra los grupos de ejecución sin invocar al worker.
@@ -38,7 +38,7 @@ Uso:
   alvaress learn [add|list|search|...]  Guarda y reutiliza aprendizajes globales y del proyecto.
   alvaress agent [install|show]       Instala o muestra el agente orquestador alvaress y sus subagentes.
   alvaress models [show|set|configure]  Muestra o cambia los modelos de orquestador y subagentes.
-  alvaress obsidian [status|sync|note]  Consulta o actualiza la bóveda Obsidian.
+  alvaress vault [status|sync|note]     Consulta o actualiza la bóveda Markdown.
   alvaress doctor [--json]            Diagnóstico previo: configuración, herramientas, grafo y lock.
   alvaress report [latest|list|show]  Reportes de ejecución de .harness/runs.
   alvaress restore [latest|<id>]      Restaura openspec.yaml desde .harness/backups.
@@ -94,10 +94,8 @@ export async function runCli(argv: string[]): Promise<void> {
     }
     case 'install': {
       const { flags } = parseArgs(rest);
-      const withObsidian = flagEnabled(flags, 'with-obsidian') ? true : undefined;
       await runInstall(process.cwd(), {
-        yes: flagEnabled(flags, 'yes') || flagEnabled(flags, 'y'),
-        withObsidian
+        yes: flagEnabled(flags, 'yes') || flagEnabled(flags, 'y')
       });
       return;
     }
@@ -116,8 +114,8 @@ export async function runCli(argv: string[]): Promise<void> {
       for (const file of report.agent.subagents) {
         logger.success(`Subagente instalado en ${file}`);
       }
-      if (report.obsidian !== undefined) {
-        logger.success(`Bóveda Obsidian conectada en ${report.obsidian.harnessDir}`);
+      if (report.vault !== undefined) {
+        logger.success(`Bóveda conectada en ${report.vault.harnessDir}`);
       }
       return;
     }
@@ -197,8 +195,8 @@ export async function runCli(argv: string[]): Promise<void> {
       await runModelsCommand(rest, process.cwd());
       return;
     }
-    case 'obsidian': {
-      runObsidianCommand(rest, process.cwd());
+    case 'vault': {
+      runVaultCommand(rest, process.cwd());
       return;
     }
     case 'config': {

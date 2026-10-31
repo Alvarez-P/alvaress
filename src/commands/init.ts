@@ -2,8 +2,8 @@ import path from 'node:path';
 import { installAgent } from '../agent/installer.js';
 import type { AgentInstallReport } from '../agent/installer.js';
 import { loadConfig } from '../config/loader.js';
-import { connectObsidianVault } from '../obsidian/vault.js';
-import type { VaultConnection } from '../obsidian/vault.js';
+import { connectVault } from '../vault/vault.js';
+import type { VaultConnection } from '../vault/vault.js';
 import { getManifestPath, ensureHarnessDirs, inferProjectName, loadManifest, scaffoldManifest } from '../openspec/manifest.js';
 import { installSkills } from '../skills/installer.js';
 import type { SkillInstallReport } from '../skills/installer.js';
@@ -17,7 +17,7 @@ export interface InitReport {
   manifestCreated: boolean;
   skills: SkillInstallReport;
   agent: AgentInstallReport;
-  obsidian?: VaultConnection;
+  vault?: VaultConnection;
 }
 
 export interface InitOptions {
@@ -46,10 +46,10 @@ export function runInit(root: string = process.cwd(), options: InitOptions = {})
     }
   });
 
-  const vaultPath = config.obsidianVaultPath.trim();
-  const obsidian =
+  const vaultPath = config.vaultPath.trim();
+  const vault =
     vaultPath.length > 0
-      ? connectObsidianVault(root, path.resolve(root, expandHome(vaultPath)))
+      ? connectVault(root, path.resolve(root, expandHome(vaultPath)))
       : undefined;
 
   return {
@@ -59,6 +59,6 @@ export function runInit(root: string = process.cwd(), options: InitOptions = {})
     manifestCreated,
     skills,
     agent,
-    obsidian
+    vault
   };
 }

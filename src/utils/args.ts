@@ -20,7 +20,6 @@ const BOOLEAN_FLAGS = new Set([
   'direct',
   'keep',
   'inspect-last-run',
-  'with-obsidian',
   'yes',
   'json',
   'no-install'

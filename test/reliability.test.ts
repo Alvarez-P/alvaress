@@ -6,7 +6,7 @@ import path from 'node:path';
 import { installAgent, renderSubagent, SUBAGENTS } from '../src/agent/installer.js';
 import { runArchiveCommand } from '../src/commands/archive.js';
 import { runDoctor, runDoctorCommand } from '../src/commands/doctor.js';
-import { runObsidianCommand } from '../src/commands/obsidian.js';
+import { runVaultCommand } from '../src/commands/vault.js';
 import { mergeConfig } from '../src/config/loader.js';
 import { loadManifest, saveManifest, scaffoldManifest } from '../src/openspec/manifest.js';
 import { applyTasks } from '../src/orchestrator/apply.js';
@@ -248,7 +248,7 @@ test('doctor detecta configuración, gestor y grafo', () => {
   try {
     const checks = runDoctor(root, {
       config: mergeConfig(
-        { obsidianVaultPath: '', validation: { maxAttempts: 1, commands: ['true'] } },
+        { vaultPath: '', validation: { maxAttempts: 1, commands: ['true'] } },
         {}
       ),
       commandExists: () => true,
@@ -268,7 +268,7 @@ test('doctor detecta configuración, gestor y grafo', () => {
 
     const lines: string[] = [];
     const code = runDoctorCommand(['--json'], root, {
-      config: mergeConfig({ obsidianVaultPath: '' }, {}),
+      config: mergeConfig({ vaultPath: '' }, {}),
       layaAvailable: true,
       vitePlusAvailable: true,
       agentDirs: [],
@@ -294,7 +294,7 @@ test('doctor valida modelos y frontmatter del agente', () => {
     );
     const config = mergeConfig(
       {
-        obsidianVaultPath: '',
+        vaultPath: '',
         models: {
           orchestrator: { modelName: 'openai/gpt-5' },
           subagents: { modelName: 'openai/gpt-5-mini' }
@@ -345,7 +345,7 @@ test('doctor marca modelos sin provider/model y frontmatter desactualizado', () 
     );
     const config = mergeConfig(
       {
-        obsidianVaultPath: '',
+        vaultPath: '',
         models: {
           orchestrator: { modelName: 'gpt-5' },
           subagents: { modelName: 'gpt-5-mini' }
@@ -387,7 +387,7 @@ test('doctor avisa cuando Laya o Vite-Plus faltan sin romper el diagnóstico', (
   try {
     const checks = runDoctor(root, {
       config: mergeConfig(
-        { obsidianVaultPath: '', validation: { maxAttempts: 1, commands: ['true'] } },
+        { vaultPath: '', validation: { maxAttempts: 1, commands: ['true'] } },
         {}
       ),
       commandExists: () => true,
@@ -407,8 +407,8 @@ test('doctor avisa cuando Laya o Vite-Plus faltan sin romper el diagnóstico', (
   }
 });
 
-test('obsidian note --from-run deriva el cierre del reporte y redacta secretos', () => {
-  const temp = makeTempDir('alvaress-obsidian-run-');
+test('vault note --from-run deriva el cierre del reporte y redacta secretos', () => {
+  const temp = makeTempDir('alvaress-vault-run-');
   const root = path.join(temp.path, 'project');
   const vault = path.join(temp.path, 'vault');
   fs.mkdirSync(root, { recursive: true });
@@ -417,7 +417,7 @@ test('obsidian note --from-run deriva el cierre del reporte y redacta secretos',
     path.join(root, 'openspec.yaml'),
     'specification: "1.0.0"\nproject: demo-app\nspecs: []\n'
   );
-  const config = mergeConfig({ obsidianVaultPath: vault }, {});
+  const config = mergeConfig({ vaultPath: vault }, {});
   try {
     const report = createRunReport(
       newRunReportId(new Date('2026-02-03T04:05:06.007Z')),
@@ -436,7 +436,7 @@ test('obsidian note --from-run deriva el cierre del reporte y redacta secretos',
     );
     writeRunReport(root, report);
 
-    runObsidianCommand(['note', '--from-run', 'latest', '--task', 'TASK-01'], root, {
+    runVaultCommand(['note', '--from-run', 'latest', '--task', 'TASK-01'], root, {
       config,
       stdout: () => undefined
     });

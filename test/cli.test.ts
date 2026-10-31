@@ -66,6 +66,16 @@ test('--version y --help', () => {
   assert.match(help.stdout, /alvaress apply/);
 });
 
+test('vault reemplaza al antiguo comando obsidian', () => {
+  const vault = runCli(['vault', '--help']);
+  assert.equal(vault.status, 0);
+  assert.match(vault.stdout, /alvaress vault status/);
+
+  const retired = runCli(['obsidian', 'status']);
+  assert.equal(retired.status, 1);
+  assert.match(retired.stderr, /Comando desconocido/);
+});
+
 test('comando desconocido termina con código 1', () => {
   const result = runCli(['no-existe']);
   assert.equal(result.status, 1);
@@ -93,7 +103,7 @@ test('init crea el manifiesto y las skills sin enlaces globales', () => {
   }
 });
 
-test('init conecta la bóveda Obsidian configurada', () => {
+test('init conecta la bóveda configurada', () => {
   const temp = makeTempDir('harness-init-vault-');
   const home = path.join(temp.path, 'home');
   const root = path.join(temp.path, 'project');
@@ -101,12 +111,12 @@ test('init conecta la bóveda Obsidian configurada', () => {
   fs.mkdirSync(home);
   fs.mkdirSync(root);
   writeJson(path.join(root, 'package.json'), { name: 'demo-app' });
-  writeJson(path.join(root, '.alvaressrc.json'), baseConfig({ obsidianVaultPath: vault }));
+  writeJson(path.join(root, '.alvaressrc.json'), baseConfig({ vaultPath: vault }));
 
   try {
     const result = runCli(['init', '--no-link'], { cwd: root, home });
     assert.equal(result.status, 0);
-    assert.match(result.stdout, /Bóveda Obsidian conectada/);
+    assert.match(result.stdout, /Bóveda conectada/);
     assert.ok(fs.lstatSync(path.join(vault, 'Harness', 'Tasks')).isSymbolicLink());
     assert.ok(fs.existsSync(path.join(vault, 'Harness', 'demo-app.md')));
     assert.ok(fs.existsSync(path.join(vault, 'Harness', 'openspec.yaml')));
@@ -226,7 +236,7 @@ test('doctor informa del estado y devuelve JSON', () => {
   const home = path.join(temp.path, 'home');
   fs.mkdirSync(home);
   const root = project();
-  writeJson(path.join(root, '.alvaressrc.json'), baseConfig({ obsidianVaultPath: '' }));
+  writeJson(path.join(root, '.alvaressrc.json'), baseConfig({ vaultPath: '' }));
 
   try {
     const result = runCli(['doctor', '--json'], { cwd: root, home });

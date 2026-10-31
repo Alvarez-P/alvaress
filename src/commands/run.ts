@@ -41,7 +41,7 @@ import {
   rebuildPlaybook,
   recordScopedLearningUse
 } from '../memory/learnings.js';
-import { appendVaultNoteEntry, connectObsidianVault, getVaultNotePath } from '../obsidian/vault.js';
+import { appendVaultNoteEntry, connectVault, getVaultNotePath } from '../vault/vault.js';
 import {
   inferProjectName,
   loadManifest,
@@ -126,12 +126,12 @@ function parseMode(value: string | undefined): 'auto' | RunMode {
 }
 
 function effectiveVault(config: HarnessConfig, root: string): string {
-  const configured = config.obsidianVaultPath.trim();
+  const configured = config.vaultPath.trim();
   return configured.length > 0 ? path.resolve(root, expandHome(configured)) : '';
 }
 
 function withVault(config: HarnessConfig, root: string): HarnessConfig {
-  return { ...config, obsidianVaultPath: effectiveVault(config, root) };
+  return { ...config, vaultPath: effectiveVault(config, root) };
 }
 
 function validationSummary(validation: ValidationResult): string {
@@ -209,7 +209,7 @@ function writeHalt(
   return target;
 }
 
-function closeObsidian(
+function closeVault(
   root: string,
   config: HarnessConfig,
   entry: {
@@ -220,12 +220,12 @@ function closeObsidian(
     next?: string;
   }
 ): string | undefined {
-  const vault = config.obsidianVaultPath.trim();
+  const vault = config.vaultPath.trim();
   if (vault.length === 0) {
     return undefined;
   }
 
-  connectObsidianVault(root, vault);
+  connectVault(root, vault);
   const notePath = getVaultNotePath(vault, inferProjectName(root));
   appendVaultNoteEntry(notePath, {
     ...entry,
@@ -244,7 +244,7 @@ function markOddDone(
   taskId: string | undefined,
   acceptance: string[]
 ): string | undefined {
-  const notePath = resolveOddNote(root, config.obsidianVaultPath, taskId);
+  const notePath = resolveOddNote(root, config.vaultPath, taskId);
   if (notePath === undefined) {
     return undefined;
   }
@@ -319,7 +319,7 @@ function printDryRun(
       ? exploration.risks.map((risk) => `- ${risk.title}`)
       : ['- (ninguno)']),
     '',
-    'No se invocó al worker, no se hizo commit y no se escribió en Obsidian.'
+    'No se invocó al worker, no se hizo commit y no se escribió en la bóveda.'
   ];
   stream.write(`${lines.join('\n')}\n`);
 }
@@ -704,7 +704,7 @@ export async function runHarnessCommand(
         }
 
         try {
-          const note = closeObsidian(root, config, {
+          const note = closeVault(root, config, {
             summary: `${input.mode.toUpperCase()} ${runId}: ${changesSummary(input.changes)}`,
             ...(effectiveTaskId !== undefined ? { task: effectiveTaskId } : {}),
             validation: validationSummary(input.validation) || 'sin comandos',
@@ -712,11 +712,11 @@ export async function runHarnessCommand(
             next: 'Sin pendientes.'
           });
           if (note !== undefined) {
-            log.text('Obsidian', note);
+            log.text('Bóveda', note);
           }
         } catch (error) {
           risks.push({
-            title: `No se pudo cerrar la nota de Obsidian: ${errorMessage(error)}`,
+            title: `No se pudo cerrar la nota de la bóveda: ${errorMessage(error)}`,
             source: 'harness',
             severity: 'low'
           });
@@ -822,7 +822,7 @@ export async function runHarnessCommand(
         }
 
         try {
-          closeObsidian(root, config, {
+          closeVault(root, config, {
             summary: `HALTED ${reason.code}: ${reason.message}`,
             ...(effectiveTaskId !== undefined ? { task: effectiveTaskId } : {}),
             ...(reason.detail !== undefined ? { risks: reason.detail } : {}),
