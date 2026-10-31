@@ -160,8 +160,8 @@ Implementaciones:
 
 ## Skills
 
-El instalador escribe quince skills y las enlaza en las rutas de OpenCode y
-Claude:
+El instalador escribe quince skills y las enlaza solo en la ruta de OpenCode
+(`~/.config/opencode/skills`):
 
 | Skill | Propósito |
 | --- | --- |

@@ -6,7 +6,12 @@ ejecuta con subagentes de código inspirados en el ciclo de
 [Aider](https://aider.chat) y valida cada cambio con
 [Vite-Plus](https://vite.plus) antes de cerrar una tarea.
 
-`alvaress` no reemplaza a tu agente: le da un entorno de trabajo ordenado.
+Es una herramienta independiente, al estilo de un instalador de agente: no se
+integra con Claude Code ni con otros asistentes, y no escribe en sus carpetas
+(`~/.claude`, etc.). La idea es tener un agente propio en OpenCode para trabajar
+con modelos baratos: cuando quieres esa ruta, abres OpenCode y eliges el agente
+**`alvaress`**; el resto de tus herramientas sigue intacto.
+
 Instala un agente de OpenCode llamado **`alvaress`**, sus skills y la
 configuración necesaria para trabajar con [OpenSpec](https://github.com/Fission-AI/OpenSpec),
 [Obsidian](https://obsidian.md) y [Graphify](https://github.com/Graphify-Labs/graphify).
@@ -394,7 +399,6 @@ no hay credenciales en el archivo porque las maneja OpenCode.
 | `vitePlus.testCommand` | `string` | `"vp test"` | Comando de pruebas. |
 | `vitePlus.fallbackToPackageManager` | `boolean` | `true` | Se acepta por compatibilidad. La resolución actual de comandos ya usa el gestor configurado. |
 | `worker.timeoutMs` | `integer >= 1000` | `600000` | Timeout de cada invocación a un subagente (10 min por defecto). |
-| `worker.backend` | `"opencode" \| "claude"` | `"opencode"` | Cómo se invocan los subagentes: `opencode run` o `claude -p` (Claude Code, con tu suscripción o `ANTHROPIC_API_KEY`). Con `claude`, `models.subagents` acepta `anthropic/<id>` o un alias (`haiku`, `sonnet`). |
 | `worker.selfCheck` | `boolean` | `false` | Permite al `alvaress-implementer` un autochequeo rápido (tipos/lint) antes de terminar. Equivale a `--self-check`. |
 | `models.orchestrator.modelName` | `string` | vacío = heredar el de OpenCode | Modelo `provider/model` del agente orquestador. Se escribe en el frontmatter del agente instalado. |
 | `models.subagents.modelName` | `string` | vacío = heredar el del orquestador | Modelo `provider/model` de los diez subagentes. Se escribe en cada frontmatter. |
@@ -532,35 +536,18 @@ Los números de esta tabla son de una máquina y un modelo concretos, no una
 garantía, y se midieron antes del diff en dos niveles, las sesiones por
 especialista y el recorte de briefs.
 
-#### Resultados con modelos de Anthropic (2026-10-30)
+#### Qué se aprendió de las mediciones
 
-51 corridas sobre los tres fixtures, con `claude -p` y la suscripción de Claude.
-El costo es el equivalente en API que reporta Claude Code; con suscripción se
-traduce en consumo de los límites del plan. Promedio por corrida:
-
-| Variante | Ready | Salida (tokens) | Costo | Tiempo |
-| --- | ---: | ---: | ---: | ---: |
-| Claude Code solo, Opus | 9/9 | 830-2 794 | $0,082-0,153 | 11-33 s |
-| Claude Code solo, Haiku | 9/9 | 1 478-3 392 | $0,0029-0,0045 | 11-18 s |
-| alvaress, Haiku | 9/9 | 818-4 112 | $0,0024-0,0051 | 8-21 s |
-| alvaress, Haiku, `--effort low` | 9/9 | 593-3 209 | $0,0021-0,0045 | 7-17 s |
-| alvaress, Haiku, `--self-check` (`medium-cart`) | 3/3 | 4 090 | $0,0052 | 23 s |
-| alvaress, Haiku, `architect,tester,reviewer` | 6/6 | 7 970-14 403 | $0,013-0,019 | 48-75 s |
-
-Lectura:
-
-- **El ahorro grande viene del modelo, no del arnés.** Opus cuesta 30-35× más
-  que Haiku por tarea con el mismo resultado. Por eso Opus orquesta y Haiku
-  ejecuta.
-- **El arnés no encarece.** Con el mismo modelo, alvaress cuesta lo mismo que
-  Claude Code solo (±15 %) y añade alcance cerrado, auditoría, validación
-  determinista y commit controlado.
+- **El ahorro grande viene del modelo, no del arnés.** Un modelo barato de
+  subagentes resuelve las tareas acotadas con el mismo resultado que uno caro;
+  alvaress existe para que ese modelo barato trabaje con alcance cerrado,
+  auditoría, validación determinista y commit controlado.
 - **Los especialistas no se pagaron** en tareas acotadas (3,6-5,4× costo, 4-6×
   tiempo, mismo resultado): en ODD solo entran en cambios grandes.
-- **`--self-check` no ahorró** porque Haiku no necesitó reparaciones; sigue
-  apagado por defecto.
-- **Límite:** los fixtures son fáciles (0 reparaciones en 51 corridas), así que
-  no miden el ciclo de reparación ni tareas ambiguas.
+- **`--self-check` no ahorró** porque no hubo reparaciones; sigue apagado por
+  defecto.
+- **Límite:** los fixtures son fáciles, así que no miden el ciclo de reparación
+  ni tareas ambiguas.
 
 #### Correr el benchmark
 
@@ -576,8 +563,6 @@ pnpm bench --fixture medium-cart --repeat 3  # promedia tres corridas
 pnpm bench --model openai/gpt-5-mini         # cambia el modelo de subagentes
 pnpm bench --roles architect,reviewer        # mide el costo de especialistas
 pnpm bench --self-check                      # compara con autochequeo
-pnpm bench --backend claude --model haiku    # subagentes con claude -p
-pnpm bench --direct --model opus             # línea base: Claude Code solo
 ```
 
 Requiere `opencode` en el `PATH` y los subagentes instalados
@@ -588,8 +573,8 @@ entrada/salida/caché, reparaciones y tiempo, y guarda el detalle en
 ### Skills
 
 El instalador escribe quince skills en `.harness/skills/<nombre>/SKILL.md` y
-crea enlaces en `~/.config/opencode/skills/<nombre>` y
-`~/.claude/skills/<nombre>`:
+crea enlaces en `~/.config/opencode/skills/<nombre>`. No toca la configuración
+de otros agentes (`~/.claude`, `~/.codex`…):
 
 | Skill | Qué hace |
 | --- | --- |

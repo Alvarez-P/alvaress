@@ -1,7 +1,7 @@
 {
   "name": "alvaress",
   "version": "0.2.0",
-  "description": "Arnés híbrido SDD/ODD con Laya local (ONNX), subagentes especializados, Vite-Plus, OpenSpec, Obsidian y Graphify para OpenCode y Claude",
+  "description": "Agente independiente para OpenCode: arnés SDD/ODD con Laya local (ONNX), subagentes baratos, Vite-Plus, OpenSpec, Obsidian y Graphify",
   "author": "alvaress contributors",
   "type": "module",
   "packageManager": "pnpm@12.14.0",
@@ -54,7 +54,6 @@
     "code-review",
     "vite-plus",
     "opencode",
-    "claude",
     "sdd",
     "odd",
     "agents",

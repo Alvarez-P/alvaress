@@ -71,19 +71,6 @@ antes y después con snapshots SHA-1 y deriva `changes` y `risks` de ese diff. E
 subagente devuelve un resumen corto para el log, pero la fuente de verdad del
 resultado es el diff.
 
-### Backend de Claude Code
-
-Con `worker.backend: "claude"`, el worker invoca `claude -p` en lugar de
-`opencode run`: funciona con la suscripción de Claude o con
-`ANTHROPIC_API_KEY`. Reutiliza el cuerpo de cada subagente como
-`--append-system-prompt` y traduce sus permisos de OpenCode: herramientas
-(`--tools`), comandos permitidos (`Bash(git diff *)`…), denegaciones de secretos
-y comandos peligrosos, y `--permission-mode dontAsk` para que nada fuera de la
-lista se ejecute. El autochequeo y el comando fallido se permiten de forma
-explícita al implementer y al fixer. `--setting-sources project,local` evita
-cargar hooks y permisos del usuario. Cada sesión de alvaress se convierte en un
-UUID estable: la primera llamada usa `--session-id` y las siguientes `--resume`.
-
 El estado del árbol de trabajo se envía en dos niveles para ahorrar tokens: el
 implementer y los especialistas previos reciben `git diff --stat`; el reviewer y
 el fixer, el diff completo (máx. 8 000 caracteres). Ambos incluyen los archivos
@@ -101,13 +88,8 @@ Con `--self-check` (o `worker.selfCheck: true`), el `alvaress-implementer` (no l
 variante lite) puede ejecutar una vez el primer comando rápido de la validación
 (`vp check`, `tsc`, `oxlint` o `eslint`) antes de terminar. Está desactivado por
 defecto: solo compensa si el implementer suele dejar errores de tipos. En el
-benchmark (0 reparaciones en 51 corridas con Haiku) no ahorró nada y sumó ~2 %
+benchmark (0 reparaciones en 51 corridas) no ahorró nada y sumó ~2 %
 de costo. El log registra el comando usado.
-
-Con el backend `claude`, el implementer y los especialistas usan
-`--effort low` y el fixer `--effort medium`: con Haiku, más de la mitad de la
-salida del implementer era razonamiento, y `low` la recortó un 27 % sin perder
-corridas.
 
 ## Flujo de especialistas
 
