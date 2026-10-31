@@ -40,10 +40,6 @@ export interface VitePlusConfig {
   fallbackToPackageManager: boolean;
 }
 
-export type WorkerBackend = 'opencode' | 'claude';
-
-const WORKER_BACKENDS: readonly WorkerBackend[] = ['opencode', 'claude'];
-
 export interface HarnessConfig {
   obsidianVaultPath: string;
   packageManager?: PackageManager;
@@ -56,7 +52,6 @@ export interface HarnessConfig {
   worker?: {
     timeoutMs?: number;
     selfCheck?: boolean;
-    backend?: WorkerBackend;
   };
   models: {
     orchestrator: ModelSelection;
@@ -92,7 +87,6 @@ export interface HarnessConfigFile {
   worker?: {
     timeoutMs?: number;
     selfCheck?: boolean;
-    backend?: WorkerBackend;
   };
   models?: {
     orchestrator?: Partial<ModelSelection>;
@@ -217,14 +211,6 @@ export function validateConfigFile(value: unknown, source: string): HarnessConfi
     }
     assertPositiveInteger(value.worker.timeoutMs, 'worker.timeoutMs', source, 1000);
     assertBoolean(value.worker.selfCheck, 'worker.selfCheck', source);
-    if (
-      value.worker.backend !== undefined &&
-      !WORKER_BACKENDS.includes(value.worker.backend as WorkerBackend)
-    ) {
-      throw new ConfigError(
-        `El campo "worker.backend" debe ser ${WORKER_BACKENDS.join(' o ')} en ${source}.`
-      );
-    }
   }
 
   if (value.models !== undefined) {
@@ -318,8 +304,7 @@ export function mergeConfig(globalConfig: HarnessConfigFile, localConfig: Harnes
         localConfig.worker?.timeoutMs ??
         globalConfig.worker?.timeoutMs ??
         DEFAULT_WORKER_TIMEOUT_MS,
-      selfCheck: localConfig.worker?.selfCheck ?? globalConfig.worker?.selfCheck ?? false,
-      backend: localConfig.worker?.backend ?? globalConfig.worker?.backend ?? 'opencode'
+      selfCheck: localConfig.worker?.selfCheck ?? globalConfig.worker?.selfCheck ?? false
     },
     models: {
       orchestrator: {
@@ -374,8 +359,7 @@ export function toConfigFile(config: HarnessConfig): HarnessConfigFile {
     },
     worker: {
       timeoutMs: config.worker?.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
-      ...(config.worker?.selfCheck !== undefined ? { selfCheck: config.worker.selfCheck } : {}),
-      ...(config.worker?.backend !== undefined ? { backend: config.worker.backend } : {})
+      ...(config.worker?.selfCheck !== undefined ? { selfCheck: config.worker.selfCheck } : {})
     },
     models: {
       orchestrator: {

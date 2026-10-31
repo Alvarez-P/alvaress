@@ -19,13 +19,6 @@ import type {
 import { heuristicVerdict } from '../decision/heuristics.js';
 import { runCommand } from '../utils/process.js';
 import type { CommandResult, RunOptions } from '../utils/process.js';
-import {
-  claudeArgs,
-  claudeModel,
-  claudeSessionUuid,
-  parseClaudeOutput,
-  subagentDefinition
-} from './claude-backend.js';
 import { auditWorkspace, snapshotFileContents } from './audit.js';
 import type { FileContents } from './audit.js';
 import { diffSnapshots, scopeRisks, snapshotWorkspace } from './diff.js';
@@ -376,7 +369,6 @@ export class SubagentWorker implements Worker {
   private auditBaseline: FileContents | undefined;
   private allowDocs = false;
   private readonly ledger = new UsageLedger();
-  private readonly claudeSessions = new Set<string>();
 
   constructor(options: WorkerOptions) {
     this.root = options.root;
@@ -410,8 +402,7 @@ export class SubagentWorker implements Worker {
       }),
       plan.files,
       'subagente',
-      plan.runId,
-      selfCheck !== undefined ? [selfCheck] : []
+      plan.runId
     );
   }
 
@@ -419,13 +410,11 @@ export class SubagentWorker implements Worker {
     this.auditBaseline ??= snapshotFileContents(this.root, input.files);
     const before = snapshotWorkspace(this.root, input.files);
     const diff = await workingTreeDiff(this.root, input.files);
-    const failed = input.failure.commands.find((command) => command.code !== 0)?.command;
     const { result: run } = await this.runSubagent(
       FIXER_AGENT,
       buildFixMessage(input, diff),
       subagentSessionId(input.runId),
-      'reparación',
-      failed !== undefined ? [failed] : []
+      'reparación'
     );
     const after = snapshotWorkspace(this.root, input.files);
     const changes = diffSnapshots(before, after, 'El subagente');
@@ -476,16 +465,14 @@ export class SubagentWorker implements Worker {
     message: string,
     files: string[],
     label: string,
-    runId: string,
-    extraCommands: string[] = []
+    runId: string
   ): Promise<WorkResult> {
     const before = snapshotWorkspace(this.root, files);
     const { result: run } = await this.runSubagent(
       agent,
       message,
       subagentSessionId(runId),
-      'implementación',
-      extraCommands
+      'implementación'
     );
     const after = snapshotWorkspace(this.root, files);
     const changes = diffSnapshots(before, after, 'El subagente');
@@ -507,14 +494,9 @@ export class SubagentWorker implements Worker {
     agent: string,
     message: string,
     session: string,
-    phase: UsagePhase,
-    extraCommands: string[] = []
+    phase: UsagePhase
   ): Promise<{ result: CommandResult; text: string }> {
-    const backend = this.config.worker?.backend ?? 'opencode';
-    const { result, output } =
-      backend === 'claude'
-        ? await this.runClaude(agent, message, session, extraCommands)
-        : await this.runOpenCode(agent, message, session);
+    const { result, output } = await this.runOpenCode(agent, message, session);
     this.ledger.add(phase, output.usage);
     this.log?.line(`prompt: ${message.length} caracteres`);
     this.log?.line(`tokens (${phase}): ${formatUsage(output.usage)}`);
@@ -564,33 +546,6 @@ export class SubagentWorker implements Worker {
       result
     );
     return { result, output: parseOpencodeOutput(result.stdout) };
-  }
-
-  private async runClaude(
-    agent: string,
-    message: string,
-    session: string,
-    extraCommands: string[]
-  ): Promise<{ result: CommandResult; output: OpencodeOutput }> {
-    const { model, fallback } = claudeModel(this.config.models.subagents.modelName);
-    if (fallback) {
-      this.log?.line(
-        `modelo: ${this.config.models.subagents.modelName} no es de Anthropic; el backend claude usa ${model}`
-      );
-    }
-    const sessionUuid = claudeSessionUuid(session);
-    const resume = this.claudeSessions.has(sessionUuid);
-    this.claudeSessions.add(sessionUuid);
-    const result = await runCommand(
-      'claude',
-      claudeArgs(subagentDefinition(agent), message, { model, sessionUuid, resume, extraCommands }),
-      this.commandOptions()
-    );
-    this.log?.command(
-      `claude -p (${agent}) --model ${model} ${resume ? '--resume' : '--session-id'} ${sessionUuid}`,
-      result
-    );
-    return { result, output: parseClaudeOutput(result.stdout) };
   }
 }
 

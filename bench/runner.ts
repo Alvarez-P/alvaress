@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { subagentFilePath } from '../src/agent/installer.js';
 import { loadConfig } from '../src/config/loader.js';
-import type { HarnessConfig, WorkerBackend } from '../src/config/loader.js';
+import type { HarnessConfig } from '../src/config/loader.js';
 import { getGlobalOpencodeAgentsDir } from '../src/constants.js';
 import type {
   Complexity,
@@ -20,19 +20,15 @@ import type {
 } from '../src/core/contracts.js';
 import { HarnessCore, firstFailure } from '../src/core/harness.js';
 import { HeuristicDecisionEngine } from '../src/decision/heuristics.js';
-import { parseClaudeOutput } from '../src/orchestrator/claude-backend.js';
 import { RunLog } from '../src/orchestrator/run-log.js';
 import { CommandValidator } from '../src/orchestrator/validator.js';
 import { SubagentWorker } from '../src/orchestrator/workers.js';
-import { runCommand } from '../src/utils/process.js';
 
 const BENCH_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(BENCH_DIR, '..');
 export const FIXTURES_DIR = path.join(BENCH_DIR, 'fixtures');
 const TSC_BIN = path.join(REPO_ROOT, 'node_modules', '.bin', 'tsc');
 const REQUIRED_AGENTS = ['alvaress-implementer', 'alvaress-implementer-lite', 'alvaress-fixer'];
-const DIRECT_TIMEOUT_MS = 15 * 60 * 1000;
-const DIRECT_TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'];
 
 export interface FixtureTask {
   request: string;
@@ -44,7 +40,6 @@ export interface FixtureTask {
 
 export interface BenchOptions {
   model?: string;
-  backend?: WorkerBackend;
   roles: SpecialistRole[];
   selfCheck: boolean;
   env?: NodeJS.ProcessEnv;
@@ -77,15 +72,7 @@ export function readTask(fixture: string): FixtureTask {
 }
 
 /** Comprueba lo que el benchmark necesita fuera del repo antes de gastar tokens. */
-export function preflight(backend: WorkerBackend = 'opencode', env: NodeJS.ProcessEnv = process.env): string[] {
-  if (backend === 'claude') {
-    try {
-      execFileSync('claude', ['--version'], { env, stdio: 'ignore' });
-      return [];
-    } catch {
-      return ['No se encontró "claude" en el PATH.'];
-    }
-  }
+export function preflight(env: NodeJS.ProcessEnv = process.env): string[] {
   const problems: string[] = [];
   try {
     execFileSync('opencode', ['--version'], { env, stdio: 'ignore' });
@@ -123,11 +110,7 @@ function benchConfig(workdir: string, options: BenchOptions): HarnessConfig {
   const base = loadConfig(workdir);
   return {
     ...base,
-    worker: {
-      ...base.worker,
-      selfCheck: options.selfCheck,
-      ...(options.backend !== undefined ? { backend: options.backend } : {})
-    },
+    worker: { ...base.worker, selfCheck: options.selfCheck },
     models: {
       ...base.models,
       subagents: { modelName: options.model ?? base.models.subagents.modelName }
@@ -232,83 +215,6 @@ export async function runFixture(fixture: string, options: BenchOptions): Promis
       auditFindings: result.risks.filter((risk) => risk.source === 'audit').length,
       usage,
       ...(result.halt !== undefined ? { halt: result.halt.message } : {}),
-      ...(options.keep === true ? { workdir } : {})
-    };
-  } finally {
-    if (options.keep !== true) {
-      fs.rmSync(workdir, { recursive: true, force: true });
-    }
-  }
-}
-
-function directPrompt(task: FixtureTask): string {
-  return [
-    task.request,
-    '',
-    'Criterios de aceptación:',
-    ...task.acceptance.map((item) => `- ${item}`),
-    '',
-    `Archivos que puedes modificar: ${task.files.join(', ')}.`,
-    'Validación (debe pasar al terminar):',
-    ...task.validation.map((command) => `- ${command}`),
-    '',
-    'No modifiques los tests. No agregues comentarios al código. No hagas commit.'
-  ].join('\n');
-}
-
-/**
- * Línea base sin alvaress: Claude Code resuelve la tarea solo, con el modelo
- * indicado, y valida por su cuenta. Después se valida igual que en el arnés.
- */
-export async function runDirect(fixture: string, options: BenchOptions): Promise<BenchResult> {
-  const task = readTask(fixture);
-  const workdir = prepareWorkdir(fixture);
-  const started = Date.now();
-  try {
-    const run = await runCommand(
-      'claude',
-      [
-        '-p',
-        directPrompt(task),
-        '--output-format',
-        'json',
-        '--model',
-        options.model ?? 'opus',
-        '--permission-mode',
-        'dontAsk',
-        '--setting-sources',
-        'project,local',
-        '--no-session-persistence',
-        '--tools',
-        ...DIRECT_TOOLS,
-        '--allowedTools',
-        ...DIRECT_TOOLS.filter((tool) => tool !== 'Bash'),
-        ...task.validation.map((command) => `Bash(${command})`)
-      ],
-      {
-        cwd: workdir,
-        env: options.env ?? process.env,
-        timeout: DIRECT_TIMEOUT_MS,
-        maxBuffer: 8 * 1024 * 1024
-      }
-    );
-    const output = parseClaudeOutput(run.stdout);
-    const config = loadConfig(workdir);
-    const validation = await new CommandValidator({
-      root: workdir,
-      config,
-      commands: task.validation,
-      ...(options.env !== undefined ? { env: options.env } : {})
-    }).validate();
-    const ready = run.code === 0 && output.error === undefined && validation.ok;
-    return {
-      fixture,
-      state: ready ? 'Ready' : 'Halted',
-      durationMs: Date.now() - started,
-      fixes: 0,
-      auditFindings: 0,
-      usage: { phases: { 'implementación': output.usage }, total: output.usage },
-      ...(ready ? {} : { halt: output.error ?? failureText(validation) }),
       ...(options.keep === true ? { workdir } : {})
     };
   } finally {
