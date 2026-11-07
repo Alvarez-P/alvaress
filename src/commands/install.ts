@@ -60,7 +60,6 @@ interface ChecklistEntry {
   components: Component[];
   label: string;
   hint: string;
-  required: boolean;
 }
 
 const SUBAGENT_ROLES = SUBAGENTS.map(({ name }) => name.replace(/^alvaress-/, '')).join(', ');
@@ -72,44 +71,38 @@ const CHECKLIST: ChecklistEntry[] = [
   {
     id: 'laya',
     components: ['laya'],
-    label: '🧠 Laya',
-    hint: `decisión local · ONNX Runtime, tokenizers y modelo int8 (${formatBytes(BUNDLE_BYTES)})`,
-    required: true
+    label: 'Laya',
+    hint: `decisión local · ONNX Runtime, tokenizers y modelo int8 (${formatBytes(BUNDLE_BYTES)})`
   },
   {
     id: 'vite-plus',
     components: ['vite-plus'],
-    label: '⚡ Vite-Plus',
-    hint: 'vp check y vp test',
-    required: true
+    label: 'Vite-Plus',
+    hint: 'vp check y vp test'
   },
   {
     id: 'graphify',
     components: ['graphify'],
-    label: '📊 Graphify',
-    hint: 'grafo AST del repositorio · instala uv si falta',
-    required: true
+    label: 'Graphify',
+    hint: 'grafo AST del repositorio · instala uv si falta'
   },
   {
     id: 'skills',
     components: ['skills'],
-    label: '🧩 Skills',
-    hint: `${SKILLS.length} skills del proyecto y sus enlaces globales`,
-    required: true
+    label: 'Skills',
+    hint: `${SKILLS.length} skills del proyecto y sus enlaces globales`
   },
   {
     id: 'orchestrator',
     components: ['agent'],
-    label: '🧭 Orquestador',
-    hint: 'agente alvaress en OpenCode',
-    required: true
+    label: 'Orquestador',
+    hint: 'agente alvaress en OpenCode'
   },
   {
     id: 'subagents',
     components: ['agent'],
-    label: '🤖 Subagentes',
-    hint: SUBAGENT_ROLES,
-    required: true
+    label: 'Subagentes',
+    hint: SUBAGENT_ROLES
   }
 ];
 
@@ -187,7 +180,7 @@ export async function runInstall(
     );
   }
 
-  const selected = await pickComponents(yes);
+  const selected = pickComponents(yes);
 
   const vaultPath = await configureVault(config.vaultPath, yes);
   if (vaultPath !== config.vaultPath) {
@@ -519,36 +512,15 @@ function componentsFor(ids: readonly ChecklistId[]): Set<Component> {
   return new Set([...components, ...IMPLICIT_COMPONENTS]);
 }
 
-function requiredChecklistIds(): ChecklistId[] {
-  return CHECKLIST.filter((entry) => entry.required).map((entry) => entry.id);
-}
-
-async function pickComponents(yes: boolean): Promise<Set<Component>> {
-  const defaults = requiredChecklistIds();
-
-  if (yes) {
-    return componentsFor(defaults);
+function pickComponents(yes: boolean): Set<Component> {
+  if (!yes) {
+    p.note(
+      CHECKLIST.map((entry) => `${entry.label} · ${entry.hint}`).join('\n'),
+      'Dependencias que se instalan:'
+    );
   }
 
-  const answer = unwrap(
-    await p.multiselect<ChecklistId>({
-      message: 'Componentes a instalar · los obligatorios no se pueden desmarcar',
-      options: CHECKLIST.map((entry) => ({
-        value: entry.id,
-        label: entry.label,
-        hint: entry.required ? `${entry.hint} · obligatorio` : entry.hint
-      })),
-      initialValues: defaults,
-      required: true
-    })
-  );
-
-  const restored = CHECKLIST.filter((entry) => entry.required && !answer.includes(entry.id));
-  if (restored.length > 0) {
-    p.log.warn(`Obligatorios restaurados: ${restored.map((entry) => entry.label).join(', ')}.`);
-  }
-
-  return componentsFor([...answer, ...restored.map((entry) => entry.id)]);
+  return componentsFor(CHECKLIST.map((entry) => entry.id));
 }
 
 function planNodeDependencies(
